@@ -396,7 +396,6 @@
 "Total Updates" = "Total Updates";
 "No development tracking" = "No development tracking";
 "criteria" = "criteria";
-
 "Academic Average" = "Academic Average";
 "Development Areas" = "Development Areas";
 "Development Area" = "Development Area";
@@ -514,6 +513,7 @@
 "e.g., English, Math, Science" = "e.g., English, Math, Science";
 "Create Template" = "Create Template";
 "Create" = "Create";
+
 
 /* Primary English Template */
 "Primary English Language (Years 1-3)" = "Primary English Language (Years 1-3)";
@@ -973,7 +973,6 @@
 "Mark as Used" = "Mark as Used";
 "Skip (Student Absent)" = "Skip (Student Absent)";
 
-
 // Rotation Fix - I did it myself!! Let's see if it will work
 "%@ Rotation" = "%@ Rotation";
 "Fair rotation - everyone gets a turn!" = "Fair rotation - everyone gets a turn!";
@@ -985,125 +984,3 @@
 "Pick Next %@" = "Pick Next %@";
 "Already Used" = "Already Used";
 "%@ left" = "%@ left";
-
-// MARK: - Backup/Restore Additional
-"Backup Failed" = "Backup Failed";
-"Backup Saved Successfully!" = "Backup Saved Successfully!";
-"Choose a backup file to restore" = "Choose a backup file to restore";
-"Choose where to save your backup file" = "Choose where to save your backup file";
-"Could not access the selected file." = "Could not access the selected file.";
-"Restore Completed Successfully!" = "Restore Completed Successfully!";
-"Restore Failed" = "Restore Failed";
-"Save Backup" = "Save Backup";
-"Select Backup File" = "Select Backup File";
-"Show in Finder" = "Show in Finder";
-"Your data has been restored from the backup." = "Your data has been restored from the backup.";
-"Your data has been safely backed up." = "Your data has been safely backed up.";
-"All classes, students, grades, and attendance records have been updated." = "All classes, students, grades, and attendance records have been updated.";
-"This will replace ALL current data with the backup. This cannot be undone!" = "This will replace ALL current data with the backup. This cannot be undone!";
-"Access Denied" = "Access Denied";
-"Location:" = "Location:";
-
-// MARK: - Student Separations
-"Student Separations" = "Student Separations";
-"Tap any indicator to toggle it on or off" = "Tap any indicator to toggle it on or off";
-
-// MARK: - Group Generator
-"Random Group Generator" = "Random Group Generator";
-"Create random student groups for activities" = "Create random student groups for activities";
-"Click 'Generate Groups' to create random student groups" = "Click 'Generate Groups' to create random student groups";
-
-// MARK: - Score & Criteria
-"Set Score" = "Set Score";
-"No criteria yet." = "No criteria yet.";
-"Enter the name of the new criterion." = "Enter the name of the new criterion.";
-
-// MARK: - Class Categories
-"This will remove this category and all associated scores from students." = "This will remove this category and all associated scores from students.";
-"Organize grades into categories like Tests, Homework, and Participation" = "Organize grades into categories like Tests, Homework, and Participation";
-"No Categories Yet" = "No Categories Yet";
-"Add categories to organize your grades" = "Add categories to organize your grades";
-"Current Categories" = "Current Categories";
-"Add New Category" = "Add New Category";
-"Common categories: Tests, Quizzes, Homework, Projects, Participation, Classwork" = "Common categories: Tests, Quizzes, Homework, Projects, Participation, Classwork";
-"Grades" = "Grades";
-
-// MARK: - Timer
-"TIME'S UP!" = "TIME'S UP!";
-"Dismiss" = "Dismiss";
-"Timer Running" = "Timer Running";
-"Stop" = "Stop";
-"⏰ Timer has finished ⏰" = "⏰ Timer has finished ⏰";
-
-// MARK: - Development Tracker
-"Rate development criteria below" = "Rate development criteria below";
-"Rubric Template" = "Rubric Template";
-"Tap a star to rate" = "Tap a star to rate";
-"Notes (Optional)" = "Notes (Optional)";
-"No Rubric Templates" = "No Rubric Templates";
-"Please create rubric templates first" = "Please create rubric templates first";
-
-// MARK: - Localization Demo
-"Switch Language" = "Switch Language";
-"Example Translations" = "Example Translations";
-"Status Examples" = "Status Examples";
-"Action Buttons" = "Action Buttons";
-"Localization Demo" = "Localization Demo";
-
-// MARK: - Debug View
-"Current Language:" = "Current Language:";
-"Bundle Check:" = "Bundle Check:";
-"Test Translations:" = "Test Translations:";
-
-// MARK: - Student Progress View extras
-"Current Reading Level" = "Current Reading Level";
-"Units" = "Units";
-"Assessment scores will be initialized to 0" = "Assessment scores will be initialized to 0";
-
-// MARK: - PDF Tag Sheet
-"Link to Curriculum" = "Link to Curriculum";
-"Organize your PDF by subject and unit for easy access" = "Organize your PDF by subject and unit for easy access";
-"None" = "None";
-"Optional - Select a subject to organize this PDF" = "Optional - Select a subject to organize this PDF";
-"No units available" = "No units available";
-"Create units in this subject first" = "Create units in this subject first";
-"Optional - Select a specific unit within the subject" = "Optional - Select a specific unit within the subject";
-"Summary" = "Summary";
-"Not linked" = "Not linked";
-"This PDF will only be in the folder" = "This PDF will only be in the folder";
-
-// MARK: - Running Records
-"New Running Record" = "New Running Record";
-"Record reading assessment data" = "Record reading assessment data";
-"Symbol Guide" = "Symbol Guide";
-"Total Words" = "Total Words";
-"Errors" = "Errors";
-"Self-Corrections (SC)" = "Self-Corrections (SC)";
-"Results" = "Results";
-"Accuracy:" = "Accuracy:";
-"Self-Correction Ratio:" = "Self-Correction Ratio:";
-"Running Record Symbols" = "Running Record Symbols";
-"Quick reference guide for assessment" = "Quick reference guide for assessment";
-"Error Analysis: The 3 Cueing Systems" = "Error Analysis: The 3 Cueing Systems";
-"Reading Levels" = "Reading Levels";
-"Accuracy" = "Accuracy";
-"Reading Level" = "Reading Level";
-"Are you sure you want to delete this running record? This action cannot be undone." = "Are you sure you want to delete this running record? This action cannot be undone.";
-"No Running Records Yet" = "No Running Records Yet";
-"Start assessing your students' reading by creating your first running record" = "Start assessing your students' reading by creating your first running record";
-"Create First Record" = "Create First Record";
-"Unknown Student" = "Unknown Student";
-
-// MARK: - Library
-"Select" = "Select";
-"The selected PDF exceeds the maximum allowed file size of 100 MB." = "The selected PDF exceeds the maximum allowed file size of 100 MB.";
-"Drop here" = "Drop here";
-"Choose Folder Color" = "Choose Folder Color";
-"Reset to Default" = "Reset to Default";
-"Folder" = "Folder";
-"Open PDF" = "Open PDF";
-
-// MARK: - Miscellaneous
-"Loading..." = "Loading...";
-"Add Custom" = "Add Custom";
-"Add First" = "Add First";

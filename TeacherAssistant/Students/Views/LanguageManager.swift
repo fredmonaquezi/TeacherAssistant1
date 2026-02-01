@@ -1,0 +1,55 @@
+import SwiftUI
+import Combine
+
+/// Manages the app's display language
+class LanguageManager: ObservableObject {
+    
+    enum Language: String, CaseIterable {
+        case english = "en"
+        case portuguese = "pt"
+        
+        var displayName: String {
+            switch self {
+            case .english: return "English"
+            case .portuguese: return "Português"
+            }
+        }
+        
+        var flag: String {
+            switch self {
+            case .english: return "🇺🇸"
+            case .portuguese: return "🇧🇷"
+            }
+        }
+    }
+    
+    @Published var currentLanguage: Language {
+        didSet {
+            UserDefaults.standard.set(currentLanguage.rawValue, forKey: "appLanguage")
+            // Force UI refresh
+            objectWillChange.send()
+        }
+    }
+    
+    init() {
+        // Load saved language preference
+        let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? Language.english.rawValue
+        self.currentLanguage = Language(rawValue: savedLanguage) ?? .english
+    }
+    
+    func toggleLanguage() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            currentLanguage = (currentLanguage == .english) ? .portuguese : .english
+        }
+    }
+    
+    /// Get localized string for current language
+    func localized(_ key: String) -> String {
+        guard let path = Bundle.main.path(forResource: currentLanguage.rawValue, ofType: "lproj"),
+              let bundle = Bundle(path: path) else {
+            return NSLocalizedString(key, comment: "")
+        }
+        return NSLocalizedString(key, bundle: bundle, comment: "")
+    }
+}
+
