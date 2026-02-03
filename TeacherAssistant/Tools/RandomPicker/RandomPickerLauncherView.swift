@@ -96,6 +96,10 @@ struct RandomPickerLauncherView: View {
         category.localized
     }
     
+    var localizedSelectedCategory: String {
+        languageManager.localized(selectedCategory)
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -255,7 +259,7 @@ struct RandomPickerLauncherView: View {
                     .fontWeight(isSelected ? .semibold : .regular)
                 
                 if isSelected {
-                    Text("\(availableStudents.count) left")
+                    Text(String(format: languageManager.localized("%d left"), availableStudents.count))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -280,7 +284,7 @@ struct RandomPickerLauncherView: View {
             HStack {
                 Image(systemName: categoryIcon)
                     .foregroundColor(categoryColor)
-                Text("\(selectedCategory) Rotation")
+                Text(String(format: languageManager.localized("%@ Rotation"), localizedSelectedCategory))
                     .font(.headline)
                 Spacer()
             }
@@ -299,6 +303,25 @@ struct RandomPickerLauncherView: View {
                 statBox(title: "Total".localized, count: schoolClass.students.count, icon: "person.3.fill", color: categoryColor)
             }
             .padding(.horizontal)
+
+            if !usedStudents.isEmpty {
+                Button {
+                    updateRotationData("")
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Clear used students".localized)
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.12))
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal)
+            }
             
             // Spinner
             ZStack {
@@ -326,7 +349,10 @@ struct RandomPickerLauncherView: View {
             // Pick or Reset Button
             if availableStudents.isEmpty && !schoolClass.students.isEmpty {
                 VStack(spacing: 16) {
-                    Text("🎉 Everyone has been the \(selectedCategory.lowercased())!")
+                    Text(String(
+                        format: languageManager.localized("Everyone has been the %@!"),
+                        localizedSelectedCategory.lowercased()
+                    ))
                         .font(.title3)
                         .fontWeight(.semibold)
                         .multilineTextAlignment(.center)
@@ -355,7 +381,7 @@ struct RandomPickerLauncherView: View {
                 } label: {
                     HStack {
                         Image(systemName: "sparkles")
-                        Text("Pick Next \(selectedCategory)")
+                        Text(String(format: languageManager.localized("Pick Next %@"), localizedSelectedCategory))
                     }
                     .font(.headline)
                     .foregroundColor(.white)
@@ -409,7 +435,7 @@ struct RandomPickerLauncherView: View {
     
     func studentList(title: String, students: [Student], color: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("\(title) (\(students.count))")
+            Text(String(format: languageManager.localized("%@ (%d)"), title, students.count))
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
@@ -658,4 +684,3 @@ struct WrappingHStack: Layout {
         return (CGSize(width: maxWidth, height: currentY + lineHeight), frames)
     }
 }
-

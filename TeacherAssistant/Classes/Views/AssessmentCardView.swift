@@ -4,6 +4,8 @@ struct AssessmentCardView: View {
     let assessment: Assessment
     let onDelete: () -> Void
     
+    @EnvironmentObject var languageManager: LanguageManager
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
@@ -31,7 +33,7 @@ struct AssessmentCardView: View {
                         .foregroundColor(.red)
                 }
                 .buttonStyle(.plain)
-                .help("Delete assessment")
+                .help(languageManager.localized("Delete assessment"))
             }
             
             Divider()

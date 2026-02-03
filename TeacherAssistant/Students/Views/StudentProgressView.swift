@@ -479,7 +479,7 @@ struct StudentProgressView: View {
                 context.beginPage()
                 currentY = 50
                 
-                "Development Tracking".draw(at: CGPoint(x: 50, y: currentY), withAttributes: titleAttributes)
+                "Development Tracking".localized.draw(at: CGPoint(x: 50, y: currentY), withAttributes: titleAttributes)
                 currentY += 40
                 
                 context.cgContext.setStrokeColor(UIColor.systemGray3.cgColor)
@@ -492,11 +492,11 @@ struct StudentProgressView: View {
                 let grouped = self.groupedDevelopmentScores()
                 
                 for group in grouped {
-                    group.category.draw(at: CGPoint(x: 50, y: currentY), withAttributes: sectionAttrs)
+                    displayRubricText(group.category).draw(at: CGPoint(x: 50, y: currentY), withAttributes: sectionAttrs)
                     currentY += 25
                     
                     for score in group.scores {
-                        let criterionName = score.criterion?.name ?? "Unknown"
+                        let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
                         let stars = String(repeating: "★", count: score.rating) + String(repeating: "☆", count: 5 - score.rating)
                         
                         criterionName.draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
@@ -508,7 +508,7 @@ struct StudentProgressView: View {
                         if currentY > pageRect.height - 150 {
                             context.beginPage()
                             currentY = 50
-                            "Development Tracking (continued)".draw(at: CGPoint(x: 50, y: currentY), withAttributes: titleAttributes)
+                            "Development Tracking (continued)".localized.draw(at: CGPoint(x: 50, y: currentY), withAttributes: titleAttributes)
                             currentY += 60
                         }
                     }
@@ -636,11 +636,11 @@ struct StudentProgressView: View {
             case .development:
                 let grouped = groupedDevelopmentScores()
                 for group in grouped {
-                    group.category.draw(at: CGPoint(x: 50, y: currentY), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 16), .foregroundColor: UIColor.black])
+                    displayRubricText(group.category).draw(at: CGPoint(x: 50, y: currentY), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 16), .foregroundColor: UIColor.black])
                     currentY += 25
                     
                     for score in group.scores {
-                        let criterionName = score.criterion?.name ?? "Unknown"
+                        let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
                         criterionName.draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
                         currentY += 20
                         let stars = String(repeating: "★", count: score.rating)
@@ -899,7 +899,7 @@ struct StudentProgressView: View {
         let bodyFont = UIFont.systemFont(ofSize: 14)
         let captionFont = UIFont.systemFont(ofSize: 12)
         
-        ("Development Tracking" as NSString).draw(
+        ("Development Tracking".localized as NSString).draw(
             at: CGPoint(x: margin, y: currentY),
             withAttributes: [.font: sectionFont, .foregroundColor: UIColor.black]
         )
@@ -908,14 +908,14 @@ struct StudentProgressView: View {
         let grouped = groupedDevelopmentScores()
         
         for group in grouped {
-            (group.category as NSString).draw(
+            (displayRubricText(group.category) as NSString).draw(
                 at: CGPoint(x: margin, y: currentY),
                 withAttributes: [.font: UIFont.boldSystemFont(ofSize: 14), .foregroundColor: UIColor.systemPink]
             )
             currentY += 25
             
             for score in group.scores {
-                let criterionName = score.criterion?.name ?? "Unknown"
+                let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
                 let stars = String(repeating: "★", count: score.rating) + String(repeating: "☆", count: 5 - score.rating)
                 
                 (criterionName as NSString).draw(
@@ -933,7 +933,7 @@ struct StudentProgressView: View {
                 if currentY > pageRect.height - 150 {
                     context.beginPage()
                     currentY = 50
-                    drawPDFHeader(context: context, pageRect: pageRect, title: "Development Tracking (cont.)")
+                    drawPDFHeader(context: context, pageRect: pageRect, title: "Development Tracking (cont.)".localized)
                     currentY = 120
                 }
             }
@@ -1130,11 +1130,11 @@ struct StudentProgressView: View {
         case "development":
             let grouped = groupedDevelopmentScores()
             for group in grouped.prefix(5) {
-                group.category.draw(at: CGPoint(x: margin, y: currentY), withAttributes: nameAttrs as [NSAttributedString.Key : Any])
+                displayRubricText(group.category).draw(at: CGPoint(x: margin, y: currentY), withAttributes: nameAttrs as [NSAttributedString.Key : Any])
                 currentY += 20
                 
                 for score in group.scores.prefix(10) {
-                    let criterionName = score.criterion?.name ?? "Unknown"
+                    let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
                     let stars = String(repeating: "★", count: score.rating)
                     criterionName.draw(at: CGPoint(x: margin + 20, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
                     currentY += 18
@@ -1468,19 +1468,19 @@ struct StudentProgressView: View {
         let bodyAttributes: [NSAttributedString.Key: Any] = [.font: bodyFont, .foregroundColor: NSColor(calibratedWhite: 0.0, alpha: 1.0)]
         let captionAttributes: [NSAttributedString.Key: Any] = [.font: captionFont, .foregroundColor: NSColor(calibratedWhite: 0.5, alpha: 1.0)]
         
-        NSAttributedString(string: "Development Tracking", attributes: sectionAttributes)
+        NSAttributedString(string: "Development Tracking".localized, attributes: sectionAttributes)
             .draw(at: CGPoint(x: margin, y: currentY))
         currentY += 30
         
         let grouped = groupedDevelopmentScores()
         
         for group in grouped {
-            NSAttributedString(string: group.category, attributes: [.font: NSFont.boldSystemFont(ofSize: 14), .foregroundColor: NSColor(red: 1.0, green: 0.4, blue: 0.7, alpha: 1.0)])
+            NSAttributedString(string: displayRubricText(group.category), attributes: [.font: NSFont.boldSystemFont(ofSize: 14), .foregroundColor: NSColor(red: 1.0, green: 0.4, blue: 0.7, alpha: 1.0)])
                 .draw(at: CGPoint(x: margin, y: currentY))
             currentY += 25
             
             for score in group.scores {
-                let criterionName = score.criterion?.name ?? "Unknown"
+                let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
                 let stars = String(repeating: "★", count: score.rating) + String(repeating: "☆", count: 5 - score.rating)
                 
                 NSAttributedString(string: criterionName, attributes: bodyAttributes)
@@ -2199,10 +2199,10 @@ struct StudentProgressView: View {
     
     var developmentTab: some View {
         VStack(spacing: 20) {
-            sectionHeader(title: "Development Tracking", icon: "star.fill", color: .pink)
+            sectionHeader(title: "Development Tracking".localized, icon: "star.fill", color: .pink)
             
             if studentDevelopmentScores.isEmpty {
-                emptyState(icon: "star.circle", message: "No development tracking yet")
+                emptyState(icon: "star.circle", message: "No development tracking yet".localized)
             } else {
                 // Summary
                 HStack(spacing: 16) {
@@ -2242,10 +2242,18 @@ struct StudentProgressView: View {
         return grouped.map { (category: $0.key, scores: $0.value) }
             .sorted { $0.category < $1.category }
     }
+
+    func displayRubricText(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return value }
+        let localized = languageManager.localized(trimmed)
+        if localized != trimmed { return localized }
+        return RubricLocalization.localized(trimmed, languageCode: languageManager.currentLanguage.rawValue)
+    }
     
     func developmentCategorySection(category: String, scores: [DevelopmentScore]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(category)
+            Text(displayRubricText(category))
                 .font(.headline)
                 .foregroundColor(.pink)
             
@@ -2261,7 +2269,7 @@ struct StudentProgressView: View {
     func developmentScoreCard(_ score: DevelopmentScore) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(score.criterion?.name ?? "Unknown")
+                Text(displayRubricText(score.criterion?.name ?? "Unknown"))
                     .font(.subheadline)
                     .fontWeight(.medium)
                 
@@ -2454,4 +2462,3 @@ struct StudentProgressView: View {
         #endif
     }
 }
-

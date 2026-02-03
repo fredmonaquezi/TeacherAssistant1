@@ -81,9 +81,21 @@
 
 // MARK: - Development Tracking
 "Development Tracking" = "Acompanhamento de Desenvolvimento";
+"Rate development criteria below" = "Avalie os critérios de desenvolvimento abaixo";
 "No development tracking yet" = "Ainda não há acompanhamento de desenvolvimento";
 "Start Tracking" = "Iniciar Acompanhamento";
 "Update" = "Atualizar";
+"Template" = "Modelo";
+"Needs Significant Support" = "Precisa de muito apoio";
+"Beginning to Develop" = "Começando a desenvolver";
+"Developing" = "Em desenvolvimento";
+"Proficient" = "Proficiente";
+"Mastering / Exceeding" = "Domínio / Superando";
+"Not Rated" = "Sem avaliação";
+"Unknown" = "Desconhecido";
+"Other" = "Outro";
+"Development Tracking (continued)" = "Acompanhamento de Desenvolvimento (continuação)";
+"Development Tracking (cont.)" = "Acompanhamento de Desenvolvimento (cont.)";
 
 // MARK: - Running Records
 "No running records yet" = "Ainda não há registros de leitura";
@@ -258,6 +270,7 @@
 "Selected Student" = "Aluno Selecionado";
 "Student Info" = "Informações do Aluno";
 "Pick Again" = "Escolher Novamente";
+"Clear used students" = "Limpar alunos já escolhidos";
 
 // AdvancedGroupGeneratorView
 "Group Generator" = "Gerador de Grupos";
@@ -956,3 +969,16 @@
 "Pick Next %@" = "Escolher o próximo %@";
 "Already Used" = "Já Usado";
 "%@ left" = "%@ restantes";
+
+// MARK: - Library Context Menu
+"Folder name" = "Nome da pasta";
+"File name" = "Nome do arquivo";
+"Rename" = "Renomear";
+"Change Color" = "Alterar Cor";
+"Duplicate" = "Duplicar";
+"Get Info" = "Obter Informações";
+"Edit Tags" = "Editar Etiquetas";
+"Delete Folder?" = "Excluir Pasta?";
+"Delete PDF?" = "Excluir PDF?";
+"Are you sure you want to delete \"%@\" and all its contents? This action cannot be undone." = "Tem certeza de que deseja excluir \"%@\" e todo o seu conteúdo? Esta ação não pode ser desfeita.";
+"Are you sure you want to delete \"%@\"? This action cannot be undone." = "Tem certeza de que deseja excluir \"%@\"? Esta ação não pode ser desfeita.";

@@ -27,12 +27,12 @@ class DevelopmentScore {
 extension DevelopmentScore {
     var ratingLabel: String {
         switch rating {
-        case 1: return "Needs Significant Support"
-        case 2: return "Beginning to Develop"
-        case 3: return "Developing"
-        case 4: return "Proficient"
-        case 5: return "Mastering / Exceeding"
-        default: return "Not Rated"
+        case 1: return "Needs Significant Support".localized
+        case 2: return "Beginning to Develop".localized
+        case 3: return "Developing".localized
+        case 4: return "Proficient".localized
+        case 5: return "Mastering / Exceeding".localized
+        default: return "Not Rated".localized
         }
     }
     

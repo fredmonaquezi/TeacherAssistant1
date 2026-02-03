@@ -83,9 +83,21 @@
 
 // MARK: - Development Tracking
 "Development Tracking" = "Development Tracking";
+"Rate development criteria below" = "Rate development criteria below";
 "No development tracking yet" = "No development tracking yet";
 "Start Tracking" = "Start Tracking";
 "Update" = "Update";
+"Template" = "Template";
+"Needs Significant Support" = "Needs Significant Support";
+"Beginning to Develop" = "Beginning to Develop";
+"Developing" = "Developing";
+"Proficient" = "Proficient";
+"Mastering / Exceeding" = "Mastering / Exceeding";
+"Not Rated" = "Not Rated";
+"Unknown" = "Unknown";
+"Other" = "Other";
+"Development Tracking (continued)" = "Development Tracking (continued)";
+"Development Tracking (cont.)" = "Development Tracking (cont.)";
 
 // MARK: - Running Records
 "Running Records" = "Running Records";
@@ -263,6 +275,7 @@
 "Selected Student" = "Selected Student";
 "Student Info" = "Student Info";
 "Pick Again" = "Pick Again";
+"Clear used students" = "Clear used students";
 
 // MARK: - AdvancedGroupGeneratorView
 "Separations" = "Separations";
@@ -984,3 +997,16 @@
 "Pick Next %@" = "Pick Next %@";
 "Already Used" = "Already Used";
 "%@ left" = "%@ left";
+
+// MARK: - Library Context Menu
+"Folder name" = "Folder name";
+"File name" = "File name";
+"Rename" = "Rename";
+"Change Color" = "Change Color";
+"Duplicate" = "Duplicate";
+"Get Info" = "Get Info";
+"Edit Tags" = "Edit Tags";
+"Delete Folder?" = "Delete Folder?";
+"Delete PDF?" = "Delete PDF?";
+"Are you sure you want to delete \"%@\" and all its contents? This action cannot be undone." = "Are you sure you want to delete \"%@\" and all its contents? This action cannot be undone.";
+"Are you sure you want to delete \"%@\"? This action cannot be undone." = "Are you sure you want to delete \"%@\"? This action cannot be undone.";

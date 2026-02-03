@@ -324,12 +324,15 @@ enum StudentReportExporter {
             drawText(schoolName, fontSize: 16, bold: true)
         }
         
-        drawText("Student Progress Report", fontSize: 28, bold: true)
-        drawText("Student: \(student.name)", fontSize: 20, bold: true)
+        drawText("Student Progress Report".localized, fontSize: 28, bold: true)
+        drawText(String(format: "Student: %@".localized, student.name), fontSize: 20, bold: true)
         
         let dateFormatter = DateFormatter()
         dateFormatter.dateStyle = .medium
-        drawText("Date: \(dateFormatter.string(from: Date()))", fontSize: 12)
+        drawText(
+            String(format: "Date: %@".localized, dateFormatter.string(from: Date())),
+            fontSize: 12
+        )
         
         y -= 20
         
@@ -344,11 +347,11 @@ enum StudentReportExporter {
         let early = recordsForStudent.filter { $0.status == .late }.count
         let percentage = total > 0 ? Int((Double(present) / Double(total)) * 100) : 0
         
-        drawText("Attendance", fontSize: 20, bold: true)
-        drawText("Total sessions: \(total)", fontSize: 14)
-        drawText("Present: \(present) (\(percentage)%)", fontSize: 14)
-        drawText("Absent: \(absent)", fontSize: 14)
-        drawText("Late: \(early)", fontSize: 14)
+        drawText("Attendance".localized, fontSize: 20, bold: true)
+        drawText(String(format: "Total sessions: %d".localized, total), fontSize: 14)
+        drawText(String(format: "Present: %d (%d%%)".localized, present, percentage), fontSize: 14)
+        drawText(String(format: "Absent: %d".localized, absent), fontSize: 14)
+        drawText(String(format: "Late: %d".localized, early), fontSize: 14)
         
         y -= 20
         
@@ -356,9 +359,9 @@ enum StudentReportExporter {
         let resultsForStudent = allResults.filter { $0.student?.id == student.id }
         let average = resultsForStudent.averageScore
         
-        drawText("Academic Progress", fontSize: 20, bold: true)
-        drawText("Overall Average: \(String(format: "%.1f", average))", fontSize: 14)
-        drawText("Total Assessments: \(resultsForStudent.count)", fontSize: 14)
+        drawText("Academic Progress".localized, fontSize: 20, bold: true)
+        drawText(String(format: "Overall Average: %.1f".localized, average), fontSize: 14)
+        drawText(String(format: "Total Assessments: %d".localized, resultsForStudent.count), fontSize: 14)
         
         y -= 10
         
@@ -371,7 +374,7 @@ enum StudentReportExporter {
             }
             let subjectAvg = subjectResults.averageScore
             
-            drawText("\(subject.name): \(String(format: "%.1f", subjectAvg))", fontSize: 14, bold: true)
+            drawText(String(format: "%@: %.1f".localized, subject.name, subjectAvg), fontSize: 14, bold: true)
             
             if y < 100 { break } // Don't overflow page
         }

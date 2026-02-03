@@ -6,13 +6,17 @@ class LanguageManager: ObservableObject {
     
     enum Language: String, CaseIterable {
         case english = "en"
-        case portuguese = "pt"
+        case portuguese = "pt-BR"
         
         var displayName: String {
             switch self {
             case .english: return "English"
             case .portuguese: return "Português"
             }
+        }
+
+        var localeIdentifier: String {
+            rawValue
         }
         
         var flag: String {
@@ -34,7 +38,8 @@ class LanguageManager: ObservableObject {
     init() {
         // Load saved language preference
         let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? Language.english.rawValue
-        self.currentLanguage = Language(rawValue: savedLanguage) ?? .english
+        let normalized = savedLanguage == "pt" ? Language.portuguese.rawValue : savedLanguage
+        self.currentLanguage = Language(rawValue: normalized) ?? .english
     }
     
     func toggleLanguage() {
@@ -52,4 +57,3 @@ class LanguageManager: ObservableObject {
         return NSLocalizedString(key, bundle: bundle, comment: "")
     }
 }
-

@@ -96,16 +96,16 @@ struct RubricTemplateEditorView: View {
                 .foregroundColor(subjectColor(template.subject))
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(template.subject.localized)
+                Text(displayText(for: template.subject))
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(subjectColor(template.subject))
                 
-                Text(template.name.localized)
+                Text(displayText(for: template.name))
                     .font(.title2)
                     .fontWeight(.bold)
                 
-                Text(template.gradeLevel.localized)
+                Text(displayText(for: template.gradeLevel))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -215,13 +215,13 @@ struct RubricTemplateEditorView: View {
                 Image(systemName: "folder.fill")
                     .foregroundColor(.purple)
                 
-                Text(category.name)
+                Text(displayText(for: category.name))
                     .font(.title3)
                     .fontWeight(.semibold)
                 
                 Spacer()
                 
-                Text("\(category.criteria.count) criteria")
+                Text(String(format: languageManager.localized("%d criteria"), category.criteria.count))
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
@@ -286,12 +286,12 @@ struct RubricTemplateEditorView: View {
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(criterion.name)
+                    Text(displayText(for: criterion.name))
                         .font(.body)
                         .foregroundColor(.primary)
                     
                     if !criterion.details.isEmpty {
-                        Text(criterion.details)
+                        Text(displayText(for: criterion.details))
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
@@ -331,9 +331,9 @@ struct RubricTemplateEditorView: View {
     // MARK: - Helpers
     
     func subjectIcon(_ subject: String) -> String {
-        switch subject.lowercased() {
+        switch normalizeSubject(subject) {
         case "english": return "book.fill"
-        case "math", "mathematics": return "function"
+        case "math": return "function"
         case "science": return "atom"
         case "general": return "star.fill"
         default: return "doc.fill"
@@ -341,12 +341,26 @@ struct RubricTemplateEditorView: View {
     }
     
     func subjectColor(_ subject: String) -> Color {
-        switch subject.lowercased() {
+        switch normalizeSubject(subject) {
         case "english": return .blue
-        case "math", "mathematics": return .green
+        case "math": return .green
         case "science": return .orange
         case "general": return .purple
         default: return .gray
+        }
+    }
+    
+    func normalizeSubject(_ subject: String) -> String {
+        let normalized = subject
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        
+        switch normalized {
+        case "english", "inglês", "ingles": return "english"
+        case "math", "mathematics", "matemática", "matematica": return "math"
+        case "science", "ciência", "ciencia", "ciências", "ciencias": return "science"
+        case "general", "geral": return "general"
+        default: return normalized
         }
     }
     
@@ -356,6 +370,14 @@ struct RubricTemplateEditorView: View {
         #else
         return Color(UIColor.secondarySystemBackground)
         #endif
+    }
+    
+    func displayText(for value: String) -> String {
+        let localized = languageManager.localized(value)
+        if localized != value {
+            return localized
+        }
+        return RubricLocalization.localized(value, languageCode: languageManager.currentLanguage.rawValue)
     }
 }
 
@@ -477,6 +499,14 @@ struct AddCriterionSheet: View {
     @State private var criterionName = ""
     @State private var criterionDetails = ""
     
+    func displayText(for value: String) -> String {
+        let localized = languageManager.localized(value)
+        if localized != value {
+            return localized
+        }
+        return RubricLocalization.localized(value, languageCode: languageManager.currentLanguage.rawValue)
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -492,7 +522,10 @@ struct AddCriterionSheet: View {
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        Text(String(format:"Add a new skill to track in %@".localized, category.name))
+                        Text(String(
+                            format: "Add a new skill to track in %@".localized,
+                            displayText(for: category.name)
+                        ))
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -727,10 +760,14 @@ struct CreateNewTemplateSheet: View {
     }
     
     func createTemplate() {
+        let trimmedName = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGrade = gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        
         let template = RubricTemplate(
-            name: templateName,
-            gradeLevel: gradeLevel,
-            subject: subject
+            name: trimmedName,
+            gradeLevel: trimmedGrade,
+            subject: trimmedSubject
         )
         context.insert(template)
         try? context.save()

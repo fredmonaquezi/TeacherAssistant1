@@ -51,7 +51,7 @@ struct LanguageToggleButton: View {
         .padding(2)
         .background(Color.gray.opacity(0.1))
         .cornerRadius(6)
-        .help("Switch Language / Trocar Idioma")
+        .help(languageManager.localized("Switch Language / Trocar Idioma"))
     }
 }
 

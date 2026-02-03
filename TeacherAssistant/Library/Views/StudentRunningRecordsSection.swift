@@ -4,6 +4,7 @@ import Charts
 struct StudentRunningRecordsSection: View {
     let student: Student
     @State private var showingAllRecords = false
+    @EnvironmentObject var languageManager: LanguageManager
     
     var sortedRecords: [RunningRecord] {
         student.runningRecords.sorted { $0.date > $1.date }
@@ -27,7 +28,7 @@ struct StudentRunningRecordsSection: View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
             HStack {
-                Label("Running Records", systemImage: "doc.text.magnifyingglass")
+                Label(languageManager.localized("Running Records"), systemImage: "doc.text.magnifyingglass")
                     .font(.title3)
                     .fontWeight(.semibold)
                 
@@ -38,7 +39,7 @@ struct StudentRunningRecordsSection: View {
                         showingAllRecords = true
                     } label: {
                         HStack(spacing: 4) {
-                            Text("View All")
+                            Text(languageManager.localized("View All"))
                             Image(systemName: "chevron.right")
                                 .font(.caption)
                         }
@@ -55,7 +56,7 @@ struct StudentRunningRecordsSection: View {
                         .font(.system(size: 40))
                         .foregroundColor(.secondary)
                     
-                    Text("No running records yet")
+                    Text(languageManager.localized("No running records yet"))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -67,20 +68,20 @@ struct StudentRunningRecordsSection: View {
                 // Stats
                 HStack(spacing: 12) {
                     statMiniBox(
-                        title: "Total",
+                        title: languageManager.localized("Total"),
                         value: "\(student.runningRecords.count)",
                         color: .blue
                     )
                     
                     statMiniBox(
-                        title: "Avg. Accuracy",
+                        title: languageManager.localized("Avg. Accuracy"),
                         value: String(format: "%.1f%%", averageAccuracy),
                         color: .green
                     )
                     
                     if let level = latestLevel {
                         statMiniBox(
-                            title: "Latest",
+                            title: languageManager.localized("Latest"),
                             value: levelShortName(level),
                             color: levelColor(level)
                         )
@@ -139,7 +140,7 @@ struct StudentRunningRecordsSection: View {
     
     var progressChart: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Progress Over Time")
+            Text(languageManager.localized("Progress Over Time"))
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
@@ -147,25 +148,25 @@ struct StudentRunningRecordsSection: View {
             Chart {
                 ForEach(sortedRecords.reversed(), id: \.id) { record in
                     LineMark(
-                        x: .value("Date", record.date),
-                        y: .value("Accuracy", record.accuracy)
+                        x: .value(languageManager.localized("Date"), record.date),
+                        y: .value(languageManager.localized("Accuracy"), record.accuracy)
                     )
                     .foregroundStyle(.blue)
                     .symbol(.circle)
                     
                     PointMark(
-                        x: .value("Date", record.date),
-                        y: .value("Accuracy", record.accuracy)
+                        x: .value(languageManager.localized("Date"), record.date),
+                        y: .value(languageManager.localized("Accuracy"), record.accuracy)
                     )
                     .foregroundStyle(.blue)
                 }
                 
                 // Reference lines
-                RuleMark(y: .value("Independent", 95))
+                RuleMark(y: .value(languageManager.localized("Independent"), 95))
                     .foregroundStyle(.green.opacity(0.3))
                     .lineStyle(StrokeStyle(dash: [5, 5]))
                 
-                RuleMark(y: .value("Instructional", 90))
+                RuleMark(y: .value(languageManager.localized("Instructional"), 90))
                     .foregroundStyle(.orange.opacity(0.3))
                     .lineStyle(StrokeStyle(dash: [5, 5]))
             }
@@ -214,9 +215,9 @@ struct StudentRunningRecordsSection: View {
     
     func levelShortName(_ level: ReadingLevel) -> String {
         switch level {
-        case .independent: return "Ind."
-        case .instructional: return "Inst."
-        case .frustration: return "Frust."
+        case .independent: return languageManager.localized("Ind.")
+        case .instructional: return languageManager.localized("Inst.")
+        case .frustration: return languageManager.localized("Frust.")
         }
     }
     
@@ -234,6 +235,7 @@ struct StudentRunningRecordsSection: View {
 struct StudentAllRunningRecordsView: View {
     let student: Student
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var languageManager: LanguageManager
     
     var sortedRecords: [RunningRecord] {
         student.runningRecords.sorted { $0.date > $1.date }
@@ -249,7 +251,7 @@ struct StudentAllRunningRecordsView: View {
                 }
                 .padding()
             }
-            .navigationTitle("\(student.name)'s Records")
+            .navigationTitle(String(format: languageManager.localized("%@'s Records"), student.name))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

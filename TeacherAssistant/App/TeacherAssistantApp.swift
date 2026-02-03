@@ -25,6 +25,8 @@ struct TeacherAssistantApp: App {
             RubricCriterion.self,
             DevelopmentScore.self,
             RunningRecord.self,
+            CalendarEvent.self,
+            ClassDiaryEntry.self,
         ])
 
         let modelConfiguration = ModelConfiguration(
@@ -53,6 +55,7 @@ struct TeacherAssistantApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(languageManager)
+                .environment(\.locale, Locale(identifier: languageManager.currentLanguage.localeIdentifier))
                 .task {
                     // Initialize default rubric templates asynchronously
                     await initializeDefaultRubrics()

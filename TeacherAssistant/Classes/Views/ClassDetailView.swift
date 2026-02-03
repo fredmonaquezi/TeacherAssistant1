@@ -139,6 +139,12 @@ struct ClassDetailView: View {
             }
         }
     }
+
+    var orderedStudents: [Student] {
+        schoolClass.students.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
     
     // MARK: - Mac Layout
     
@@ -329,27 +335,7 @@ struct ClassDetailView: View {
     @ViewBuilder
     var studentsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "person.3.fill")
-                    .foregroundColor(.green)
-                Text(languageManager.localized("Students"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                
-                Spacer()
-                
-                Button {
-                    showingAddStudent = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus.circle.fill")
-                        Text(languageManager.localized("Add Student"))
-                    }
-                    .font(.subheadline)
-                    .foregroundColor(.green)
-                }
-                .buttonStyle(.plain)
-            }
+            studentsHeader
             
             if schoolClass.students.isEmpty {
                 emptyStateView(
@@ -361,21 +347,7 @@ struct ClassDetailView: View {
                     showingAddStudent = true
                 }
             } else {
-                LazyVGrid(columns: [
-                    GridItem(.adaptive(minimum: 240, maximum: 320), spacing: 16)
-                ], spacing: 16) {
-                    ForEach(schoolClass.students.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { student in
-                        NavigationLink {
-                            StudentDetailView(student: student)
-                        } label: {
-                            StudentCardView(student: student, onDelete: {
-                                studentToDelete = student
-                                showingDeleteStudentAlert = true
-                            })
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+                studentsGrid(minimum: 240, maximum: 320, spacing: 16)
             }
         }
         .id(languageManager.currentLanguage) // 🔄 Force this section to refresh
@@ -517,27 +489,7 @@ struct ClassDetailView: View {
     @ViewBuilder
     var iOSStudentsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: "person.3.fill")
-                    .foregroundColor(.green)
-                Text(languageManager.localized("Students"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                
-                Spacer()
-                
-                Button {
-                    showingAddStudent = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus.circle.fill")
-                        Text(languageManager.localized("Add Student"))
-                    }
-                    .font(.subheadline)
-                    .foregroundColor(.green)
-                }
-                .buttonStyle(.plain)
-            }
+            studentsHeader
             
             if schoolClass.students.isEmpty {
                 emptyStateView(
@@ -549,35 +501,62 @@ struct ClassDetailView: View {
                     showingAddStudent = true
                 }
             } else {
-                LazyVGrid(columns: [
-                    GridItem(.adaptive(minimum: 150, maximum: 320), spacing: 14)
-                ], spacing: 14) {
-                    ForEach(schoolClass.students.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { student in
-                        NavigationLink {
-                            StudentDetailView(student: student)
-                        } label: {
-                            StudentCardView(student: student, onDelete: {
-                                studentToDelete = student
-                                showingDeleteStudentAlert = true
-                            })
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                studentToDelete = student
-                                showingDeleteStudentAlert = true
-                            } label: {
-                                Label("Delete".localized, systemImage: "trash")
-                            }
-                        }
-                    }
-                }
+                studentsGrid(minimum: 150, maximum: 320, spacing: 14)
             }
         }
         .id(languageManager.currentLanguage)
         .padding()
         .background(Color.gray.opacity(0.05))
         .cornerRadius(16)
+    }
+
+    var studentsHeader: some View {
+        HStack {
+            Image(systemName: "person.3.fill")
+                .foregroundColor(.green)
+            Text(languageManager.localized("Students"))
+                .font(.title2)
+                .fontWeight(.semibold)
+            
+            Spacer()
+            
+            Button {
+                showingAddStudent = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus.circle.fill")
+                    Text(languageManager.localized("Add Student"))
+                }
+                .font(.subheadline)
+                .foregroundColor(.green)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    func studentsGrid(minimum: CGFloat, maximum: CGFloat, spacing: CGFloat) -> some View {
+        let columns = [GridItem(.adaptive(minimum: minimum, maximum: maximum), spacing: spacing)]
+        return LazyVGrid(columns: columns, spacing: spacing) {
+            ForEach(orderedStudents, id: \.id) { student in
+                NavigationLink {
+                    StudentDetailView(student: student)
+                } label: {
+                    StudentCardView(student: student, onDelete: {
+                        studentToDelete = student
+                        showingDeleteStudentAlert = true
+                    })
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button(role: .destructive) {
+                    studentToDelete = student
+                    showingDeleteStudentAlert = true
+                } label: {
+                    Label("Delete".localized, systemImage: "trash")
+                }
+            }
+        }
+    }
     }
     
     // MARK: - Reorder
@@ -599,6 +578,7 @@ struct ClassDetailView: View {
             subject.sortOrder = index
         }
     }
+
     
     // MARK: - Delete Flow
     

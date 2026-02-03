@@ -3,6 +3,7 @@ import SwiftUI
 struct GroupGeneratorView: View {
     
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var languageManager: LanguageManager
     
     let schoolClass: SchoolClass
     
@@ -108,7 +109,7 @@ struct GroupGeneratorView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Text("\(groupSize) students")
+                    Text(String(format: languageManager.localized("%d students"), groupSize))
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.purple)
@@ -151,7 +152,10 @@ struct GroupGeneratorView: View {
                     Image(systemName: "info.circle.fill")
                         .foregroundColor(.blue)
                     
-                    Text("This will create approximately \(expectedGroupCount) groups")
+                    Text(String(
+                        format: languageManager.localized("This will create approximately %d groups"),
+                        expectedGroupCount
+                    ))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -166,7 +170,7 @@ struct GroupGeneratorView: View {
             } label: {
                 HStack {
                     Image(systemName: "shuffle")
-                    Text(groups.isEmpty ? "Generate Groups" : "Regenerate Groups")
+                    Text((groups.isEmpty ? "Generate Groups" : "Regenerate Groups").localized)
                 }
                 .font(.headline)
                 .foregroundColor(.white)
@@ -248,4 +252,3 @@ struct GroupGeneratorView: View {
         }
     }
 }
-

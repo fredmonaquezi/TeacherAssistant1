@@ -12,6 +12,7 @@ struct DevelopmentTrackerSheet: View {
     
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @EnvironmentObject var languageManager: LanguageManager
     
     @Query private var allTemplates: [RubricTemplate]
     @Query private var allScores: [DevelopmentScore]
@@ -50,16 +51,16 @@ struct DevelopmentTrackerSheet: View {
                 }
                 .padding()
             }
-            .navigationTitle("Development Tracking")
+            .navigationTitle("Development Tracking".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button("Cancel".localized) {
                         dismiss()
                     }
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("Save".localized) {
                         saveRatings()
                         dismiss()
                     }
@@ -118,9 +119,9 @@ struct DevelopmentTrackerSheet: View {
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
             
-            Picker("Template", selection: $selectedTemplate) {
+            Picker("Template".localized, selection: $selectedTemplate) {
                 ForEach(availableTemplates, id: \.id) { template in
-                    Text(template.name).tag(template as RubricTemplate?)
+                    Text(displayText(template.name)).tag(template as RubricTemplate?)
                 }
             }
             .pickerStyle(.menu)
@@ -136,7 +137,7 @@ struct DevelopmentTrackerSheet: View {
                 Image(systemName: "folder.fill")
                     .foregroundColor(.purple)
                 
-                Text(category.name)
+                Text(displayText(category.name))
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
@@ -158,13 +159,13 @@ struct DevelopmentTrackerSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             // Criterion name and description
             VStack(alignment: .leading, spacing: 4) {
-                Text(criterion.name)
+                Text(displayText(criterion.name))
                     .font(.body)
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)  // ← Better contrast
                 
                 if !criterion.details.isEmpty {
-                    Text(criterion.details)
+                    Text(displayText(criterion.details))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -273,13 +274,21 @@ struct DevelopmentTrackerSheet: View {
     
     func ratingLabel(_ rating: Int) -> String {
         switch rating {
-        case 1: return "Needs Significant Support"
-        case 2: return "Beginning to Develop"
-        case 3: return "Developing"
-        case 4: return "Proficient"
-        case 5: return "Mastering / Exceeding"
-        default: return "Not Rated"
+        case 1: return languageManager.localized("Needs Significant Support")
+        case 2: return languageManager.localized("Beginning to Develop")
+        case 3: return languageManager.localized("Developing")
+        case 4: return languageManager.localized("Proficient")
+        case 5: return languageManager.localized("Mastering / Exceeding")
+        default: return languageManager.localized("Not Rated")
         }
+    }
+
+    func displayText(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return value }
+        let localized = languageManager.localized(trimmed)
+        if localized != trimmed { return localized }
+        return RubricLocalization.localized(value, languageCode: languageManager.currentLanguage.rawValue)
     }
     
     func loadExistingRatings() {

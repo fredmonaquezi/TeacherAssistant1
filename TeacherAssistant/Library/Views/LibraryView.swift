@@ -6,6 +6,7 @@ struct LibraryView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var languageManager: LanguageManager
 
     let folderID: UUID
 
@@ -113,7 +114,10 @@ struct LibraryView: View {
                         Button(role: .destructive) {
                             showingDeleteConfirm = true
                         } label: {
-                            Label("Delete (\(selectionCount))", systemImage: "trash")
+                            Label(
+                                String(format: languageManager.localized("Delete (%d)"), selectionCount),
+                                systemImage: "trash"
+                            )
                         }
                         .disabled(selectionCount == 0)
 
@@ -182,20 +186,22 @@ struct LibraryView: View {
             }
             // Delete
             .confirmationDialog(
-                isSelecting ? "Delete selected items?" : "Delete this folder?",
+                isSelecting
+                    ? languageManager.localized("Delete selected items?")
+                    : languageManager.localized("Delete this folder?"),
                 isPresented: $showingDeleteConfirm,
                 titleVisibility: .visible
             ) {
                 if isSelecting {
-                    Button("Delete", role: .destructive) {
+                    Button(languageManager.localized("Delete"), role: .destructive) {
                         deleteSelection()
                     }
                 } else {
-                    Button("Delete Folder", role: .destructive) {
+                    Button(languageManager.localized("Delete Folder"), role: .destructive) {
                         deleteCurrentFolder()
                     }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(languageManager.localized("Cancel"), role: .cancel) {}
             }
             // Tag PDF Sheet
             .sheet(isPresented: $showingTagSheet) {
@@ -220,10 +226,10 @@ struct LibraryView: View {
                 }
             }
             // File size error alert
-            .alert("File Too Large", isPresented: $showingFileSizeError) {
-                Button("OK") { }
+            .alert(languageManager.localized("File Too Large"), isPresented: $showingFileSizeError) {
+                Button(languageManager.localized("OK")) { }
             } message: {
-                Text("The selected PDF exceeds the maximum allowed file size of 100 MB.")
+                Text(languageManager.localized("The selected PDF exceeds the maximum allowed file size of 100 MB."))
             }
         } else {
             ProgressView("Loading folder...")

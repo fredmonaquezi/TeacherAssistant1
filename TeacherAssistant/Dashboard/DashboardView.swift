@@ -33,6 +33,10 @@ struct DashboardView: View {
                     selectedSection = .classes
                 }
 
+                DashboardButton(title: "Calendar".localized, systemImage: "calendar", color: .teal) {
+                    selectedSection = .calendar
+                }
+
                 DashboardButton(title: "Attendance".localized, systemImage: "checklist", color: .green) {
                     selectedSection = .attendance
                 }
@@ -197,5 +201,4 @@ struct DashboardView: View {
         }
     }
 }
-
 

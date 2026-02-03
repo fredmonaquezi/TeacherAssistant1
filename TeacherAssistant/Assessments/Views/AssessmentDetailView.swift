@@ -242,10 +242,10 @@ struct AssessmentDetailView: View {
               let schoolClass = subject.schoolClass
         else { return }
 
-        // If already populated, do nothing
-        if !assessment.results.isEmpty { return }
+        let existingStudentIDs = Set(assessment.results.compactMap { $0.student?.id })
 
         for student in schoolClass.students.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+            if existingStudentIDs.contains(student.id) { continue }
             let result = StudentResult(student: student)
             result.assessment = assessment
             assessment.results.append(result)

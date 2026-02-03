@@ -221,7 +221,7 @@ struct SimplePDFExporter {
             // Group by category
             var categorized: [String: [DevelopmentScore]] = [:]
             for score in developmentScores {
-                let category = score.criterion?.category?.name ?? "Other"
+                let category = displayRubricText(score.criterion?.category?.name ?? "Other")
                 categorized[category, default: []].append(score)
             }
             
@@ -245,7 +245,7 @@ struct SimplePDFExporter {
                 }
                 
                 for score in latestScores.values.sorted(by: { ($0.criterion?.name ?? "") < ($1.criterion?.name ?? "") }) {
-                    let criterionName = score.criterion?.name ?? "Unknown"
+                    let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
                     let stars = String(repeating: "★", count: score.rating) + String(repeating: "☆", count: 5 - score.rating)
                     text += "  \(criterionName): \(stars) (\(score.rating)/5) - \(score.ratingLabel)\n"
                 }
@@ -274,6 +274,16 @@ struct SimplePDFExporter {
         case .frustration:
             return "Frustration (below 90% accuracy)"
         }
+    }
+
+    private static func displayRubricText(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return value }
+        let localized = trimmed.localized
+        if localized != trimmed { return localized }
+        let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
+        let languageCode = savedLanguage == "pt" ? "pt-BR" : savedLanguage
+        return RubricLocalization.localized(trimmed, languageCode: languageCode)
     }
     
     private static func createFormattedReport(content: String, studentName: String) -> NSAttributedString {

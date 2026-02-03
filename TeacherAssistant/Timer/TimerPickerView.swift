@@ -103,7 +103,7 @@ struct TimerPickerView: View {
                     .font(.system(size: 32))
                     .foregroundColor(preset.color)
                 
-                Text(preset.label)
+                Text(preset.label.localized)
                     .font(.headline)
                     .foregroundColor(.primary)
             }

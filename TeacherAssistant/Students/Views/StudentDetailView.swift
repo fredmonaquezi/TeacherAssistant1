@@ -490,14 +490,14 @@ struct StudentDetailView: View {
 
     func developmentCategoryCard(category: String, scores: [DevelopmentScore]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(category)
+            Text(displayRubricText(category))
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.purple)
             
             ForEach(scores, id: \.id) { score in
                 HStack {
-                    Text(score.criterion?.name ?? "Unknown")
+                    Text(displayRubricText(score.criterion?.name ?? "Unknown"))
                         .font(.caption)
                     
                     Spacer()
@@ -512,7 +512,7 @@ struct StudentDetailView: View {
                     }
                     
                     // Rating label
-                    Text(score.ratingLabel)
+                    Text(ratingLabel(score.rating))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -558,6 +558,25 @@ struct StudentDetailView: View {
         
         return grouped.map { (category: $0.key, scores: $0.value) }
             .sorted { $0.category < $1.category }
+    }
+
+    func ratingLabel(_ rating: Int) -> String {
+        switch rating {
+        case 1: return languageManager.localized("Needs Significant Support")
+        case 2: return languageManager.localized("Beginning to Develop")
+        case 3: return languageManager.localized("Developing")
+        case 4: return languageManager.localized("Proficient")
+        case 5: return languageManager.localized("Mastering / Exceeding")
+        default: return languageManager.localized("Not Rated")
+        }
+    }
+
+    func displayRubricText(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return value }
+        let localized = languageManager.localized(trimmed)
+        if localized != trimmed { return localized }
+        return RubricLocalization.localized(trimmed, languageCode: languageManager.currentLanguage.rawValue)
     }
     
     // MARK: - Actions Section

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct AddStudentView: View {
     
@@ -191,6 +192,7 @@ struct AddStudentView: View {
                         }
                         
                         schoolClass.students.append(newStudent)
+                        syncStudentResults(for: newStudent)
                         dismiss()
                     }
                     .disabled(!isNameValid)
@@ -206,5 +208,20 @@ struct AddStudentView: View {
         #if os(macOS)
         .frame(minWidth: 500, minHeight: 450)
         #endif
+    }
+
+    // MARK: - Background Sync
+
+    func syncStudentResults(for student: Student) {
+        for subject in schoolClass.subjects {
+            for unit in subject.units {
+                for assessment in unit.assessments {
+                    let hasResult = assessment.results.contains { $0.student?.id == student.id }
+                    if hasResult { continue }
+                    let result = StudentResult(student: student, assessment: assessment)
+                    assessment.results.append(result)
+                }
+            }
+        }
     }
 }

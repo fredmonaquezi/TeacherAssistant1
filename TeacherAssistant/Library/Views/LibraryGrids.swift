@@ -112,6 +112,7 @@ struct FolderCardView: View {
     @State private var showingInfo = false
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.modelContext) private var context
+    @EnvironmentObject var languageManager: LanguageManager
     
     // Delete confirmation
     @State private var showingDeleteAlert = false
@@ -197,7 +198,7 @@ struct FolderCardView: View {
                             Spacer()
                             HStack {
                                 Spacer()
-                                Text("Drop here")
+                                Text("Drop here".localized)
                                     .font(.caption)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.white)
@@ -227,7 +228,7 @@ struct FolderCardView: View {
             
             // Folder Name (editable)
             if isRenaming {
-                TextField("Folder name", text: $editingName, onCommit: {
+                TextField(languageManager.localized("Folder name"), text: $editingName, onCommit: {
                     saveRename()
                 })
                 .textFieldStyle(.plain)
@@ -258,13 +259,13 @@ struct FolderCardView: View {
             Button {
                 onRename()
             } label: {
-                Label("Rename", systemImage: "pencil")
+                Label(languageManager.localized("Rename"), systemImage: "pencil")
             }
             
             Button {
                 showingColorPicker = true
             } label: {
-                Label("Change Color", systemImage: "paintpalette")
+                Label(languageManager.localized("Change Color"), systemImage: "paintpalette")
             }
             
             Divider()
@@ -272,13 +273,13 @@ struct FolderCardView: View {
             Button {
                 duplicateFolder()
             } label: {
-                Label("Duplicate", systemImage: "plus.square.on.square")
+                Label(languageManager.localized("Duplicate"), systemImage: "plus.square.on.square")
             }
             
             Button {
                 showInFinder()
             } label: {
-                Label("Get Info", systemImage: "info.circle")
+                Label(languageManager.localized("Get Info"), systemImage: "info.circle")
             }
             
             Divider()
@@ -286,7 +287,7 @@ struct FolderCardView: View {
             Button(role: .destructive) {
                 showingDeleteAlert = true
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(languageManager.localized("Delete"), systemImage: "trash")
             }
         }
         .sheet(isPresented: $showingColorPicker) {
@@ -295,14 +296,17 @@ struct FolderCardView: View {
         .sheet(isPresented: $showingInfo) {
             folderInfoSheet
         }
-        .alert("Delete Folder?", isPresented: $showingDeleteAlert) {
-            Button("Cancel", role: .cancel) {}
+        .alert(languageManager.localized("Delete Folder?"), isPresented: $showingDeleteAlert) {
+            Button(languageManager.localized("Cancel"), role: .cancel) {}
             
-            Button("Delete", role: .destructive) {
+            Button(languageManager.localized("Delete"), role: .destructive) {
                 deleteFolder()
             }
         } message: {
-            Text("Are you sure you want to delete \"\(folder.name)\" and all its contents? This action cannot be undone.")
+            Text(String(
+                format: languageManager.localized("Are you sure you want to delete \"%@\" and all its contents? This action cannot be undone."),
+                folder.name
+            ))
         }
     }
     
@@ -736,6 +740,7 @@ struct PDFCardView: View {
     @State private var editingName: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.modelContext) private var context
+    @EnvironmentObject var languageManager: LanguageManager
     
     // Delete confirmation
     @State private var showingDeleteAlert = false
@@ -804,7 +809,7 @@ struct PDFCardView: View {
                                     .font(.system(size: 32))
                                     .foregroundColor(.white)
                                 
-                                Text("Open PDF")
+                                Text(languageManager.localized("Open PDF"))
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .foregroundColor(.white)
@@ -828,7 +833,7 @@ struct PDFCardView: View {
             
             // File Name (editable)
             if isRenaming {
-                TextField("File name", text: $editingName, onCommit: {
+                TextField(languageManager.localized("File name"), text: $editingName, onCommit: {
                     saveRename()
                 })
                 .textFieldStyle(.plain)
@@ -869,13 +874,13 @@ struct PDFCardView: View {
             Button {
                 onRename()
             } label: {
-                Label("Rename", systemImage: "pencil")
+                Label(languageManager.localized("Rename"), systemImage: "pencil")
             }
             
             Button {
                 // TODO: Edit tags
             } label: {
-                Label("Edit Tags", systemImage: "tag")
+                Label(languageManager.localized("Edit Tags"), systemImage: "tag")
             }
             
             Divider()
@@ -883,17 +888,20 @@ struct PDFCardView: View {
             Button(role: .destructive) {
                 showingDeleteAlert = true
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(languageManager.localized("Delete"), systemImage: "trash")
             }
         }
-        .alert("Delete PDF?", isPresented: $showingDeleteAlert) {
-            Button("Cancel", role: .cancel) {}
+        .alert(languageManager.localized("Delete PDF?"), isPresented: $showingDeleteAlert) {
+            Button(languageManager.localized("Cancel"), role: .cancel) {}
             
-            Button("Delete", role: .destructive) {
+            Button(languageManager.localized("Delete"), role: .destructive) {
                 deleteFile()
             }
         } message: {
-            Text("Are you sure you want to delete \"\(file.name)\"? This action cannot be undone.")
+            Text(String(
+                format: languageManager.localized("Are you sure you want to delete \"%@\"? This action cannot be undone."),
+                file.name
+            ))
         }
     }
     

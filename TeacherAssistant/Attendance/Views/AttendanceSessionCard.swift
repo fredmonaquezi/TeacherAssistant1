@@ -33,7 +33,7 @@ struct AttendanceSessionCard: View {
                         .foregroundColor(.red)
                 }
                 .buttonStyle(.plain)
-                .help("Delete session")
+                .help(languageManager.localized("Delete session"))
             }
             
             Divider()

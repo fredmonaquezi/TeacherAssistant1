@@ -9,6 +9,8 @@ struct RubricTemplateManagerView: View {
     @State private var selectedTemplate: RubricTemplate?
     @State private var showingTemplateEditor = false
     @State private var showingCreateNew = false
+    @State private var templateToDelete: RubricTemplate?
+    @State private var showingDeleteAlert = false
     
     var body: some View {
         NavigationStack {
@@ -42,6 +44,25 @@ struct RubricTemplateManagerView: View {
             .sheet(isPresented: $showingCreateNew) {
                 CreateNewTemplateSheet()
             }
+            .alert(languageManager.localized("Delete Template?"), isPresented: $showingDeleteAlert) {
+                Button(languageManager.localized("Cancel"), role: .cancel) {
+                    templateToDelete = nil
+                }
+                Button(languageManager.localized("Delete"), role: .destructive) {
+                    if let templateToDelete {
+                        context.delete(templateToDelete)
+                        try? context.save()
+                    }
+                    templateToDelete = nil
+                }
+            } message: {
+                if let templateToDelete {
+                    Text(String(
+                        format: languageManager.localized("Are you sure you want to delete \"%@\"?"),
+                        templateToDelete.name
+                    ))
+                }
+            }
         }
     }
     
@@ -71,7 +92,7 @@ struct RubricTemplateManagerView: View {
     // MARK: - Template Section
     
     func templateSection(for gradeLevel: String) -> some View {
-        let templates = allTemplates.filter { $0.gradeLevel == gradeLevel }
+        let templates = allTemplates.filter { normalized($0.gradeLevel) == normalized(gradeLevel) }
         
         guard !templates.isEmpty else { return AnyView(EmptyView()) }
         
@@ -81,7 +102,7 @@ struct RubricTemplateManagerView: View {
                     Image(systemName: "graduationcap.fill")
                         .foregroundColor(.purple)
                     
-                    Text(gradeLevel.localized)
+                    Text(displayText(for: gradeLevel))
                         .font(.title2)
                         .fontWeight(.bold)
                 }
@@ -113,18 +134,29 @@ struct RubricTemplateManagerView: View {
                     
                     Spacer()
                     
+                    Button {
+                        templateToDelete = template
+                        showingDeleteAlert = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .help(languageManager.localized("Delete"))
+                    
                     Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(template.subject.localized)
+                    Text(displayText(for: template.subject))
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(subjectColor(template.subject))
                     
-                    Text(template.name.localized)
+                    Text(displayText(for: template.name))
                         .font(.body)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
@@ -157,6 +189,14 @@ struct RubricTemplateManagerView: View {
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                templateToDelete = template
+                showingDeleteAlert = true
+            } label: {
+                Label(languageManager.localized("Delete"), systemImage: "trash")
+            }
+        }
     }
     
     func statItem(icon: String, value: String, label: String) -> some View {
@@ -180,17 +220,47 @@ struct RubricTemplateManagerView: View {
     // MARK: - Helpers
     
     var gradeLevels: [String] {
-        ["Years 1-3", "Years 4-6", "Years 7-9", "Years 10-12"]
+        let predefined = ["Years 1-3", "Years 4-6", "Years 7-9", "Years 10-12"]
+        let templateLevels = allTemplates.map { normalized($0.gradeLevel) }.filter { !$0.isEmpty }
+        
+        var seen = Set<String>()
+        var ordered: [String] = []
+        
+        for level in predefined {
+            if seen.insert(level).inserted {
+                ordered.append(level)
+            }
+        }
+        
+        for level in templateLevels {
+            if seen.insert(level).inserted {
+                ordered.append(level)
+            }
+        }
+        
+        return ordered
+    }
+    
+    func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     func totalCriteria(in template: RubricTemplate) -> Int {
         template.categories.reduce(0) { $0 + $1.criteria.count }
     }
     
+    func displayText(for value: String) -> String {
+        let localized = languageManager.localized(value)
+        if localized != value {
+            return localized
+        }
+        return RubricLocalization.localized(value, languageCode: languageManager.currentLanguage.rawValue)
+    }
+    
     func subjectIcon(_ subject: String) -> String {
-        switch subject.lowercased() {
+        switch normalizeSubject(subject) {
         case "english": return "book.fill"
-        case "math", "mathematics": return "function"
+        case "math": return "function"
         case "science": return "atom"
         case "general": return "star.fill"
         default: return "doc.fill"
@@ -198,12 +268,26 @@ struct RubricTemplateManagerView: View {
     }
     
     func subjectColor(_ subject: String) -> Color {
-        switch subject.lowercased() {
+        switch normalizeSubject(subject) {
         case "english": return .blue
-        case "math", "mathematics": return .green
+        case "math": return .green
         case "science": return .orange
         case "general": return .purple
         default: return .gray
+        }
+    }
+    
+    func normalizeSubject(_ subject: String) -> String {
+        let normalized = subject
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        
+        switch normalized {
+        case "english", "inglês", "ingles": return "english"
+        case "math", "mathematics", "matemática", "matematica": return "math"
+        case "science", "ciência", "ciencia", "ciências", "ciencias": return "science"
+        case "general", "geral": return "general"
+        default: return normalized
         }
     }
 }

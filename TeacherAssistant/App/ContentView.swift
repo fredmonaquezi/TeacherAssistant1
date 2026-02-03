@@ -11,6 +11,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case randomPicker = "Random Picker"
     case timer = "Timer"
     case runningRecords = "Running Records"
+    case calendar = "Calendar"
 
     var id: String { rawValue }
 }
@@ -87,6 +88,9 @@ struct ContentView: View {
                 
                 case .runningRecords:
                     RunningRecordsView()
+                    
+                case .calendar:
+                    CalendarRootView()
 
                 case .none:
                     Text(languageManager.localized("Select a section"))
@@ -147,6 +151,7 @@ struct ContentView: View {
         case .randomPicker: return "die.face.5.fill"
         case .timer: return "timer"
         case .runningRecords: return "doc.text.magnifyingglass"
+        case .calendar: return "calendar"
         }
     }
 }

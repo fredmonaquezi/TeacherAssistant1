@@ -3,16 +3,68 @@ import SwiftData
 
 struct SymbolGuideView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var languageManager: LanguageManager
     
-    let symbols: [(symbol: String, name: String, description: String, example: String, counts: String)] = [
-        ("✓", "Correct Word", "Student reads the word correctly", "The cat sat", "No error"),
-        ("sit\n___\nsat", "Substitution", "Student says a different word", "Student says 'sit' instead of 'sat'", "1 error"),
-        ("—", "Omission", "Student skips a word", "Reads 'The cat sat mat' (skips 'on')", "1 error"),
-        ("^ down", "Insertion", "Student adds a word", "Reads 'The cat sat down on mat'", "1 error"),
-        ("R", "Repetition", "Student repeats a word/phrase", "Reads 'The cat cat sat'", "Usually no error"),
-        ("SC", "Self-Correction", "Student fixes their own error", "Says 'sit' then corrects to 'sat'", "NOT an error"),
-        ("T / A", "Told/Appeal", "Teacher tells the word or student asks", "Student: 'What's this word?'", "1 error")
-    ]
+    var symbols: [(symbol: String, name: String, description: String, example: String, counts: String, isError: Bool)] {
+        [
+            (
+                "✓",
+                languageManager.localized("Correct Word"),
+                languageManager.localized("Student reads the word correctly"),
+                languageManager.localized("The cat sat"),
+                languageManager.localized("No error"),
+                false
+            ),
+            (
+                "sit\n___\nsat",
+                languageManager.localized("Substitution"),
+                languageManager.localized("Student says a different word"),
+                languageManager.localized("Student says 'sit' instead of 'sat'"),
+                languageManager.localized("1 error"),
+                true
+            ),
+            (
+                "—",
+                languageManager.localized("Omission"),
+                languageManager.localized("Student skips a word"),
+                languageManager.localized("Reads 'The cat sat mat' (skips 'on')"),
+                languageManager.localized("1 error"),
+                true
+            ),
+            (
+                "^ down",
+                languageManager.localized("Insertion"),
+                languageManager.localized("Student adds a word"),
+                languageManager.localized("Reads 'The cat sat down on mat'"),
+                languageManager.localized("1 error"),
+                true
+            ),
+            (
+                "R",
+                languageManager.localized("Repetition"),
+                languageManager.localized("Student repeats a word/phrase"),
+                languageManager.localized("Reads 'The cat cat sat'"),
+                languageManager.localized("Usually no error"),
+                false
+            ),
+            (
+                "SC",
+                languageManager.localized("Self-Correction"),
+                languageManager.localized("Student fixes their own error"),
+                languageManager.localized("Says 'sit' then corrects to 'sat'"),
+                languageManager.localized("NOT an error"),
+                false
+            ),
+            (
+                "T / A",
+                languageManager.localized("Told/Appeal"),
+                languageManager.localized("Teacher tells the word or student asks"),
+                languageManager.localized("Student: 'What's this word?'"),
+                languageManager.localized("1 error"),
+                true
+            )
+        ]
+    }
     
     var body: some View {
         NavigationStack {
@@ -24,11 +76,11 @@ struct SymbolGuideView: View {
                             .font(.system(size: 60))
                             .foregroundColor(.orange)
                         
-                        Text("Running Record Symbols")
+                        Text(languageManager.localized("Running Record Symbols"))
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        Text("Quick reference guide for assessment")
+                        Text(languageManager.localized("Quick reference guide for assessment"))
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -47,29 +99,29 @@ struct SymbolGuideView: View {
                         .padding(.horizontal)
                     
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Error Analysis: The 3 Cueing Systems")
+                        Text(languageManager.localized("Error Analysis: The 3 Cueing Systems"))
                             .font(.headline)
                             .padding(.horizontal)
                         
                         VStack(spacing: 12) {
                             cueingSystemCard(
                                 letter: "M",
-                                title: "Meaning",
-                                description: "Does it make sense in the story?",
+                                title: languageManager.localized("Meaning"),
+                                description: languageManager.localized("Does it make sense in the story?"),
                                 color: .blue
                             )
                             
                             cueingSystemCard(
                                 letter: "S",
-                                title: "Structure",
-                                description: "Does it sound grammatically right?",
+                                title: languageManager.localized("Structure"),
+                                description: languageManager.localized("Does it sound grammatically right?"),
                                 color: .purple
                             )
                             
                             cueingSystemCard(
                                 letter: "V",
-                                title: "Visual",
-                                description: "Does it look like the word?",
+                                title: languageManager.localized("Visual"),
+                                description: languageManager.localized("Does it look like the word?"),
                                 color: .green
                             )
                         }
@@ -81,31 +133,31 @@ struct SymbolGuideView: View {
                         .padding(.horizontal)
                     
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Reading Levels")
+                        Text(languageManager.localized("Reading Levels"))
                             .font(.headline)
                             .padding(.horizontal)
                         
                         VStack(spacing: 12) {
                             levelCard(
-                                level: "Independent",
+                                level: languageManager.localized("Independent"),
                                 range: "95-100%",
-                                description: "Student can read with ease",
+                                description: languageManager.localized("Student can read with ease"),
                                 color: .green,
                                 icon: "checkmark.circle.fill"
                             )
                             
                             levelCard(
-                                level: "Instructional",
+                                level: languageManager.localized("Instructional"),
                                 range: "90-94%",
-                                description: "Appropriate for teaching",
+                                description: languageManager.localized("Appropriate for teaching"),
                                 color: .orange,
                                 icon: "book.fill"
                             )
                             
                             levelCard(
-                                level: "Frustration",
+                                level: languageManager.localized("Frustration"),
                                 range: "<90%",
-                                description: "Too difficult for student",
+                                description: languageManager.localized("Too difficult for student"),
                                 color: .red,
                                 icon: "exclamationmark.triangle.fill"
                             )
@@ -116,13 +168,13 @@ struct SymbolGuideView: View {
                     .padding(.bottom, 40)
                 }
             }
-            .navigationTitle("Symbol Guide")
+            .navigationTitle(languageManager.localized("Symbol Guide"))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(languageManager.localized("Done")) {
                         dismiss()
                     }
                 }
@@ -133,7 +185,7 @@ struct SymbolGuideView: View {
         #endif
     }
     
-    func symbolCard(_ symbol: (symbol: String, name: String, description: String, example: String, counts: String)) -> some View {
+    func symbolCard(_ symbol: (symbol: String, name: String, description: String, example: String, counts: String, isError: Bool)) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 // Symbol
@@ -154,7 +206,7 @@ struct SymbolGuideView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Text("Example: \(symbol.example)")
+                    Text(String(format: languageManager.localized("Example: %@"), symbol.example))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .italic()
@@ -162,10 +214,10 @@ struct SymbolGuideView: View {
                     Text(symbol.counts)
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundColor(symbol.counts.contains("NOT") ? .green : .red)
+                        .foregroundColor(symbol.isError ? .red : .green)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(symbol.counts.contains("NOT") ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                        .background(symbol.isError ? Color.red.opacity(0.1) : Color.green.opacity(0.1))
                         .cornerRadius(6)
                 }
                 
@@ -239,6 +291,7 @@ struct RunningRecordDetailView: View {
     @Bindable var record: RunningRecord
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var languageManager: LanguageManager
     @State private var showingDeleteAlert = false
     
     var body: some View {
@@ -272,7 +325,7 @@ struct RunningRecordDetailView: View {
                         // Accuracy
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Accuracy")
+                                Text(languageManager.localized("Accuracy"))
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 
@@ -293,7 +346,7 @@ struct RunningRecordDetailView: View {
                         
                         // Reading Level
                         HStack {
-                            Text("Reading Level")
+                            Text(languageManager.localized("Reading Level"))
                                 .font(.headline)
                             
                             Spacer()
@@ -317,10 +370,10 @@ struct RunningRecordDetailView: View {
                             GridItem(.flexible()),
                             GridItem(.flexible())
                         ], spacing: 12) {
-                            detailStatBox(title: "Total Words", value: "\(record.totalWords)", icon: "text.alignleft", color: .purple)
-                            detailStatBox(title: "Errors", value: "\(record.errors)", icon: "xmark.circle.fill", color: .red)
-                            detailStatBox(title: "Self-Corrections", value: "\(record.selfCorrections)", icon: "arrow.uturn.left.circle.fill", color: .blue)
-                            detailStatBox(title: "SC Ratio", value: record.selfCorrectionRatio, icon: "chart.bar.fill", color: .green)
+                            detailStatBox(title: languageManager.localized("Total Words"), value: "\(record.totalWords)", icon: "text.alignleft", color: .purple)
+                            detailStatBox(title: languageManager.localized("Errors"), value: "\(record.errors)", icon: "xmark.circle.fill", color: .red)
+                            detailStatBox(title: languageManager.localized("Self-Corrections"), value: "\(record.selfCorrections)", icon: "arrow.uturn.left.circle.fill", color: .blue)
+                            detailStatBox(title: languageManager.localized("SC Ratio"), value: record.selfCorrectionRatio, icon: "chart.bar.fill", color: .green)
                         }
                     }
                     .padding(.horizontal)
@@ -328,7 +381,7 @@ struct RunningRecordDetailView: View {
                     // Notes
                     if !record.notes.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            Label("Notes", systemImage: "note.text")
+                            Label(languageManager.localized("Notes"), systemImage: "note.text")
                                 .font(.headline)
                             
                             Text(record.notes)
@@ -344,13 +397,13 @@ struct RunningRecordDetailView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("Running Record")
+            .navigationTitle(languageManager.localized("Running Record"))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+                    Button(languageManager.localized("Done")) {
                         dismiss()
                     }
                 }
@@ -359,20 +412,20 @@ struct RunningRecordDetailView: View {
                     Button(role: .destructive) {
                         showingDeleteAlert = true
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label(languageManager.localized("Delete"), systemImage: "trash")
                     }
                 }
             }
-            .alert("Delete Running Record?", isPresented: $showingDeleteAlert) {
-                Button("Cancel", role: .cancel) {}
+            .alert(languageManager.localized("Delete Running Record?"), isPresented: $showingDeleteAlert) {
+                Button(languageManager.localized("Cancel"), role: .cancel) {}
                 
-                Button("Delete", role: .destructive) {
+                Button(languageManager.localized("Delete"), role: .destructive) {
                     context.delete(record)
                     try? context.save()
                     dismiss()
                 }
             } message: {
-                Text("Are you sure you want to delete this running record? This action cannot be undone.")
+                Text(languageManager.localized("Are you sure you want to delete this running record? This action cannot be undone."))
             }
         }
     }
@@ -400,9 +453,9 @@ struct RunningRecordDetailView: View {
     
     func levelName(_ level: ReadingLevel) -> String {
         switch level {
-        case .independent: return "Independent"
-        case .instructional: return "Instructional"
-        case .frustration: return "Frustration"
+        case .independent: return languageManager.localized("Independent")
+        case .instructional: return languageManager.localized("Instructional")
+        case .frustration: return languageManager.localized("Frustration")
         }
     }
     

@@ -180,7 +180,10 @@ struct AdvancedGroupGeneratorView: View {
                     Image(systemName: "info.circle.fill")
                         .foregroundColor(.blue)
                     
-                    Text("This will create approximately \(expectedGroupCount) groups".localized)
+                    Text(String(
+                        format: languageManager.localized("This will create approximately %d groups"),
+                        expectedGroupCount
+                    ))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -558,6 +561,7 @@ struct StudentSeparationEditor: View {
 struct StudentSeparationRow: View {
     @Bindable var student: Student
     let allStudents: [Student]
+    @EnvironmentObject var languageManager: LanguageManager
     
     @State private var selectedStudents: Set<PersistentIdentifier> = []
     
@@ -579,7 +583,7 @@ struct StudentSeparationRow: View {
                 }
             }
         } header: {
-            Text("\(student.name) should NOT be grouped with:".localized)
+            Text(String(format: languageManager.localized("%@ should NOT be grouped with:"), student.name))
         }
         .onAppear {
             loadSeparations()
@@ -609,11 +613,13 @@ struct ModernGroupCard: View {
     let students: [Student]
     let totalGroups: Int
     
+    @EnvironmentObject var languageManager: LanguageManager
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack {
-                Text("Group \(index + 1)")
+                Text(String(format: languageManager.localized("Group %d"), index + 1))
                     .font(.headline)
                     .foregroundColor(.white)
                 

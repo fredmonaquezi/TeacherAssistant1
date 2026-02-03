@@ -136,11 +136,17 @@ enum StudentReportExporterMac {
         drawText("Student Progress Report".localized, fontSize: 28, bold: true)
         
         // Draw student info
-        drawText("Student".localized + ": \(student.name)", fontSize: 20, bold: true)
-        drawText("Date".localized + ": \(DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .none))", fontSize: 12)
+        drawText(String(format: "Student: %@".localized, student.name), fontSize: 20, bold: true)
+        drawText(
+            String(
+                format: "Date: %@".localized,
+                DateFormatter.localizedString(from: Date(), dateStyle: .medium, timeStyle: .none)
+            ),
+            fontSize: 12
+        )
         
         if !schoolName.isEmpty {
-            drawText("School: \(schoolName)", fontSize: 12)
+            drawText(String(format: "School: %@".localized, schoolName), fontSize: 12)
         }
         
         y -= 20 // Extra space
@@ -155,9 +161,15 @@ enum StudentReportExporterMac {
         let percentage = total > 0 ? Int((Double(present) / Double(total)) * 100) : 0
         
         drawText("Attendance".localized, fontSize: 20, bold: true)
-        drawText("Total Sessions".localized + ": \(total)", fontSize: 14)
-        drawText("Present".localized + ": \(present) (\(percentage)%)", fontSize: 14)
-        drawText("Absent".localized + ": \(records.filter { $0.status == .absent }.count)", fontSize: 14)
+        drawText(String(format: "Total sessions: %d".localized, total), fontSize: 14)
+        drawText(String(format: "Present: %d (%d%%)".localized, present, percentage), fontSize: 14)
+        drawText(
+            String(
+                format: "Absent: %d".localized,
+                records.filter { $0.status == .absent }.count
+            ),
+            fontSize: 14
+        )
         
         y -= 20
         
@@ -166,8 +178,8 @@ enum StudentReportExporterMac {
         let average = results.averageScore
         
         drawText("Academic Performance".localized, fontSize: 20, bold: true)
-        drawText("Total Assessments".localized + ": \(results.count)", fontSize: 14)
-        drawText("Overall Average".localized + ": \(String(format: "%.1f", average))", fontSize: 14)
+        drawText(String(format: "Total Assessments: %d".localized, results.count), fontSize: 14)
+        drawText(String(format: "Overall Average: %.1f".localized, average), fontSize: 14)
         
         // Draw footer
         let footerY: CGFloat = 30

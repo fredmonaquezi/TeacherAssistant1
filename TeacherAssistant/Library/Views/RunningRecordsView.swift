@@ -3,6 +3,7 @@ import SwiftData
 
 struct RunningRecordsView: View {
     @Environment(\.modelContext) private var context
+    @EnvironmentObject var languageManager: LanguageManager
     @Query private var allStudents: [Student]
     @Query(sort: \RunningRecord.date, order: .reverse) private var allRunningRecords: [RunningRecord]
     
@@ -57,13 +58,13 @@ struct RunningRecordsView: View {
                     }
                 }
             }
-            .navigationTitle("Running Records")
+            .navigationTitle(languageManager.localized("Running Records"))
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingAddRecord = true
                     } label: {
-                        Label("New Record", systemImage: "plus.circle.fill")
+                        Label(languageManager.localized("New Record"), systemImage: "plus.circle.fill")
                     }
                 }
             }
@@ -78,21 +79,21 @@ struct RunningRecordsView: View {
     var headerStatsView: some View {
         HStack(spacing: 16) {
             statBox(
-                title: "Total Records",
+                title: languageManager.localized("Total Records"),
                 value: "\(allRunningRecords.count)",
                 icon: "doc.text.fill",
                 color: .blue
             )
             
             statBox(
-                title: "Students Assessed",
+                title: languageManager.localized("Students Assessed"),
                 value: "\(uniqueStudentsCount)",
                 icon: "person.3.fill",
                 color: .purple
             )
             
             statBox(
-                title: "Avg. Accuracy",
+                title: languageManager.localized("Avg. Accuracy"),
                 value: String(format: "%.1f%%", averageAccuracy),
                 icon: "chart.line.uptrend.xyaxis",
                 color: .green
@@ -138,7 +139,7 @@ struct RunningRecordsView: View {
             HStack(spacing: 12) {
                 // Student filter
                 Menu {
-                    Button("All Students") {
+                    Button(languageManager.localized("All Students")) {
                         selectedStudent = nil
                     }
                     
@@ -152,7 +153,7 @@ struct RunningRecordsView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "person.fill")
-                        Text(selectedStudent?.name ?? "All Students")
+                        Text(selectedStudent?.name ?? languageManager.localized("All Students"))
                         Image(systemName: "chevron.down")
                             .font(.caption)
                     }
@@ -194,9 +195,9 @@ struct RunningRecordsView: View {
     
     func levelShortName(_ level: ReadingLevel) -> String {
         switch level {
-        case .independent: return "Independent"
-        case .instructional: return "Instructional"
-        case .frustration: return "Frustration"
+        case .independent: return languageManager.localized("Independent")
+        case .instructional: return languageManager.localized("Instructional")
+        case .frustration: return languageManager.localized("Frustration")
         }
     }
     
@@ -216,11 +217,11 @@ struct RunningRecordsView: View {
                 .font(.system(size: 70))
                 .foregroundColor(.secondary)
             
-            Text("No Running Records Yet")
+            Text(languageManager.localized("No Running Records Yet"))
                 .font(.title2)
                 .fontWeight(.semibold)
             
-            Text("Start assessing your students' reading by creating your first running record")
+            Text(languageManager.localized("Start assessing your students' reading by creating your first running record"))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -231,7 +232,7 @@ struct RunningRecordsView: View {
             } label: {
                 HStack {
                     Image(systemName: "plus.circle.fill")
-                    Text("Create First Record")
+                    Text(languageManager.localized("Create First Record"))
                 }
                 .font(.headline)
                 .foregroundColor(.white)
@@ -250,6 +251,7 @@ struct RunningRecordsView: View {
 struct RunningRecordCard: View {
     let record: RunningRecord
     @State private var showingDetail = false
+    @EnvironmentObject var languageManager: LanguageManager
     
     var body: some View {
         Button {
@@ -263,12 +265,12 @@ struct RunningRecordCard: View {
                             Text(student.name)
                                 .font(.headline)
                         } else {
-                            Text("Unknown Student")
+                            Text(languageManager.localized("Unknown Student"))
                                 .font(.headline)
                                 .foregroundColor(.secondary)
                         }
                         
-                        Text(record.textTitle.isEmpty ? "Untitled Text" : record.textTitle)
+                        Text(record.textTitle.isEmpty ? languageManager.localized("Untitled Text") : record.textTitle)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -288,10 +290,10 @@ struct RunningRecordCard: View {
                 
                 // Stats
                 HStack(spacing: 12) {
-                    miniStat(title: "Accuracy", value: String(format: "%.1f%%", record.accuracy), color: levelColor(record.readingLevel))
-                    miniStat(title: "Errors", value: "\(record.errors)", color: .red)
-                    miniStat(title: "SC", value: "\(record.selfCorrections)", color: .blue)
-                    miniStat(title: "Words", value: "\(record.totalWords)", color: .purple)
+                    miniStat(title: languageManager.localized("Accuracy"), value: String(format: "%.1f%%", record.accuracy), color: levelColor(record.readingLevel))
+                    miniStat(title: languageManager.localized("Errors"), value: "\(record.errors)", color: .red)
+                    miniStat(title: languageManager.localized("SC"), value: "\(record.selfCorrections)", color: .blue)
+                    miniStat(title: languageManager.localized("Words"), value: "\(record.totalWords)", color: .purple)
                 }
                 
                 // Reading Level Badge
@@ -337,9 +339,9 @@ struct RunningRecordCard: View {
     
     func levelShortName(_ level: ReadingLevel) -> String {
         switch level {
-        case .independent: return "Independent"
-        case .instructional: return "Instructional"
-        case .frustration: return "Frustration"
+        case .independent: return languageManager.localized("Independent")
+        case .instructional: return languageManager.localized("Instructional")
+        case .frustration: return languageManager.localized("Frustration")
         }
     }
     

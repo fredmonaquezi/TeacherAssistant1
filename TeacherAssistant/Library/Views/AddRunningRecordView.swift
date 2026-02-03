@@ -4,6 +4,7 @@ import SwiftData
 struct AddRunningRecordView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var languageManager: LanguageManager
     @Query private var allStudents: [Student]
     
     @State private var selectedStudent: Student?
@@ -14,6 +15,27 @@ struct AddRunningRecordView: View {
     @State private var selfCorrections = ""
     @State private var notes = ""
     @State private var showingSymbolGuide = false
+    
+    struct StudentGroup: Identifiable {
+        let id: String
+        let className: String
+        let students: [Student]
+    }
+    
+    var activeStudents: [Student] {
+        allStudents.filter { $0.schoolClass != nil }
+    }
+    
+    var groupedStudents: [StudentGroup] {
+        let grouped = Dictionary(grouping: activeStudents) { student in
+            classDisplayName(for: student)
+        }
+        
+        return grouped.keys.sorted().map { className in
+            let students = grouped[className]?.sorted { $0.name < $1.name } ?? []
+            return StudentGroup(id: className, className: className, students: students)
+        }
+    }
     
     var totalWordsInt: Int {
         Int(totalWords) ?? 0
@@ -42,6 +64,25 @@ struct AddRunningRecordView: View {
         }
     }
     
+    @ViewBuilder
+    var studentMenuContent: some View {
+        if groupedStudents.isEmpty {
+            Text(languageManager.localized("No students available"))
+        } else {
+            ForEach(groupedStudents) { group in
+                Section {
+                    ForEach(group.students, id: \.id) { student in
+                        Button(student.name) {
+                            selectedStudent = student
+                        }
+                    }
+                } header: {
+                    Text(group.className)
+                }
+            }
+        }
+    }
+    
     var isValid: Bool {
         selectedStudent != nil &&
         !textTitle.isEmpty &&
@@ -60,11 +101,11 @@ struct AddRunningRecordView: View {
                             .font(.system(size: 60))
                             .foregroundColor(.blue)
                         
-                        Text("New Running Record")
+                        Text(languageManager.localized("New Running Record"))
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        Text("Record reading assessment data")
+                        Text(languageManager.localized("Record reading assessment data"))
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -72,19 +113,19 @@ struct AddRunningRecordView: View {
                     
                     // Student Selection
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Student", systemImage: "person.fill")
+                        Label(languageManager.localized("Student"), systemImage: "person.fill")
                             .font(.headline)
                             .foregroundColor(.primary)
                         
                         Menu {
-                            ForEach(allStudents.sorted(by: { $0.name < $1.name }), id: \.id) { student in
-                                Button(student.name) {
-                                    selectedStudent = student
-                                }
-                            }
+                            studentMenuContent
                         } label: {
                             HStack {
-                                Text(selectedStudent?.name ?? "Select a student")
+                                let labelText = selectedStudent
+                                    .map { "\($0.name) — \(classDisplayName(for: $0))" }
+                                    ?? languageManager.localized("Select a student")
+                                
+                                Text(labelText)
                                     .foregroundColor(selectedStudent == nil ? .secondary : .primary)
                                 Spacer()
                                 Image(systemName: "chevron.down")
@@ -100,7 +141,7 @@ struct AddRunningRecordView: View {
                     
                     // Date
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Date", systemImage: "calendar")
+                        Label(languageManager.localized("Date"), systemImage: "calendar")
                             .font(.headline)
                         
                         DatePicker("", selection: $date, displayedComponents: [.date])
@@ -111,10 +152,10 @@ struct AddRunningRecordView: View {
                     
                     // Text Title
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Text Title", systemImage: "book.closed.fill")
+                        Label(languageManager.localized("Text Title"), systemImage: "book.closed.fill")
                             .font(.headline)
                         
-                        TextField("e.g., The Cat in the Hat", text: $textTitle)
+                        TextField(languageManager.localized("e.g., The Cat in the Hat"), text: $textTitle)
                             .textFieldStyle(.plain)
                             .padding()
                             .background(Color.gray.opacity(0.1))
@@ -128,7 +169,7 @@ struct AddRunningRecordView: View {
                     // Assessment Data
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
-                            Label("Assessment Data", systemImage: "chart.bar.fill")
+                            Label(languageManager.localized("Assessment Data"), systemImage: "chart.bar.fill")
                                 .font(.headline)
                             
                             Spacer()
@@ -138,7 +179,7 @@ struct AddRunningRecordView: View {
                             } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: "questionmark.circle.fill")
-                                    Text("Symbol Guide")
+                                    Text(languageManager.localized("Symbol Guide"))
                                 }
                                 .font(.caption)
                                 .foregroundColor(.blue)
@@ -148,7 +189,7 @@ struct AddRunningRecordView: View {
                         
                         // Total Words
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Total Words")
+                            Text(languageManager.localized("Total Words"))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                             
@@ -165,7 +206,7 @@ struct AddRunningRecordView: View {
                         
                         // Errors
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Errors")
+                            Text(languageManager.localized("Errors"))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                             
@@ -182,7 +223,7 @@ struct AddRunningRecordView: View {
                         
                         // Self-Corrections
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Self-Corrections (SC)")
+                            Text(languageManager.localized("Self-Corrections (SC)"))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                             
@@ -201,7 +242,7 @@ struct AddRunningRecordView: View {
                     // Live Results
                     if totalWordsInt > 0 {
                         VStack(spacing: 16) {
-                            Text("Results")
+                            Text(languageManager.localized("Results"))
                                 .font(.headline)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal)
@@ -209,7 +250,7 @@ struct AddRunningRecordView: View {
                             VStack(spacing: 12) {
                                 // Accuracy
                                 HStack {
-                                    Text("Accuracy:")
+                                    Text(languageManager.localized("Accuracy:"))
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
                                     
@@ -240,7 +281,7 @@ struct AddRunningRecordView: View {
                                 // SC Ratio
                                 if selfCorrectionsInt > 0 {
                                     HStack {
-                                        Text("Self-Correction Ratio:")
+                                        Text(languageManager.localized("Self-Correction Ratio:"))
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                         
@@ -265,7 +306,7 @@ struct AddRunningRecordView: View {
                     
                     // Notes
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Notes (Optional)", systemImage: "note.text")
+                        Label(languageManager.localized("Notes (Optional)"), systemImage: "note.text")
                             .font(.headline)
                         
                         TextEditor(text: $notes)
@@ -278,19 +319,19 @@ struct AddRunningRecordView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("New Running Record")
+            .navigationTitle(languageManager.localized("New Running Record"))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(languageManager.localized("Cancel")) {
                         dismiss()
                     }
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(languageManager.localized("Save")) {
                         saveRecord()
                     }
                     .disabled(!isValid)
@@ -330,10 +371,22 @@ struct AddRunningRecordView: View {
     
     func levelName(_ level: ReadingLevel) -> String {
         switch level {
-        case .independent: return "Independent Level (95-100%)"
-        case .instructional: return "Instructional Level (90-94%)"
-        case .frustration: return "Frustration Level (<90%)"
+        case .independent: return languageManager.localized("Independent Level (95-100%)")
+        case .instructional: return languageManager.localized("Instructional Level (90-94%)")
+        case .frustration: return languageManager.localized("Frustration Level (<90%)")
         }
+    }
+    
+    func classDisplayName(for student: Student) -> String {
+        guard let schoolClass = student.schoolClass else {
+            return languageManager.localized("No Class")
+        }
+        
+        if schoolClass.grade.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return schoolClass.name
+        }
+        
+        return "\(schoolClass.name) (\(schoolClass.grade))"
     }
     
     func levelColor(_ level: ReadingLevel) -> Color {

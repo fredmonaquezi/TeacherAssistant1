@@ -6,7 +6,8 @@ extension String {
     /// Returns the localized version of this string based on the current language
     var localized: String {
         // Get the LanguageManager's current language
-        let languageCode = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
+        let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
+        let languageCode = savedLanguage == "pt" ? "pt-BR" : savedLanguage
         
         guard let path = Bundle.main.path(forResource: languageCode, ofType: "lproj"),
               let bundle = Bundle(path: path) else {
