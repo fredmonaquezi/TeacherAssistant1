@@ -153,7 +153,10 @@ struct ClassOverviewView: View {
             }
             .padding()
         }
+        #if !os(macOS)
         .navigationTitle(String(format: "Gradebook - %@".localized, schoolClass.name))
+        #endif
+        .macNavigationDepth()
     }
     
     // MARK: - Filter Section
@@ -515,4 +518,3 @@ struct ClassOverviewView: View {
         #endif
     }
 }
-

@@ -109,7 +109,9 @@ struct UnitGradebookView: View {
                 .background(tableBackground)
             }
         }
+        #if !os(macOS)
         .navigationTitle("Gradebook".localized + ": \(unit.name)")
+        #endif
         .sheet(
             isPresented: Binding(
                 get: { selectedResult != nil },
@@ -120,6 +122,7 @@ struct UnitGradebookView: View {
                 ScorePickerSheet(studentResult: result)
             }
         }
+        .macNavigationDepth()
     }
     
     // MARK: - Statistics Bar

@@ -31,6 +31,7 @@ struct GroupGeneratorView: View {
                 }
                 .padding(.vertical, 20)
             }
+            #if !os(macOS)
             .navigationTitle("Group Generator")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -40,6 +41,7 @@ struct GroupGeneratorView: View {
                     .buttonStyle(.borderedProminent)
                 }
             }
+            #endif
         }
         #if os(macOS)
         .frame(minWidth: 600, minHeight: 500)

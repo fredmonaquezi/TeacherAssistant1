@@ -15,51 +15,89 @@ struct AttendanceListView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    
-                    // Statistics card
-                    if !sortedSessions.isEmpty {
-                        statisticsCard
-                    }
-                    
-                    // Sessions section
-                    sessionsSection
-                    
-                }
-                .padding(.vertical, 20)
+        Group {
+            #if os(macOS)
+            content
+            #else
+            NavigationStack {
+                content
             }
-            .navigationTitle(languageManager.localized("Attendance"))
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 12) {
-                        Button {
-                            selectedDate = Date()
-                            showingDatePicker = true
-                        } label: {
-                            Label(languageManager.localized("By Date"), systemImage: "calendar")
-                        }
-                        
-                        Button {
-                            createTodaySession()
-                        } label: {
-                            Label(languageManager.localized("Today"), systemImage: "plus.circle.fill")
-                        }
-                    }
-                }
-                
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(languageManager.localized("Done")) {
-                        dismiss()
-                    }
-                }
-            }
+            #endif
         }
         .sheet(isPresented: $showingDatePicker) {
             datePickerSheet
         }
+        .macNavigationDepth()
     }
+
+    var content: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                #if os(macOS)
+                attendanceActionsRow
+                #endif
+                
+                // Statistics card
+                if !sortedSessions.isEmpty {
+                    statisticsCard
+                }
+                
+                // Sessions section
+                sessionsSection
+                
+            }
+            .padding(.vertical, 20)
+        }
+        #if !os(macOS)
+        .navigationTitle(languageManager.localized("Attendance"))
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                HStack(spacing: 12) {
+                    Button {
+                        selectedDate = Date()
+                        showingDatePicker = true
+                    } label: {
+                        Label(languageManager.localized("By Date"), systemImage: "calendar")
+                    }
+                    
+                    Button {
+                        createTodaySession()
+                    } label: {
+                        Label(languageManager.localized("Today"), systemImage: "plus.circle.fill")
+                    }
+                }
+            }
+            
+            ToolbarItem(placement: .cancellationAction) {
+                Button(languageManager.localized("Done")) {
+                    dismiss()
+                }
+            }
+        }
+        #endif
+    }
+
+    #if os(macOS)
+    var attendanceActionsRow: some View {
+        HStack(spacing: 12) {
+            Button {
+                selectedDate = Date()
+                showingDatePicker = true
+            } label: {
+                Label(languageManager.localized("By Date"), systemImage: "calendar")
+            }
+
+            Button {
+                createTodaySession()
+            } label: {
+                Label(languageManager.localized("Today"), systemImage: "plus.circle.fill")
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal)
+    }
+    #endif
     
     // MARK: - Statistics Card
     

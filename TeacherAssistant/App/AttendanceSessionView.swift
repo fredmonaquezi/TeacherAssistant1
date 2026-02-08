@@ -28,7 +28,10 @@ struct AttendanceSessionView: View {
             }
             .padding(.vertical, 20)
         }
+        #if !os(macOS)
         .navigationTitle(session.date.formatted(date: .abbreviated, time: .omitted))
+        #endif
+        .macNavigationDepth()
     }
     
     // MARK: - Summary Card

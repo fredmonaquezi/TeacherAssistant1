@@ -10,6 +10,7 @@ enum StudentGender: String, Codable, CaseIterable {
 
 @Model
 class Student {
+    var uuid: UUID = UUID()
     var name: String
     var notes: String = ""
     var gender: String = "Prefer not to say" // Stores StudentGender rawValue
@@ -47,6 +48,7 @@ class Student {
         scores: [AssessmentScore] = [],
         separationList: String = ""
     ) {
+        self.uuid = UUID()
         self.name = name
         self.notes = notes
         self.gender = gender.rawValue
@@ -56,5 +58,9 @@ class Student {
         self.scores = scores
         self.sortOrder = 0
         self.separationList = separationList
+    }
+
+    var stableIDString: String {
+        uuid.uuidString
     }
 }

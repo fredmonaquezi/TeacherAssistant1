@@ -10,30 +10,39 @@ struct ClassPickerView: View {
     let tool: DashboardTool
     
     var body: some View {
+        #if os(macOS)
+        // macOS: No NavigationStack needed, header navigation handles it
+        classPickerContent
+        #else
+        // iOS: Keep NavigationStack for proper navigation
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    
-                    // Tool info card
-                    toolInfoCard
-                    
-                    // Classes section
-                    classesSection
-                    
-                }
-                .padding(.vertical, 20)
+            classPickerContent
+        }
+        #endif
+    }
+    
+    var classPickerContent: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                
+                // Tool info card
+                toolInfoCard
+                
+                // Classes section
+                classesSection
+                
             }
-            .navigationTitle("Choose Class".localized)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel".localized) {
-                        dismiss()
-                    }
+            .padding(.vertical, 20)
+        }
+        #if !os(macOS)
+        .navigationTitle("Choose Class".localized)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel".localized) {
+                    dismiss()
                 }
             }
         }
-        #if os(macOS)
-        .frame(minWidth: 500, minHeight: 400)
         #endif
     }
     

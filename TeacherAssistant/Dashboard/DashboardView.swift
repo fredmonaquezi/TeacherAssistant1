@@ -23,6 +23,18 @@ struct DashboardView: View {
     @State private var errorMessage = ""
 
     var body: some View {
+        #if os(macOS)
+        // macOS: No NavigationStack needed, header navigation handles it
+        dashboardContent
+        #else
+        // iOS: Keep NavigationStack for proper navigation
+        NavigationStack {
+            dashboardContent
+        }
+        #endif
+    }
+    
+    var dashboardContent: some View {
         ScrollView {
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 160), spacing: 16)],
@@ -109,7 +121,9 @@ struct DashboardView: View {
                 .padding(.bottom)
         }
         .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
+        #if !os(macOS)
         .navigationTitle("Dashboard".localized)
+        #endif
         .onAppear {
             backupReminderManager.checkIfReminderNeeded()
         }

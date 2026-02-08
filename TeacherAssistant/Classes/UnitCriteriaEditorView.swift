@@ -49,9 +49,8 @@ struct UnitCriteriaEditorView: View {
     // MARK: - Actions
     
     func addCriterion() {
-        let name = newCriterionName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        
+        guard let name = SecurityHelpers.sanitizeName(newCriterionName) else { return }
+
         let newAssessment = Assessment(title: name)
         newAssessment.unit = unit
         

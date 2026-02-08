@@ -19,33 +19,42 @@ struct TimerPickerView: View {
     ]
 
     var body: some View {
+        #if os(macOS)
+        // macOS: No NavigationStack needed, header navigation handles it
+        timerContent
+        #else
+        // iOS: Keep NavigationStack for proper navigation
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    
-                    // Header
-                    headerCard
-                    
-                    // Quick presets
-                    presetsSection
-                    
-                    // Custom timer
-                    customTimerSection
-                    
-                }
-                .padding(.vertical, 20)
+            timerContent
+        }
+        #endif
+    }
+    
+    var timerContent: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                
+                // Header
+                headerCard
+                
+                // Quick presets
+                presetsSection
+                
+                // Custom timer
+                customTimerSection
+                
             }
-            .navigationTitle("Timer".localized)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel".localized) {
-                        dismiss()
-                    }
+            .padding(.vertical, 20)
+        }
+        #if !os(macOS)
+        .navigationTitle("Timer".localized)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel".localized) {
+                    dismiss()
                 }
             }
         }
-        #if os(macOS)
-        .frame(minWidth: 550, minHeight: 700)
         #endif
     }
     

@@ -67,8 +67,8 @@ struct PDFTagSheet: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let finalName = editedFileName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        onSave(finalName.isEmpty ? fileName : finalName, selectedSubject, selectedUnit)
+                        let sanitizedName = SecurityHelpers.sanitizeFilename(editedFileName)
+                        onSave(sanitizedName.isEmpty ? fileName : sanitizedName, selectedSubject, selectedUnit)
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)

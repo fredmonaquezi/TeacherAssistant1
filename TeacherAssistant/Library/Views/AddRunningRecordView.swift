@@ -350,22 +350,32 @@ struct AddRunningRecordView: View {
     
     func saveRecord() {
         guard let student = selectedStudent else { return }
-        
+
+        // Sanitize and validate inputs before saving
+        guard let sanitizedTitle = SecurityHelpers.sanitizeName(textTitle) else {
+            return
+        }
+
+        let sanitizedNotes = SecurityHelpers.sanitizeNotes(notes)
+        let validatedTotalWords = SecurityHelpers.validateCount(totalWordsInt, min: 0, max: 100000)
+        let validatedErrors = SecurityHelpers.validateCount(errorsInt, min: 0, max: 100000)
+        let validatedSelfCorrections = SecurityHelpers.validateCount(selfCorrectionsInt, min: 0, max: 100000)
+
         let record = RunningRecord(
             date: date,
-            textTitle: textTitle,
-            totalWords: totalWordsInt,
-            errors: errorsInt,
-            selfCorrections: selfCorrectionsInt,
-            notes: notes
+            textTitle: sanitizedTitle,
+            totalWords: validatedTotalWords,
+            errors: validatedErrors,
+            selfCorrections: validatedSelfCorrections,
+            notes: sanitizedNotes
         )
-        
+
         record.student = student
         student.runningRecords.append(record)
-        
+
         context.insert(record)
         try? context.save()
-        
+
         dismiss()
     }
     

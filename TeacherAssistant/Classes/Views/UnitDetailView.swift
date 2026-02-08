@@ -39,7 +39,6 @@ struct UnitDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                
                 // MARK: - Statistics Card
                 statisticsCard
                 
@@ -52,6 +51,7 @@ struct UnitDetailView: View {
             }
             .padding(.vertical, 20)
         }
+        #if !os(macOS)
         .navigationTitle(unit.name)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -63,6 +63,7 @@ struct UnitDetailView: View {
                     #endif
             }
         }
+        #endif
         .alert("Delete Assessment?".localized, isPresented: $showingDeleteAssessmentAlert) {
             Button("Cancel".localized, role: .cancel) {
                 assessmentToDelete = nil
@@ -96,6 +97,7 @@ struct UnitDetailView: View {
             )
             .frame(width: 500, height: 500)
         }
+        .macNavigationDepth()
     }
     
     // MARK: - Statistics Card
@@ -444,5 +446,3 @@ struct AddAssessmentDialog: View {
         #endif
     }
 }
-
-

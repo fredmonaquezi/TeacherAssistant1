@@ -67,93 +67,84 @@ struct LibraryView: View {
     var body: some View {
         if let folder = folder {
             Group {
-                if isSearching {
-                    LibrarySearchResultsGrid(
-                        folders: matchingFolders,
-                        files: matchingFiles
-                    )
-                } else if isSelecting {
-                    LibrarySelectGrid(
-                        subfolders: subfolders,
-                        files: files,
-                        selectedFolderIDs: $selectedFolderIDs,
-                        selectedFileIDs: $selectedFileIDs
-                    )
-                } else {
-                    LibraryBrowseGrid(
-                        subfolders: subfolders,
-                        files: files
-                    )
+                #if os(macOS)
+                VStack(spacing: 0) {
+                    libraryTopBar
+                    Divider()
+                    libraryGridContent
                 }
-            }
-            .navigationTitle(folder.name)
-            .toolbar {
+                #else
+                libraryGridContent
+                    .navigationTitle(folder.name)
+                    .toolbar {
 
-                // 🔍 SEARCH FIELD (CENTER)
-                ToolbarItem(placement: .principal) {
-                    TextField("Search", text: $searchText)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 300)
-                }
-
-                // 🔘 ACTION BUTTONS (RIGHT)
-                ToolbarItemGroup(placement: .primaryAction) {
-
-                    if isSelecting {
-                        Button("Cancel") {
-                            exitSelectMode()
+                        // 🔍 SEARCH FIELD (CENTER)
+                        ToolbarItem(placement: .principal) {
+                            TextField("Search", text: $searchText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 300)
                         }
 
-                        Button {
-                            showingMoveSheet = true
-                        } label: {
-                            Label("Move", systemImage: "folder")
-                        }
-                        .disabled(selectionCount == 0)
+                        // 🔘 ACTION BUTTONS (RIGHT)
+                        ToolbarItemGroup(placement: .primaryAction) {
 
-                        Button(role: .destructive) {
-                            showingDeleteConfirm = true
-                        } label: {
-                            Label(
-                                String(format: languageManager.localized("Delete (%d)"), selectionCount),
-                                systemImage: "trash"
-                            )
-                        }
-                        .disabled(selectionCount == 0)
+                            if isSelecting {
+                                Button("Cancel") {
+                                    exitSelectMode()
+                                }
 
-                    } else {
-                        Button {
-                            createFolder()
-                        } label: {
-                            Label("New Folder", systemImage: "folder.badge.plus")
-                        }
+                                Button {
+                                    showingMoveSheet = true
+                                } label: {
+                                    Label("Move", systemImage: "folder")
+                                }
+                                .disabled(selectionCount == 0)
 
-                        Button {
-                            showingImportPicker = true
-                        } label: {
-                            Label("Import PDF", systemImage: "square.and.arrow.down")
-                        }
+                                Button(role: .destructive) {
+                                    showingDeleteConfirm = true
+                                } label: {
+                                    Label(
+                                        String(format: languageManager.localized("Delete (%d)"), selectionCount),
+                                        systemImage: "trash"
+                                    )
+                                }
+                                .disabled(selectionCount == 0)
 
-                        Button {
-                            showingRenameSheet = true
-                        } label: {
-                            Label("Rename", systemImage: "pencil")
-                        }
+                            } else {
+                                Button {
+                                    createFolder()
+                                } label: {
+                                    Label("New Folder", systemImage: "folder.badge.plus")
+                                }
 
-                        Button(role: .destructive) {
-                            showingDeleteConfirm = true
-                        } label: {
-                            Label("Delete Folder", systemImage: "trash")
-                        }
-                        .disabled(isRootFolder)
+                                Button {
+                                    showingImportPicker = true
+                                } label: {
+                                    Label("Import PDF", systemImage: "square.and.arrow.down")
+                                }
 
-                        Button {
-                            enterSelectMode()
-                        } label: {
-                            Text("Select")
+                                Button {
+                                    showingRenameSheet = true
+                                } label: {
+                                    Label("Rename", systemImage: "pencil")
+                                }
+
+                                Button(role: .destructive) {
+                                    showingDeleteConfirm = true
+                                } label: {
+                                    Label("Delete Folder", systemImage: "trash")
+                                }
+                                .disabled(isRootFolder)
+
+                                Button {
+                                    enterSelectMode()
+                                } label: {
+                                    Text("Select")
+                                }
+                            }
                         }
                     }
-                }
+                #endif
             }
 
             // Rename
@@ -234,6 +225,99 @@ struct LibraryView: View {
         } else {
             ProgressView("Loading folder...")
         }
+    }
+
+    @ViewBuilder
+    var libraryGridContent: some View {
+        if isSearching {
+            LibrarySearchResultsGrid(
+                folders: matchingFolders,
+                files: matchingFiles
+            )
+        } else if isSelecting {
+            LibrarySelectGrid(
+                subfolders: subfolders,
+                files: files,
+                selectedFolderIDs: $selectedFolderIDs,
+                selectedFileIDs: $selectedFileIDs
+            )
+        } else {
+            LibraryBrowseGrid(
+                subfolders: subfolders,
+                files: files
+            )
+        }
+    }
+
+    var libraryTopBar: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                TextField("Search", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 320)
+
+                Spacer()
+
+                if isSelecting {
+                    Button("Cancel") {
+                        exitSelectMode()
+                    }
+
+                    Button {
+                        showingMoveSheet = true
+                    } label: {
+                        Label("Move", systemImage: "folder")
+                    }
+                    .disabled(selectionCount == 0)
+
+                    Button(role: .destructive) {
+                        showingDeleteConfirm = true
+                    } label: {
+                        Label(
+                            String(format: languageManager.localized("Delete (%d)"), selectionCount),
+                            systemImage: "trash"
+                        )
+                    }
+                    .disabled(selectionCount == 0)
+                } else {
+                    Button {
+                        createFolder()
+                    } label: {
+                        Label("New Folder", systemImage: "folder.badge.plus")
+                    }
+
+                    Button {
+                        showingImportPicker = true
+                    } label: {
+                        Label("Import PDF", systemImage: "square.and.arrow.down")
+                    }
+
+                    Button {
+                        showingRenameSheet = true
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+
+                    Button(role: .destructive) {
+                        showingDeleteConfirm = true
+                    } label: {
+                        Label("Delete Folder", systemImage: "trash")
+                    }
+                    .disabled(isRootFolder)
+
+                    Button("Select") {
+                        enterSelectMode()
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        #if os(macOS)
+        .background(Color(NSColor.controlBackgroundColor))
+        #else
+        .background(Color(UIColor.secondarySystemBackground))
+        #endif
     }
 
 

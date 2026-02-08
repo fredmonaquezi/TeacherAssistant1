@@ -288,7 +288,7 @@ enum StudentReportExporter {
             kCGPDFContextTitle as String: "Student Report",
             kCGPDFContextCreator as String: "Teacher Assistant"
         ] as CFDictionary) else {
-            print("❌ Failed to create PDF context")
+            SecureLogger.error("Failed to create PDF context")
             return url
         }
         
@@ -395,10 +395,10 @@ enum StudentReportExporter {
         pdfContext.endPDFPage()
         pdfContext.closePDF()
         
-        print("✅ PDF generated successfully at: \(url.path)")
+        SecureLogger.debug("PDF generated successfully")
         if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
            let fileSize = attributes[.size] as? Int {
-            print("   File size: \(fileSize) bytes")
+            SecureLogger.debug("PDF file size: \(fileSize) bytes")
         }
 
         return url

@@ -90,9 +90,11 @@ enum SecureLogger {
         function: String = #function,
         line: Int = #line
     ) {
+        #if DEBUG
         let filename = (file as NSString).lastPathComponent
         let timestamp = ISO8601DateFormatter().string(from: Date())
         print("[\(timestamp)] [\(level.rawValue)] [\(filename):\(line)] \(function) - \(message)")
+        #endif
     }
     
     /// Redacts potentially sensitive information from log messages

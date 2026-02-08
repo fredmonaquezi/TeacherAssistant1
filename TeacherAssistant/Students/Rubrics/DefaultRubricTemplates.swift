@@ -8,15 +8,15 @@ func createDefaultRubrics(context: ModelContext) {
     do {
         let count = try context.fetchCount(descriptor)
         if count > 0 {
-            print("ℹ️ Default rubrics already exist (\(count) templates), skipping initialization")
+            SecureLogger.debug("Default rubrics already exist (\(count) templates), skipping initialization")
             return
         }
     } catch {
-        print("⚠️ Could not check existing rubrics: \(error)")
+        SecureLogger.warning("Could not check existing rubrics: \(error)")
         // Continue with creation anyway
     }
-    
-    print("📝 Creating default rubric templates...")
+
+    SecureLogger.debug("Creating default rubric templates...")
     
     // PRIMARY (Years 1-3)
     createPrimaryTemplates(context: context)
@@ -31,7 +31,7 @@ func createDefaultRubrics(context: ModelContext) {
     createHighSchoolTemplates(context: context)
     
     try? context.save()
-    print("✅ Default rubric templates created successfully")
+    SecureLogger.debug("Default rubric templates created successfully")
 }
 
 // MARK: - PRIMARY (Years 1-3)

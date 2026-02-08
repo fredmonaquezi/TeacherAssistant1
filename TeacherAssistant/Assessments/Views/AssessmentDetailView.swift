@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftUI
 import SwiftData
 
 struct AssessmentDetailView: View {
@@ -9,7 +8,6 @@ struct AssessmentDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                
                 // MARK: - Statistics Card
                 statisticsCard
                 
@@ -25,6 +23,7 @@ struct AssessmentDetailView: View {
             }
             .padding(.vertical, 20)
         }
+        #if !os(macOS)
         .navigationTitle(assessment.title)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -36,9 +35,11 @@ struct AssessmentDetailView: View {
                     #endif
             }
         }
+        #endif
         .onAppear {
             ensureResultsExist()
         }
+        .macNavigationDepth()
     }
     
     // MARK: - Statistics Card
@@ -227,11 +228,12 @@ struct AssessmentDetailView: View {
     // MARK: - Sorted Results
     
     var sortedResults: [StudentResult] {
-        assessment.results.sorted { result1, result2 in
+        let results: [StudentResult] = assessment.results.sorted { result1, result2 in
             let name1 = result1.student?.name ?? ""
             let name2 = result2.student?.name ?? ""
             return name1 < name2
         }
+        return results
     }
 
     // MARK: - Data bootstrap

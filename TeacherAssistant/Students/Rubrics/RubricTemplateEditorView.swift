@@ -479,7 +479,8 @@ struct AddCategorySheet: View {
     }
     
     func addCategory() {
-        let category = RubricCategory(name: categoryName.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard let sanitizedName = SecurityHelpers.sanitizeName(categoryName) else { return }
+        let category = RubricCategory(name: sanitizedName)
         category.template = template
         category.sortOrder = template.categories.count
         context.insert(category)
@@ -616,9 +617,11 @@ struct AddCriterionSheet: View {
     }
     
     func addCriterion() {
+        guard let sanitizedName = SecurityHelpers.sanitizeName(criterionName) else { return }
+        let sanitizedDetails = SecurityHelpers.sanitizeNotes(criterionDetails)
         let criterion = RubricCriterion(
-            name: criterionName.trimmingCharacters(in: .whitespacesAndNewlines),
-            details: criterionDetails.trimmingCharacters(in: .whitespacesAndNewlines)
+            name: sanitizedName,
+            details: sanitizedDetails
         )
         criterion.category = category
         criterion.sortOrder = category.criteria.count
@@ -760,14 +763,14 @@ struct CreateNewTemplateSheet: View {
     }
     
     func createTemplate() {
-        let trimmedName = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedGrade = gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+        guard let sanitizedName = SecurityHelpers.sanitizeName(templateName) else { return }
+        guard let sanitizedGrade = SecurityHelpers.sanitizeName(gradeLevel) else { return }
+        guard let sanitizedSubject = SecurityHelpers.sanitizeName(subject) else { return }
+
         let template = RubricTemplate(
-            name: trimmedName,
-            gradeLevel: trimmedGrade,
-            subject: trimmedSubject
+            name: sanitizedName,
+            gradeLevel: sanitizedGrade,
+            subject: sanitizedSubject
         )
         context.insert(template)
         try? context.save()

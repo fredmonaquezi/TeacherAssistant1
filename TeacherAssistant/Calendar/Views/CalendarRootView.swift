@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftUI
 import SwiftData
 
 struct CalendarRootView: View {
@@ -11,8 +12,13 @@ struct CalendarRootView: View {
 
     @State private var selectedDate = Date()
     @State private var viewMode: CalendarViewMode = .month
-    @State private var selectedClass: SchoolClass?
+    @State private var selectedClassID: PersistentIdentifier?
     @State private var showingDayDetail = false
+    
+    private var selectedClass: SchoolClass? {
+        guard let selectedClassID else { return nil }
+        return classes.first(where: { $0.persistentModelID == selectedClassID })
+    }
 
     enum CalendarViewMode: String, CaseIterable {
         case month
@@ -27,59 +33,71 @@ struct CalendarRootView: View {
     }
 
     var body: some View {
+        #if os(macOS)
+        // macOS: No NavigationStack needed, header navigation handles it
+        calendarContent
+        #else
+        // iOS: Keep NavigationStack for proper navigation
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    headerBar
+            calendarContent
+        }
+        #endif
+    }
+    
+    var calendarContent: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                headerBar
 
-                    filterBar
+                filterBar
 
-                    if viewMode == .month {
-                        MonthCalendarView(
-                            monthDate: selectedDate,
-                            selectedDate: $selectedDate,
-                            entries: filteredDiaryEntries,
-                            events: filteredEvents,
-                            localeIdentifier: languageManager.currentLanguage.localeIdentifier,
-                            onSelect: {
-                                showingDayDetail = true
-                            }
-                        )
-                    } else {
-                        WeekCalendarView(
-                            dateInWeek: selectedDate,
-                            selectedDate: $selectedDate,
-                            entries: filteredDiaryEntries,
-                            events: filteredEvents,
-                            localeIdentifier: languageManager.currentLanguage.localeIdentifier,
-                            onSelect: {
-                                showingDayDetail = true
-                            }
-                        )
-                    }
-
-                    upcomingEventsCard
+                if viewMode == .month {
+                    MonthCalendarView(
+                        monthDate: selectedDate,
+                        selectedDate: $selectedDate,
+                        entries: filteredDiaryEntries,
+                        events: filteredEvents,
+                        localeIdentifier: languageManager.currentLanguage.localeIdentifier,
+                        onSelect: {
+                            showingDayDetail = true
+                        }
+                    )
+                } else {
+                    WeekCalendarView(
+                        dateInWeek: selectedDate,
+                        selectedDate: $selectedDate,
+                        entries: filteredDiaryEntries,
+                        events: filteredEvents,
+                        localeIdentifier: languageManager.currentLanguage.localeIdentifier,
+                        onSelect: {
+                            showingDayDetail = true
+                        }
+                    )
                 }
-                .padding(.vertical, 16)
-                .padding(.horizontal, 12)
+
+                upcomingEventsCard
             }
-            .navigationTitle("Calendar".localized)
-            .id(languageManager.currentLanguage)
-            .sheet(isPresented: $showingDayDetail) {
-                DayDetailSheet(
-                    date: selectedDate,
-                    classes: classes,
-                    selectedClass: selectedClass,
-                    entries: filteredDiaryEntries,
-                    events: filteredEvents,
-                    onSaveEntry: { entry in
-                        context.insert(entry)
-                    },
-                    onSaveEvent: { event in
-                        context.insert(event)
-                    }
-                )
-            }
+            .padding(.vertical, 16)
+            .padding(.horizontal, 12)
+        }
+        #if !os(macOS)
+        .navigationTitle("Calendar".localized)
+        #endif
+        .id(languageManager.currentLanguage)
+        .sheet(isPresented: $showingDayDetail) {
+            DayDetailSheet(
+                date: selectedDate,
+                classes: classes,
+                selectedClass: selectedClass,
+                entries: filteredDiaryEntries,
+                events: filteredEvents,
+                onSaveEntry: { entry in
+                    context.insert(entry)
+                },
+                onSaveEvent: { event in
+                    context.insert(event)
+                }
+            )
         }
     }
 
@@ -135,10 +153,10 @@ struct CalendarRootView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            Picker("Class".localized, selection: $selectedClass) {
-                Text("All Classes".localized).tag(SchoolClass?.none)
-                ForEach(classes, id: \.id) { schoolClass in
-                    Text(schoolClass.name).tag(Optional(schoolClass))
+            Picker("Class".localized, selection: $selectedClassID) {
+                Text("All Classes".localized).tag(PersistentIdentifier?.none)
+                ForEach(classes, id: \.persistentModelID) { schoolClass in
+                    Text(schoolClass.name).tag(PersistentIdentifier?.some(schoolClass.persistentModelID))
                 }
             }
             .pickerStyle(.menu)
@@ -212,12 +230,12 @@ struct CalendarRootView: View {
 
     var filteredDiaryEntries: [ClassDiaryEntry] {
         guard let selectedClass else { return diaryEntries }
-        return diaryEntries.filter { $0.schoolClass?.id == selectedClass.id }
+        return diaryEntries.filter { $0.schoolClass?.persistentModelID == selectedClass.persistentModelID }
     }
 
     var filteredEvents: [CalendarEvent] {
         guard let selectedClass else { return events }
-        return events.filter { $0.schoolClass?.id == selectedClass.id }
+        return events.filter { $0.schoolClass?.persistentModelID == selectedClass.persistentModelID }
     }
 
     // MARK: - Helpers
@@ -825,7 +843,7 @@ struct DiaryEntryEditor: View {
     let selectedClass: SchoolClass?
     let onSave: (ClassDiaryEntry) -> Void
 
-    @State private var selectedClassID: SchoolClass?
+    @State private var selectedClassID: PersistentIdentifier?
     @State private var selectedSubject: Subject?
     @State private var selectedUnit: Unit?
 
@@ -836,6 +854,11 @@ struct DiaryEntryEditor: View {
     @State private var objectives = ""
     @State private var materials = ""
     @State private var notes = ""
+    
+    private var selectedClassObject: SchoolClass? {
+        guard let selectedClassID else { return nil }
+        return classes.first(where: { $0.persistentModelID == selectedClassID })
+    }
 
     var body: some View {
         NavigationStack {
@@ -863,11 +886,11 @@ struct DiaryEntryEditor: View {
                             date: Calendar.current.startOfDay(for: date),
                             startTime: merge(date: date, time: startTime),
                             endTime: merge(date: date, time: endTime),
-                            plan: plan,
-                            objectives: objectives,
-                            materials: materials,
-                            notes: notes,
-                            schoolClass: selectedClassID,
+                            plan: SecurityHelpers.sanitizeNotes(plan),
+                            objectives: SecurityHelpers.sanitizeNotes(objectives),
+                            materials: SecurityHelpers.sanitizeNotes(materials),
+                            notes: SecurityHelpers.sanitizeNotes(notes),
+                            schoolClass: selectedClassObject,
                             subject: selectedSubject,
                             unit: selectedUnit
                         )
@@ -878,7 +901,7 @@ struct DiaryEntryEditor: View {
             }
         }
         .onAppear {
-            selectedClassID = selectedClass
+            selectedClassID = selectedClass?.persistentModelID
             startTime = merge(date: date, time: defaultTime(hour: 8, minute: 30))
             endTime = merge(date: date, time: defaultTime(hour: 9, minute: 30))
         }
@@ -892,7 +915,7 @@ struct DiaryEntryEditor: View {
     }
 
     var subjectsForSelectedClass: [Subject] {
-        selectedClassID?.subjects.sorted { $0.sortOrder < $1.sortOrder } ?? []
+        selectedClassObject?.subjects.sorted { $0.sortOrder < $1.sortOrder } ?? []
     }
 
     var unitsForSelectedSubject: [Unit] {
@@ -939,9 +962,9 @@ struct DiaryEntryEditor: View {
 
             pickerRow(label: "Class".localized) {
                 Picker("Class".localized, selection: $selectedClassID) {
-                    Text("All Classes".localized).tag(SchoolClass?.none)
-                    ForEach(classes, id: \.id) { schoolClass in
-                        Text(schoolClass.name).tag(Optional(schoolClass))
+                    Text("All Classes".localized).tag(PersistentIdentifier?.none)
+                    ForEach(classes, id: \.persistentModelID) { schoolClass in
+                        Text(schoolClass.name).tag(PersistentIdentifier?.some(schoolClass.persistentModelID))
                     }
                 }
                 .pickerStyle(.menu)
@@ -1063,9 +1086,14 @@ struct EventEditor: View {
     @State private var title = ""
     @State private var details = ""
     @State private var isAllDay = true
-    @State private var selectedClassID: SchoolClass?
+    @State private var selectedClassID: PersistentIdentifier?
     @State private var startTime: Date = Date()
     @State private var endTime: Date = Date()
+    
+    private var selectedClassObject: SchoolClass? {
+        guard let selectedClassID else { return nil }
+        return classes.first(where: { $0.persistentModelID == selectedClassID })
+    }
 
     var body: some View {
         NavigationStack {
@@ -1084,14 +1112,15 @@ struct EventEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save".localized) {
+                        let sanitizedTitle = SecurityHelpers.sanitizeName(title) ?? ""
                         let event = CalendarEvent(
-                            title: title,
+                            title: sanitizedTitle,
                             date: Calendar.current.startOfDay(for: date),
                             startTime: isAllDay ? nil : merge(date: date, time: startTime),
                             endTime: isAllDay ? nil : merge(date: date, time: endTime),
-                            details: details,
+                            details: SecurityHelpers.sanitizeNotes(details),
                             isAllDay: isAllDay,
-                            schoolClass: selectedClassID
+                            schoolClass: selectedClassObject
                         )
                         onSave(event)
                         dismiss()
@@ -1101,7 +1130,7 @@ struct EventEditor: View {
             }
         }
         .onAppear {
-            selectedClassID = selectedClass
+            selectedClassID = selectedClass?.persistentModelID
             startTime = merge(date: date, time: defaultTime(hour: 8, minute: 30))
             endTime = merge(date: date, time: defaultTime(hour: 9, minute: 30))
         }
@@ -1188,9 +1217,9 @@ struct EventEditor: View {
                     .foregroundColor(.secondary)
                     .frame(width: 70, alignment: .leading)
                 Picker("Class".localized, selection: $selectedClassID) {
-                    Text("All Classes".localized).tag(SchoolClass?.none)
-                    ForEach(classes, id: \.id) { schoolClass in
-                        Text(schoolClass.name).tag(Optional(schoolClass))
+                    Text("All Classes".localized).tag(PersistentIdentifier?.none)
+                    ForEach(classes, id: \.persistentModelID) { schoolClass in
+                        Text(schoolClass.name).tag(PersistentIdentifier?.some(schoolClass.persistentModelID))
                     }
                 }
                 .pickerStyle(.menu)

@@ -16,29 +16,41 @@ struct ClassesView: View {
     @State private var showingDeleteAlert = false
     
     var body: some View {
+        #if os(macOS)
+        // macOS: No NavigationStack needed, header navigation handles it
+        classesContent
+        #else
+        // iOS: Keep NavigationStack for proper navigation
         NavigationStack {
-            Group {
-#if os(macOS)
-// 🖥️ Mac: Card Grid Layout
-ScrollView {
-    LazyVGrid(columns: [
-        GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 24)
-    ], spacing: 24) {
-        ForEach(classes.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { schoolClass in
-            NavigationLink {
-                ClassDetailView(schoolClass: schoolClass)
-            } label: {
-                ClassCardView(schoolClass: schoolClass, onDelete: {
-                    classToDelete = schoolClass
-                    showingDeleteAlert = true
-                })
-            }
-            .buttonStyle(.plain)
+            classesContent
         }
+        #endif
     }
-    .padding(24)
-}
-            #else
+    
+    var classesContent: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                #if os(macOS)
+                // 🖥️ Mac: Card Grid Layout
+                ScrollView {
+                    LazyVGrid(columns: [
+                        GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 24)
+                    ], spacing: 24) {
+                        ForEach(classes.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { schoolClass in
+                            NavigationLink {
+                                ClassDetailView(schoolClass: schoolClass)
+                            } label: {
+                                ClassCardView(schoolClass: schoolClass, onDelete: {
+                                    classToDelete = schoolClass
+                                    showingDeleteAlert = true
+                                })
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(24)
+                }
+                #else
                 // 📱 iOS / iPadOS: Card Grid Layout (matches Mac)
                 ScrollView {
                     LazyVGrid(columns: [
@@ -68,36 +80,56 @@ ScrollView {
                 }
                 #endif
             }
-            .navigationTitle("Classes".localized)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    HStack {
-                        Button {
-                            showingAdd = true
-                        } label: {
-                            Label("Add Class".localized, systemImage: "plus")
-                        }
+            
+            // Floating Add Button (macOS only)
+            #if os(macOS)
+            Button {
+                showingAdd = true
+            } label: {
+                Label("Add Class".localized, systemImage: "plus")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor)
+                    .cornerRadius(25)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+            .padding(24)
+            #endif
+        }
+        #if !os(macOS)
+        .navigationTitle("Classes".localized)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                HStack {
+                    Button {
+                        showingAdd = true
+                    } label: {
+                        Label("Add Class".localized, systemImage: "plus")
                     }
                 }
             }
-            .sheet(isPresented: $showingAdd) {
-                AddClassView()
+        }
+        #endif
+        .sheet(isPresented: $showingAdd) {
+            AddClassView()
+        }
+        .alert("Delete Class?".localized, isPresented: $showingDeleteAlert) {
+            Button("Cancel".localized, role: .cancel) {
+                classToDelete = nil
             }
-            .alert("Delete Class?".localized, isPresented: $showingDeleteAlert) {
-                Button("Cancel".localized, role: .cancel) {
-                    classToDelete = nil
-                }
-                
-                Button("Delete".localized, role: .destructive) {
-                    if let classToDelete {
-                        context.delete(classToDelete)
-                    }
-                    classToDelete = nil
-                }
-            } message: {
+            
+            Button("Delete".localized, role: .destructive) {
                 if let classToDelete {
-                    Text(String(format: "Are you sure you want to delete \"%@\"? This will remove all its subjects, units, students, attendance and grades.".localized, classToDelete.name))
+                    context.delete(classToDelete)
                 }
+                classToDelete = nil
+            }
+        } message: {
+            if let classToDelete {
+                Text(String(format: "Are you sure you want to delete \"%@\"? This will remove all its subjects, units, students, attendance and grades.".localized, classToDelete.name))
             }
         }
     }

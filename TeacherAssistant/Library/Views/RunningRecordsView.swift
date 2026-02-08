@@ -11,6 +11,8 @@ struct RunningRecordsView: View {
     @State private var showingAddRecord = false
     @State private var searchText = ""
     @State private var filterLevel: ReadingLevel?
+    @State private var recordToDelete: RunningRecord?
+    @State private var showingDeleteAlert = false
     
     var filteredRecords: [RunningRecord] {
         var records = allRunningRecords
@@ -34,7 +36,19 @@ struct RunningRecordsView: View {
     }
     
     var body: some View {
+        #if os(macOS)
+        // macOS: No NavigationStack needed, header navigation handles it
+        runningRecordsContent
+        #else
+        // iOS: Keep NavigationStack for proper navigation
         NavigationStack {
+            runningRecordsContent
+        }
+        #endif
+    }
+    
+    var runningRecordsContent: some View {
+        ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
                 // Header Stats
                 headerStatsView
@@ -51,25 +65,64 @@ struct RunningRecordsView: View {
                     ScrollView {
                         LazyVStack(spacing: 16) {
                             ForEach(filteredRecords, id: \.id) { record in
-                                RunningRecordCard(record: record)
+                                RunningRecordCard(record: record, onDelete: {
+                                    recordToDelete = record
+                                    showingDeleteAlert = true
+                                })
                             }
                         }
                         .padding()
                     }
                 }
             }
-            .navigationTitle(languageManager.localized("Running Records"))
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showingAddRecord = true
-                    } label: {
-                        Label(languageManager.localized("New Record"), systemImage: "plus.circle.fill")
-                    }
+            
+            // Floating Add Button (macOS only)
+            #if os(macOS)
+            Button {
+                showingAddRecord = true
+            } label: {
+                Label(languageManager.localized("New Record"), systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor)
+                    .cornerRadius(25)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+            .padding(24)
+            #endif
+        }
+        #if !os(macOS)
+        .navigationTitle(languageManager.localized("Running Records"))
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showingAddRecord = true
+                } label: {
+                    Label(languageManager.localized("New Record"), systemImage: "plus.circle.fill")
                 }
             }
-            .sheet(isPresented: $showingAddRecord) {
-                AddRunningRecordView()
+        }
+        #endif
+        .sheet(isPresented: $showingAddRecord) {
+            AddRunningRecordView()
+        }
+        .alert(languageManager.localized("Delete Running Record?"), isPresented: $showingDeleteAlert) {
+            Button(languageManager.localized("Cancel"), role: .cancel) {
+                recordToDelete = nil
+            }
+            Button(languageManager.localized("Delete"), role: .destructive) {
+                if let record = recordToDelete {
+                    context.delete(record)
+                    try? context.save()
+                }
+                recordToDelete = nil
+            }
+        } message: {
+            if let record = recordToDelete {
+                Text(String(format: languageManager.localized("Are you sure you want to delete the running record for \"%@\"? This cannot be undone."), record.textTitle))
             }
         }
     }
@@ -250,9 +303,10 @@ struct RunningRecordsView: View {
 
 struct RunningRecordCard: View {
     let record: RunningRecord
+    var onDelete: (() -> Void)?
     @State private var showingDetail = false
     @EnvironmentObject var languageManager: LanguageManager
-    
+
     var body: some View {
         Button {
             showingDetail = true
@@ -269,25 +323,25 @@ struct RunningRecordCard: View {
                                 .font(.headline)
                                 .foregroundColor(.secondary)
                         }
-                        
+
                         Text(record.textTitle.isEmpty ? languageManager.localized("Untitled Text") : record.textTitle)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    
+
                     Spacer()
-                    
+
                     VStack(alignment: .trailing, spacing: 4) {
                         Text(record.date, style: .date)
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        
+
                         Text(record.date, style: .time)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
                 }
-                
+
                 // Stats
                 HStack(spacing: 12) {
                     miniStat(title: languageManager.localized("Accuracy"), value: String(format: "%.1f%%", record.accuracy), color: levelColor(record.readingLevel))
@@ -295,7 +349,7 @@ struct RunningRecordCard: View {
                     miniStat(title: languageManager.localized("SC"), value: "\(record.selfCorrections)", color: .blue)
                     miniStat(title: languageManager.localized("Words"), value: "\(record.totalWords)", color: .purple)
                 }
-                
+
                 // Reading Level Badge
                 HStack {
                     Image(systemName: record.readingLevel.systemImage)
@@ -316,6 +370,15 @@ struct RunningRecordCard: View {
             .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if let onDelete = onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label(languageManager.localized("Delete"), systemImage: "trash")
+                }
+            }
+        }
         .sheet(isPresented: $showingDetail) {
             RunningRecordDetailView(record: record)
         }

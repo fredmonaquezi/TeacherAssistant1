@@ -64,7 +64,7 @@ class ClassroomTimerManager: ObservableObject {
 
     private func playSound() {
         guard let url = Bundle.main.url(forResource: "timer_end", withExtension: "wav") else {
-            print("❌ Sound file not found")
+            SecureLogger.warning("Sound file not found")
             return
         }
 
@@ -73,7 +73,7 @@ class ClassroomTimerManager: ObservableObject {
             player?.numberOfLoops = -1   // 🔁 Loop until user dismisses
             player?.play()
         } catch {
-            print("❌ Could not play sound")
+            SecureLogger.error("Could not play sound", error: error)
         }
     }
 

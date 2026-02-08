@@ -30,9 +30,8 @@ struct RenameFolderSheet: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty {
-                            onSave(trimmed)
+                        if let sanitized = SecurityHelpers.sanitizeName(name) {
+                            onSave(sanitized)
                         }
                         dismiss()
                     }

@@ -13,7 +13,19 @@ struct RubricTemplateManagerView: View {
     @State private var showingDeleteAlert = false
     
     var body: some View {
-        NavigationStack {
+        Group {
+            #if os(macOS)
+            content
+            #else
+            NavigationStack {
+                content
+            }
+            #endif
+        }
+    }
+
+    var content: some View {
+        ZStack(alignment: .bottomTrailing) {
             ScrollView {
                 VStack(spacing: 24) {
                     
@@ -24,44 +36,62 @@ struct RubricTemplateManagerView: View {
                     ForEach(gradeLevels, id: \.self) { gradeLevel in
                         templateSection(for: gradeLevel)
                     }
-                    
                 }
                 .padding()
             }
-            .navigationTitle("Rubric Templates".localized)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showingCreateNew = true
-                    } label: {
-                        Label("Create New".localized, systemImage: "plus.circle.fill")
-                    }
+
+            #if os(macOS)
+            Button {
+                showingCreateNew = true
+            } label: {
+                Label("Create New".localized, systemImage: "plus.circle.fill")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor)
+                    .cornerRadius(25)
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+            .padding(24)
+            #endif
+        }
+        #if !os(macOS)
+        .navigationTitle("Rubric Templates".localized)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showingCreateNew = true
+                } label: {
+                    Label("Create New".localized, systemImage: "plus.circle.fill")
                 }
             }
-            .sheet(item: $selectedTemplate) { template in
-                RubricTemplateEditorView(template: template)
+        }
+        #endif
+        .sheet(item: $selectedTemplate) { template in
+            RubricTemplateEditorView(template: template)
+        }
+        .sheet(isPresented: $showingCreateNew) {
+            CreateNewTemplateSheet()
+        }
+        .alert(languageManager.localized("Delete Template?"), isPresented: $showingDeleteAlert) {
+            Button(languageManager.localized("Cancel"), role: .cancel) {
+                templateToDelete = nil
             }
-            .sheet(isPresented: $showingCreateNew) {
-                CreateNewTemplateSheet()
-            }
-            .alert(languageManager.localized("Delete Template?"), isPresented: $showingDeleteAlert) {
-                Button(languageManager.localized("Cancel"), role: .cancel) {
-                    templateToDelete = nil
-                }
-                Button(languageManager.localized("Delete"), role: .destructive) {
-                    if let templateToDelete {
-                        context.delete(templateToDelete)
-                        try? context.save()
-                    }
-                    templateToDelete = nil
-                }
-            } message: {
+            Button(languageManager.localized("Delete"), role: .destructive) {
                 if let templateToDelete {
-                    Text(String(
-                        format: languageManager.localized("Are you sure you want to delete \"%@\"?"),
-                        templateToDelete.name
-                    ))
+                    context.delete(templateToDelete)
+                    try? context.save()
                 }
+                templateToDelete = nil
+            }
+        } message: {
+            if let templateToDelete {
+                Text(String(
+                    format: languageManager.localized("Are you sure you want to delete \"%@\"?"),
+                    templateToDelete.name
+                ))
             }
         }
     }

@@ -181,6 +181,7 @@ struct StudentProgressView: View {
         } message: {
             Text("Student progress report has been generated successfully!".localized)
         }
+        .macNavigationDepth()
     }
     
     // MARK: - PDF Export Functions

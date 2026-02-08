@@ -49,6 +49,7 @@ struct UnitPDFsView: View {
             .padding(.vertical, 20)
         }
         .navigationTitle("Materials: \(unit.name)".localized)
+        .macNavigationDepth()
     }
     
     func pdfSection(title: String, subtitle: String, files: [LibraryFile], color: Color) -> some View {

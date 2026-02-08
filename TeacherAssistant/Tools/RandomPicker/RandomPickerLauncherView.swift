@@ -11,6 +11,8 @@ struct RandomPickerLauncherView: View {
     @State private var isRotationMode = false
     @State private var selectedCategory = "Helper" // Track which category
     @State private var showingAddCategory = false
+    @State private var categoryToDelete: String?
+    @State private var showingDeleteCategoryAlert = false
     @State private var customCategories: [String] = []
     @AppStorage("helperRotation") private var helperRotationData = ""
     @AppStorage("guardianRotation") private var guardianRotationData = ""
@@ -23,6 +25,10 @@ struct RandomPickerLauncherView: View {
     
     var categories: [String] {
         defaultCategories + customCategories
+    }
+
+    var isSelectedCategoryCustom: Bool {
+        customCategories.contains(selectedCategory)
     }
     
     let categoryIcons = ["Helper": "star.fill", "Guardian": "shield.fill", "Line Leader": "figure.walk", "Messenger": "envelope.fill"]
@@ -77,11 +83,11 @@ struct RandomPickerLauncherView: View {
     }
     
     var availableStudents: [Student] {
-        schoolClass.students.filter { !usedStudentIDs.contains(String(describing: $0.id)) }
+        schoolClass.students.filter { !usedStudentIDs.contains($0.stableIDString) }
     }
     
     var usedStudents: [Student] {
-        schoolClass.students.filter { usedStudentIDs.contains(String(describing: $0.id)) }
+        schoolClass.students.filter { usedStudentIDs.contains($0.stableIDString) }
     }
     
     var categoryColor: Color {
@@ -101,28 +107,18 @@ struct RandomPickerLauncherView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    
-                    // Quick Pick Header (clickable)
-                    quickPickHeader
-                    
-                    Divider().padding(.horizontal)
-                    
-                    // Category Selector
-                    categorySelector
-                    
-                    // Rotation Mode Section
-                    rotationSection
-                    
-                }
-                .padding(.vertical, 20)
+        Group {
+            #if os(macOS)
+            content
+            #else
+            NavigationStack {
+                content
             }
-            .navigationTitle("Student Picker".localized)
+            #endif
         }
         .onAppear {
             loadCustomCategories()
+            ensureStableIDs()
         }
         .sheet(isPresented: $showingAddCategory) {
             AddCustomCategoryView(onAdd: { newCategory in
@@ -146,7 +142,7 @@ struct RandomPickerLauncherView: View {
                         onMarkUsed: {
                             let currentIDs = Set(currentRotationData.split(separator: ",").map { String($0) })
                             var newIDs = currentIDs
-                            newIDs.insert(String(describing: pickedStudent.id))
+                            newIDs.insert(pickedStudent.stableIDString)
                             updateRotationData(newIDs.joined(separator: ","))
                         },
                         onSkip: {
@@ -158,6 +154,43 @@ struct RandomPickerLauncherView: View {
                 }
             }
         }
+        .alert("Delete Custom Role?".localized, isPresented: $showingDeleteCategoryAlert) {
+            Button("Cancel".localized, role: .cancel) {
+                categoryToDelete = nil
+            }
+            Button("Delete".localized, role: .destructive) {
+                if let categoryToDelete {
+                    deleteCustomCategory(categoryToDelete)
+                }
+                categoryToDelete = nil
+            }
+        } message: {
+            Text("This will remove the role and its saved rotation history.".localized)
+        }
+        .macNavigationDepth()
+    }
+
+    var content: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                
+                // Quick Pick Header (clickable)
+                quickPickHeader
+                
+                Divider().padding(.horizontal)
+                
+                // Category Selector
+                categorySelector
+                
+                // Rotation Mode Section
+                rotationSection
+                
+            }
+            .padding(.vertical, 20)
+        }
+        #if !os(macOS)
+        .navigationTitle("Student Picker".localized)
+        #endif
     }
     
     // MARK: - Quick Pick Header
@@ -216,6 +249,20 @@ struct RandomPickerLauncherView: View {
                 Text("Select Role".localized)
                     .font(.headline)
                 Spacer()
+                if isSelectedCategoryCustom {
+                    Button {
+                        categoryToDelete = selectedCategory
+                        showingDeleteCategoryAlert = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash")
+                            Text("Delete Custom".localized)
+                        }
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                }
                 Button {
                     showingAddCategory = true
                 } label: {
@@ -484,6 +531,34 @@ struct RandomPickerLauncherView: View {
     
     func saveCustomCategories() {
         customCategoriesData = customCategories.joined(separator: "|")
+    }
+
+    func deleteCustomCategory(_ category: String) {
+        customCategories.removeAll { $0 == category }
+        saveCustomCategories()
+        updateCustomRotation(for: category, data: "")
+
+        if selectedCategory == category {
+            selectedCategory = defaultCategories.first ?? "Helper"
+        }
+    }
+
+    func ensureStableIDs() {
+        var seen: Set<String> = []
+        let zeroUUID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")
+
+        for student in schoolClass.students {
+            if student.uuid == zeroUUID {
+                student.uuid = UUID()
+            }
+
+            var id = student.stableIDString
+            if id.isEmpty || seen.contains(id) {
+                student.uuid = UUID()
+                id = student.stableIDString
+            }
+            seen.insert(id)
+        }
     }
 }
 

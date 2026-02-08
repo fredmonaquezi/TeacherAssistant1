@@ -16,7 +16,6 @@ struct SubjectDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                
                 // MARK: - Statistics Card
                 statisticsCard
                 
@@ -26,6 +25,7 @@ struct SubjectDetailView: View {
             }
             .padding(.vertical, 20)
         }
+        #if !os(macOS)
         .navigationTitle(subject.name)
         .toolbar {
             // Center: editable subject name
@@ -38,6 +38,7 @@ struct SubjectDetailView: View {
                     #endif
             }
         }
+        #endif
         .alert(languageManager.localized("Delete Unit?"), isPresented: $showingDeleteUnitAlert) {
             Button(languageManager.localized("Cancel"), role: .cancel) {
                 unitToDelete = nil
@@ -62,6 +63,7 @@ struct SubjectDetailView: View {
             })
             .environmentObject(languageManager)
         }
+        .macNavigationDepth()
     }
     
     // MARK: - Statistics Card
@@ -309,5 +311,3 @@ struct AddUnitDialog: View {
         #endif
     }
 }
-
-

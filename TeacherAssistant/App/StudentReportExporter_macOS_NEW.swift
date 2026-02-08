@@ -13,9 +13,10 @@ enum StudentReportExporterMac {
         allResults: [StudentResult],
         allAttendanceSessions: [AttendanceSession]
     ) -> URL {
-        
+
+        let safeFilename = SecurityHelpers.generateSecureFilename(baseName: "StudentReport", extension: "pdf")
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("StudentReport-\(student.name).pdf")
+            .appendingPathComponent(safeFilename)
         
         let pageWidth: CGFloat = 595.2   // A4
         let pageHeight: CGFloat = 841.8
@@ -62,7 +63,9 @@ enum StudentReportExporterMac {
         printOperation.run()
         
         // Fallback: Just write the text content
-        try? textContent.write(to: url.deletingPathExtension().appendingPathExtension("txt"), atomically: true, encoding: .utf8)
+        let fallbackFilename = SecurityHelpers.generateSecureFilename(baseName: "StudentReport", extension: "txt")
+        let fallbackURL = FileManager.default.temporaryDirectory.appendingPathComponent(fallbackFilename)
+        try? textContent.write(to: fallbackURL, atomically: true, encoding: .utf8)
         
         // Create simple PDF with Core Graphics
         let actualPDFURL = createSimplePDF(
@@ -82,18 +85,19 @@ enum StudentReportExporterMac {
         allAttendanceSessions: [AttendanceSession]
     ) -> URL {
         
+        let safeFilename2 = SecurityHelpers.generateSecureFilename(baseName: "StudentReport", extension: "pdf")
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("StudentReport-\(student.name).pdf")
-        
+            .appendingPathComponent(safeFilename2)
+
         let pageWidth: CGFloat = 595.2
         let pageHeight: CGFloat = 841.8
         var pageRect = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
-        
+
         guard let pdfContext = CGContext(url as CFURL, mediaBox: &pageRect, [
             kCGPDFContextTitle as String: "Student Report".localized,
             kCGPDFContextCreator as String: "Teacher Assistant".localized
         ] as CFDictionary) else {
-            print("❌ Failed to create PDF context")
+            SecureLogger.error("Failed to create PDF context")
             return url
         }
         
@@ -197,11 +201,11 @@ enum StudentReportExporterMac {
         pdfContext.endPDFPage()
         pdfContext.closePDF()
         
-        print("✅ PDF created at: \(url.path)")
+        SecureLogger.debug("PDF created successfully")
         if FileManager.default.fileExists(atPath: url.path) {
             if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
                let fileSize = attributes[.size] as? Int {
-                print("   File size: \(fileSize) bytes")
+                SecureLogger.debug("PDF file size: \(fileSize) bytes")
             }
         }
         

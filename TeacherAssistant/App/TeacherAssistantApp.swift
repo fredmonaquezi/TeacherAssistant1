@@ -41,12 +41,14 @@ struct TeacherAssistantApp: App {
                 configurations: [modelConfiguration]
             )
         } catch {
+            #if DEBUG
             print("❌ FATAL ERROR creating ModelContainer:")
             print("Error: \(error)")
             print("Error description: \(error.localizedDescription)")
             if let decodingError = error as? DecodingError {
                 print("Decoding error details: \(decodingError)")
             }
+            #endif
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
@@ -61,6 +63,10 @@ struct TeacherAssistantApp: App {
                     await initializeDefaultRubrics()
                 }
         }
+        #if os(macOS)
+        .defaultSize(width: 1100, height: 750)
+        .windowStyle(.hiddenTitleBar)
+        #endif
         .modelContainer(sharedModelContainer)
     }
     

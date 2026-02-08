@@ -44,6 +44,9 @@
 "All Day" = "Dia Inteiro";
 "Start Time" = "Horário de Início";
 "End Time" = "Horário de Término";
+"Delete Custom" = "Excluir Personalizado";
+"Delete Custom Role?" = "Excluir Função Personalizada?";
+"This will remove the role and its saved rotation history." = "Isso removerá a função e o histórico salvo de rotação.";
 "New Event" = "Novo Evento";
 "Delete Entry?" = "Excluir Registro?";
 "Delete Event?" = "Excluir Evento?";

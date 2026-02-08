@@ -44,6 +44,9 @@
 "All Day" = "All Day";
 "Start Time" = "Start Time";
 "End Time" = "End Time";
+"Delete Custom" = "Delete Custom";
+"Delete Custom Role?" = "Delete Custom Role?";
+"This will remove the role and its saved rotation history." = "This will remove the role and its saved rotation history.";
 "New Event" = "New Event";
 "Delete Entry?" = "Delete Entry?";
 "Delete Event?" = "Delete Event?";

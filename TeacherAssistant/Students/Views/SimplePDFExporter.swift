@@ -29,7 +29,8 @@ struct SimplePDFExporter {
         let attributedString = createFormattedReport(content: content, studentName: student.name)
         
         // Save to PDF using NSTextView and NSPrintOperation
-        let pdfURL = saveToPDF(attributedString: attributedString, fileName: "StudentReport-\(student.name).pdf")
+        let safeFilename = SecurityHelpers.generateSecureFilename(baseName: "StudentReport", extension: "pdf")
+        let pdfURL = saveToPDF(attributedString: attributedString, fileName: safeFilename)
         
         return pdfURL
     }
@@ -559,12 +560,10 @@ struct SimplePDFExporter {
         let pdfData = textView.dataWithPDF(inside: NSRect(x: 0, y: 0, width: pageWidth, height: textView.frame.height))
         
         do {
-            try pdfData.write(to: url)
-            print("✅ PDF saved successfully to: \(url.path)")
-            print("   File size: \(pdfData.count) bytes")
-            print("   Content height: \(textView.frame.height) points")
+            try pdfData.write(to: url, options: [.atomic, .completeFileProtection])
+            SecureLogger.debug("PDF saved successfully (\(pdfData.count) bytes)")
         } catch {
-            print("❌ Error saving PDF: \(error)")
+            SecureLogger.error("Error saving PDF", error: error)
         }
         
         return url

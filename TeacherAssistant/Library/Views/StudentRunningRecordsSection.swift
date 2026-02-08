@@ -1,9 +1,18 @@
 import SwiftUI
+import SwiftData
 import Charts
+import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
 
 struct StudentRunningRecordsSection: View {
     let student: Student
     @State private var showingAllRecords = false
+    @State private var exportURL: URL?
+    @State private var showExportConfirmation = false
+    @State private var schoolNameInput: String = ""
+    @State private var showSchoolNamePrompt = false
     @EnvironmentObject var languageManager: LanguageManager
     
     var sortedRecords: [RunningRecord] {
@@ -35,35 +44,74 @@ struct StudentRunningRecordsSection: View {
                 Spacer()
                 
                 if !student.runningRecords.isEmpty {
-                    Button {
-                        showingAllRecords = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(languageManager.localized("View All"))
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
+                    HStack(spacing: 12) {
+                        Button {
+                            showSchoolNamePrompt = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.subheadline)
+                                .foregroundColor(.orange)
                         }
-                        .font(.subheadline)
-                        .foregroundColor(.blue)
+
+                        Button {
+                            showingAllRecords = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(languageManager.localized("View All"))
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                        }
                     }
                 }
             }
             
             if student.runningRecords.isEmpty {
                 // Empty State
-                VStack(spacing: 12) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary)
+                VStack(spacing: 16) {
+                    // Icon with gradient background
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.blue.opacity(0.1), Color.blue.opacity(0.05)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
+                        
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 36, weight: .light))
+                            .foregroundColor(.blue.opacity(0.6))
+                    }
                     
-                    Text(languageManager.localized("No running records yet"))
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    VStack(spacing: 6) {
+                        Text(languageManager.localized("No running records yet"))
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text(languageManager.localized("Start tracking reading progress by adding your first running record."))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 20)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(40)
-                .background(Color.gray.opacity(0.05))
-                .cornerRadius(12)
+                .padding(.vertical, 50)
+                .padding(.horizontal, 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.gray.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(Color.gray.opacity(0.1), lineWidth: 1)
+                        )
+                )
             } else {
                 // Stats
                 HStack(spacing: 12) {
@@ -108,6 +156,58 @@ struct StudentRunningRecordsSection: View {
         .sheet(isPresented: $showingAllRecords) {
             StudentAllRunningRecordsView(student: student)
         }
+        .alert(languageManager.localized("Export Running Records"), isPresented: $showSchoolNamePrompt) {
+            TextField(languageManager.localized("School Name (optional)"), text: $schoolNameInput)
+            Button(languageManager.localized("Cancel"), role: .cancel) {}
+            Button(languageManager.localized("Export PDF")) {
+                exportRunningRecordsPDF()
+            }
+        } message: {
+            Text(languageManager.localized("Enter the school name to appear on the PDF header."))
+        }
+        #if os(iOS)
+        .sheet(
+            isPresented: Binding(
+                get: { exportURL != nil },
+                set: { newValue in if !newValue { exportURL = nil } }
+            )
+        ) {
+            if let url = exportURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+        #endif
+        .alert(languageManager.localized("PDF Exported"), isPresented: $showExportConfirmation) {
+            Button("OK") {}
+        } message: {
+            Text(languageManager.localized("Running records PDF has been saved successfully."))
+        }
+    }
+
+    // MARK: - Export
+
+    func exportRunningRecordsPDF() {
+        let sanitizedSchoolName = SecurityHelpers.sanitizeNotes(schoolNameInput)
+        let pdfURL = RunningRecordPDFExporter.export(
+            student: student,
+            schoolName: sanitizedSchoolName,
+            runningRecords: student.runningRecords
+        )
+
+        #if os(iOS)
+        exportURL = pdfURL
+        #elseif os(macOS)
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.pdf]
+        let safeName = SecurityHelpers.sanitizeFilename(student.name)
+        savePanel.nameFieldStringValue = "\(safeName) - Running Records.pdf"
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                try? FileManager.default.copyItem(at: pdfURL, to: url)
+                showExportConfirmation = true
+            }
+        }
+        #endif
     }
     
     // MARK: - Dark Mode Support
@@ -235,18 +335,24 @@ struct StudentRunningRecordsSection: View {
 struct StudentAllRunningRecordsView: View {
     let student: Student
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     @EnvironmentObject var languageManager: LanguageManager
-    
+    @State private var recordToDelete: RunningRecord?
+    @State private var showingDeleteAlert = false
+
     var sortedRecords: [RunningRecord] {
         student.runningRecords.sorted { $0.date > $1.date }
     }
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(sortedRecords, id: \.id) { record in
-                        RunningRecordCard(record: record)
+                        RunningRecordCard(record: record, onDelete: {
+                            recordToDelete = record
+                            showingDeleteAlert = true
+                        })
                     }
                 }
                 .padding()
@@ -260,6 +366,22 @@ struct StudentAllRunningRecordsView: View {
                     Button("Done") {
                         dismiss()
                     }
+                }
+            }
+            .alert(languageManager.localized("Delete Running Record?"), isPresented: $showingDeleteAlert) {
+                Button(languageManager.localized("Cancel"), role: .cancel) {
+                    recordToDelete = nil
+                }
+                Button(languageManager.localized("Delete"), role: .destructive) {
+                    if let record = recordToDelete {
+                        context.delete(record)
+                        try? context.save()
+                    }
+                    recordToDelete = nil
+                }
+            } message: {
+                if let record = recordToDelete {
+                    Text(String(format: languageManager.localized("Are you sure you want to delete the running record for \"%@\"? This cannot be undone."), record.textTitle))
                 }
             }
         }

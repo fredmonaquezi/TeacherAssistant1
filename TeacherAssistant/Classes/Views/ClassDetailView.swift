@@ -28,6 +28,7 @@ struct ClassDetailView: View {
             #endif
         }
         .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
+        #if !os(macOS)
         .navigationTitle(schoolClass.name)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -72,6 +73,7 @@ struct ClassDetailView: View {
                 }
             }
         }
+        #endif
         .sheet(isPresented: $showingAddStudent) {
             AddStudentView(schoolClass: schoolClass)
         }
@@ -97,10 +99,22 @@ struct ClassDetailView: View {
             }
         }
         .sheet(isPresented: $showingGroupGenerator) {
+            #if os(macOS)
+            NavigationStack {
+                AdvancedGroupGeneratorView(schoolClass: schoolClass)
+            }
+            #else
             AdvancedGroupGeneratorView(schoolClass: schoolClass)
+            #endif
         }
         .sheet(isPresented: $showingAttendance) {
+            #if os(macOS)
+            NavigationStack {
+                AttendanceListView(schoolClass: schoolClass)
+            }
+            #else
             AttendanceListView(schoolClass: schoolClass)
+            #endif
         }
         .alert("Delete Student?".localized, isPresented: $showingDeleteStudentAlert) {
             Button("Cancel".localized, role: .cancel) {
@@ -138,6 +152,7 @@ struct ClassDetailView: View {
                 Text(String(format: "Are you sure you want to delete \"%@\"? All units, assessments and grades inside this subject will be lost.".localized, subjectToDelete.name))
             }
         }
+        .macNavigationDepth()
     }
 
     var orderedStudents: [Student] {
@@ -152,7 +167,6 @@ struct ClassDetailView: View {
     var macOSLayout: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
-                
                 // Class info header
                 classInfoHeader
                 

@@ -102,6 +102,7 @@ struct StudentDetailView: View {
             }
             .padding(.vertical, 20)
         }
+        #if !os(macOS)
         .navigationTitle(student.name)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -110,6 +111,7 @@ struct StudentDetailView: View {
                 }
             }
         }
+        #endif
         .sheet(isPresented: $isEditingInfo) {
             studentInfoSheet
         }
@@ -122,6 +124,7 @@ struct StudentDetailView: View {
         .sheet(item: $selectedSubject) { subject in
             unitPickerSheet(for: subject)
         }
+        .macNavigationDepth()
     }
     
     // MARK: - Quick Status Bar

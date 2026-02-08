@@ -144,7 +144,7 @@ final class BackupManager {
         let filename = SecurityHelpers.generateSecureFilename(baseName: "TeacherAssistant", extension: "backup")
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         
-        try data.write(to: url, options: [.atomic])
+        try data.write(to: url, options: [.atomic, .completeFileProtection])
         
         SecureLogger.operationComplete("Backup Export")
         

@@ -19,46 +19,14 @@ struct AdvancedGroupGeneratorView: View {
     @State private var showingSeparationEditor: Bool = false
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    
-                    // Header Card
-                    headerCard
-                    
-                    // Controls Card
-                    controlsCard
-                    
-                    // Advanced Options
-                    advancedOptionsCard
-                    
-                    // Results Section
-                    if groups.isEmpty {
-                        emptyStateView
-                    } else {
-                        resultsSection
-                    }
-                    
-                }
-                .padding(.vertical, 20)
+        Group {
+            #if os(macOS)
+            content
+            #else
+            NavigationStack {
+                content
             }
-            .navigationTitle(languageManager.localized("Group Generator"))
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        showingSeparationEditor = true
-                    } label: {
-                        Label(languageManager.localized("Separations"), systemImage: "person.2.slash")
-                    }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(languageManager.localized("Done")) {
-                        dismiss()
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
+            #endif
         }
         .sheet(isPresented: $showingSeparationEditor) {
             StudentSeparationEditor(schoolClass: schoolClass)
@@ -66,7 +34,70 @@ struct AdvancedGroupGeneratorView: View {
         #if os(macOS)
         .frame(minWidth: 700, minHeight: 600)
         #endif
+        .macNavigationDepth()
     }
+
+    var content: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                #if os(macOS)
+                groupActionsRow
+                #endif
+                
+                // Header Card
+                headerCard
+                
+                // Controls Card
+                controlsCard
+                
+                // Advanced Options
+                advancedOptionsCard
+                
+                // Results Section
+                if groups.isEmpty {
+                    emptyStateView
+                } else {
+                    resultsSection
+                }
+                
+            }
+            .padding(.vertical, 20)
+        }
+        #if !os(macOS)
+        .navigationTitle(languageManager.localized("Group Generator"))
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    showingSeparationEditor = true
+                } label: {
+                    Label(languageManager.localized("Separations"), systemImage: "person.2.slash")
+                }
+            }
+            
+            ToolbarItem(placement: .confirmationAction) {
+                Button(languageManager.localized("Done")) {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        #endif
+    }
+
+    #if os(macOS)
+    var groupActionsRow: some View {
+        HStack {
+            Button {
+                showingSeparationEditor = true
+            } label: {
+                Label(languageManager.localized("Separations"), systemImage: "person.2.slash")
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal)
+    }
+    #endif
     
     // MARK: - Header Card
     
