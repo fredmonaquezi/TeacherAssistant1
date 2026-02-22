@@ -17,6 +17,12 @@ struct ClassPickerCard: View {
                 Text(schoolClass.grade)
                     .font(.body)
                     .foregroundColor(.secondary)
+
+                if let schoolYear = schoolClass.schoolYear, !schoolYear.isEmpty {
+                    Text(schoolYear)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             
             Divider()

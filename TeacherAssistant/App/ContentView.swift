@@ -2,6 +2,8 @@ import SwiftUI
 #if os(macOS)
 import AppKit
 import Combine
+#elseif os(iOS)
+import UIKit
 #endif
 
 enum AppSection: String, CaseIterable, Identifiable {
@@ -22,109 +24,27 @@ enum AppSection: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
 
-    @State private var selectedSection: AppSection? = .dashboard
+    @AppStorage(AppPreferencesKeys.defaultLandingSection) private var defaultLandingSectionRawValue: String = AppSection.dashboard.rawValue
+    @State private var selectedSection: AppSection?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
-    #if os(macOS)
     @State private var navigationStackResetID = UUID()
+    @State private var appViewResetID = UUID()
     @StateObject private var macNavigationState = MacNavigationState()
-    #endif
     
     @StateObject var timerManager = ClassroomTimerManager()
     @StateObject var backupReminderManager = BackupReminderManager()
     
     @EnvironmentObject var languageManager: LanguageManager
 
+    init() {
+        let defaultSectionRawValue = UserDefaults.standard.string(forKey: AppPreferencesKeys.defaultLandingSection) ?? AppSection.dashboard.rawValue
+        _selectedSection = State(initialValue: AppSection(rawValue: defaultSectionRawValue) ?? .dashboard)
+    }
+
     var body: some View {
         ZStack {
-            #if os(macOS)
-            // macOS: Custom header navigation
-            VStack(spacing: 0) {
-                NavigationHeaderView(
-                    selectedSection: $selectedSection,
-                    onNavigate: {
-                        // Single-shot reset so top navigation always works
-                        // from deep pushed screens without multiple rebuilds.
-                        navigationStackResetID = UUID()
-                        macNavigationState.reset()
-                    },
-                    onBack: goBack,
-                    showBackButton: macNavigationState.depth > 0
-                )
-
-                // DETAIL AREA
-                NavigationStack {
-                    detailView
-                }
-                .id(navigationStackResetID)
-                .toolbar(.hidden, for: .windowToolbar)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .environmentObject(macNavigationState)
-            .background(MacWindowToolbarCleaner())
-            .frame(minWidth: 900, minHeight: 650)
-            .onChange(of: timerManager.isRunning) { _, isRunning in
-                if !isRunning {
-                    // 🔒 Force staying in Timer section when timer stops
-                    selectedSection = .timer
-                }
-            }
-            .onChange(of: timerManager.isExpanded) { _, isExpanded in
-                if !isExpanded && timerManager.isRunning {
-                    // When user minimizes the timer, go back to Dashboard
-                    selectedSection = .dashboard
-                }
-            }
-            .onAppear {
-                macNavigationState.reset()
-            }
-            .onChange(of: selectedSection) { _, _ in
-                macNavigationState.reset()
-            }
-            #else
-            // iOS/iPadOS: Traditional sidebar navigation
-            NavigationSplitView(columnVisibility: $columnVisibility) {
-                // SIDEBAR
-                VStack(spacing: 0) {
-                    List(selection: $selectedSection) {
-                        ForEach(AppSection.allCases) { section in
-                            Label(languageManager.localized(section.rawValue), systemImage: icon(for: section))
-                                .tag(section)
-                        }
-                    }
-                    
-                    // Language selector at the bottom
-                    Divider()
-                    HStack {
-                        Spacer()
-                        LanguageToggleButton(languageManager: languageManager)
-                        Spacer()
-                    }
-                    .padding(.vertical, 8)
-                    .background(Color.gray.opacity(0.05))
-                }
-                .navigationTitle(languageManager.localized("Teacher Assistant"))
-                
-            } detail: {
-                // DETAIL AREA
-                detailView
-            }
-            // ✅ When user selects something, collapse sidebar automatically
-            .onChange(of: selectedSection) { _, _ in
-                columnVisibility = .detailOnly
-            }
-            .onChange(of: timerManager.isRunning) { _, isRunning in
-                if !isRunning {
-                    // 🔒 Force staying in Timer section when timer stops
-                    selectedSection = .timer
-                }
-            }
-            .onChange(of: timerManager.isExpanded) { _, isExpanded in
-                if !isExpanded && timerManager.isRunning {
-                    // When user minimizes the timer, go back to Dashboard
-                    selectedSection = .dashboard
-                }
-            }
-            #endif
+            mainNavigationLayout
+                .id(appViewResetID)
 
 
             // ⏱️ TIMER OVERLAY LAYER
@@ -148,9 +68,113 @@ struct ContentView: View {
             }
 
         }
+        .onReceive(NotificationCenter.default.publisher(for: .backupRestoreDidComplete)) { _ in
+            handleBackupRestoreCompleted()
+        }
+        .onChange(of: defaultLandingSectionRawValue) { _, newValue in
+            if selectedSection == nil {
+                selectedSection = AppSection(rawValue: newValue) ?? .dashboard
+            }
+        }
     }
     
     // MARK: - Detail View
+
+    @ViewBuilder
+    private var mainNavigationLayout: some View {
+        #if os(macOS)
+        topHeaderLayout(showBackButton: macNavigationState.depth > 0, backAction: goBack)
+        #elseif os(iOS)
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            topHeaderLayout(showBackButton: false, backAction: nil)
+        } else {
+            iPhoneLayout
+        }
+        #else
+        iPhoneLayout
+        #endif
+    }
+
+    private func topHeaderLayout(showBackButton: Bool, backAction: (() -> Void)?) -> some View {
+        VStack(spacing: 0) {
+            NavigationHeaderView(
+                selectedSection: $selectedSection,
+                onNavigate: {
+                    // Single-shot reset so top navigation always works
+                    // from deep pushed screens without multiple rebuilds.
+                    navigationStackResetID = UUID()
+                    macNavigationState.reset()
+                },
+                onBack: backAction,
+                showBackButton: showBackButton
+            )
+
+            NavigationStack {
+                detailView
+            }
+            .id(navigationStackResetID)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .environmentObject(macNavigationState)
+        #if os(macOS)
+        .background(MacWindowToolbarCleaner())
+        .frame(minWidth: 900, minHeight: 650)
+        #endif
+        .onChange(of: timerManager.isRunning) { _, isRunning in
+            if !isRunning {
+                selectedSection = .timer
+            }
+        }
+        .onChange(of: timerManager.isExpanded) { _, isExpanded in
+            if !isExpanded && timerManager.isRunning {
+                selectedSection = .dashboard
+            }
+        }
+        .onAppear {
+            macNavigationState.reset()
+        }
+        .onChange(of: selectedSection) { _, _ in
+            macNavigationState.reset()
+        }
+    }
+
+    private var iPhoneLayout: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            VStack(spacing: 0) {
+                List(selection: $selectedSection) {
+                    ForEach(AppSection.allCases) { section in
+                        Label(languageManager.localized(section.rawValue), systemImage: icon(for: section))
+                            .tag(section)
+                    }
+                }
+
+                Divider()
+                HStack {
+                    Spacer()
+                    LanguageToggleButton(languageManager: languageManager)
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+                .background(Color.gray.opacity(0.05))
+            }
+            .navigationTitle(languageManager.localized("Teacher Assistant"))
+        } detail: {
+            detailView
+        }
+        .onChange(of: selectedSection) { _, _ in
+            columnVisibility = .detailOnly
+        }
+        .onChange(of: timerManager.isRunning) { _, isRunning in
+            if !isRunning {
+                selectedSection = .timer
+            }
+        }
+        .onChange(of: timerManager.isExpanded) { _, isExpanded in
+            if !isExpanded && timerManager.isRunning {
+                selectedSection = .dashboard
+            }
+        }
+    }
     
     @ViewBuilder
     private var detailView: some View {
@@ -217,34 +241,13 @@ struct ContentView: View {
 
     // MARK: - Sidebar Icons
 
-    #if os(macOS)
     private func goBack() {
-        let backActions: [Selector] = [
-            Selector(("dismiss:")),
-            Selector(("goBack:"))
-        ]
-
-        var handled = false
-        for action in backActions {
-            if NSApp.sendAction(action, to: nil, from: nil) {
-                handled = true
-                break
-            }
-
-            if let responder = NSApp.keyWindow?.firstResponder,
-               NSApp.sendAction(action, to: nil, from: responder) {
-                handled = true
-                break
-            }
+        #if os(macOS)
+        if macNavigationState.depth > 0 {
+            macNavigationState.requestPop()
         }
-
-        // Fallback for cases where SwiftUI does not expose an action target.
-        if !handled, macNavigationState.depth > 0 {
-            navigationStackResetID = UUID()
-            macNavigationState.reset()
-        }
+        #endif
     }
-    #endif
 
     func icon(for section: AppSection) -> String {
         switch section {
@@ -261,6 +264,14 @@ struct ContentView: View {
         case .calendar: return "calendar"
         }
     }
+
+    private func handleBackupRestoreCompleted() {
+        appViewResetID = UUID()
+        navigationStackResetID = UUID()
+        #if os(macOS)
+        macNavigationState.reset()
+        #endif
+    }
 }
 
 #Preview {
@@ -270,14 +281,10 @@ struct ContentView: View {
 #if os(macOS)
 private struct MacWindowToolbarCleaner: NSViewRepresentable {
     final class Coordinator {
-        var observer: NSObjectProtocol?
         weak var observedWindow: NSWindow?
+        var hasConfiguredWindow = false
 
-        deinit {
-            if let observer {
-                NotificationCenter.default.removeObserver(observer)
-            }
-        }
+        deinit {}
     }
 
     func makeCoordinator() -> Coordinator {
@@ -288,21 +295,12 @@ private struct MacWindowToolbarCleaner: NSViewRepresentable {
         let view = NSView(frame: .zero)
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            clean(window)
-
-            guard context.coordinator.observedWindow !== window else { return }
-            context.coordinator.observedWindow = window
-
-            if let observer = context.coordinator.observer {
-                NotificationCenter.default.removeObserver(observer)
+            if context.coordinator.observedWindow !== window {
+                context.coordinator.observedWindow = window
+                context.coordinator.hasConfiguredWindow = false
             }
-            context.coordinator.observer = NotificationCenter.default.addObserver(
-                forName: NSWindow.didUpdateNotification,
-                object: window,
-                queue: .main
-            ) { _ in
-                clean(window)
-            }
+            configureWindowIfNeeded(window, coordinator: context.coordinator)
+            enforceTitleHidden(window)
         }
         return view
     }
@@ -310,16 +308,54 @@ private struct MacWindowToolbarCleaner: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         DispatchQueue.main.async {
             guard let window = nsView.window else { return }
-            clean(window)
+            if context.coordinator.observedWindow !== window {
+                context.coordinator.observedWindow = window
+                context.coordinator.hasConfiguredWindow = false
+            }
+            configureWindowIfNeeded(window, coordinator: context.coordinator)
+            enforceTitleHidden(window)
         }
     }
 
-    private func clean(_ window: NSWindow) {
+    private func configureWindowIfNeeded(_ window: NSWindow, coordinator: Coordinator) {
+        guard !coordinator.hasConfiguredWindow else { return }
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
         if window.toolbar != nil {
             window.toolbar = nil
         }
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
+        window.minSize = NSSize(width: 900, height: 650)
+
+        // Keep standard macOS traffic-light controls visible with custom header UI.
+        let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+        for buttonType in buttons {
+            guard let button = window.standardWindowButton(buttonType) else { continue }
+            button.isHidden = false
+            button.alphaValue = 1.0
+        }
+        coordinator.hasConfiguredWindow = true
+    }
+
+    private func enforceTitleHidden(_ window: NSWindow) {
+        if window.minSize.width < 900 || window.minSize.height < 650 {
+            window.minSize = NSSize(width: 900, height: 650)
+        }
+        if window.titleVisibility != .hidden {
+            window.titleVisibility = .hidden
+        }
+        if !window.titlebarAppearsTransparent {
+            window.titlebarAppearsTransparent = true
+        }
+        if !window.title.isEmpty {
+            window.title = ""
+        }
+        let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+        for buttonType in buttons {
+            guard let button = window.standardWindowButton(buttonType), button.isHidden else { continue }
+            button.isHidden = false
+            button.alphaValue = 1.0
+        }
     }
 }
 #endif

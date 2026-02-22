@@ -387,12 +387,18 @@ struct CopyCriteriaSheet: View {
     func copyCriteria(from sourceUnit: Unit) {
         let existingCount = unit.assessments.count
         let sourceSorted = sourceUnit.assessments.sorted { $0.sortOrder < $1.sortOrder }
+        let classStudents = unit.subject?.schoolClass?.students ?? []
         
         for (index, old) in sourceSorted.enumerated() {
-            let newAssessment = Assessment(title: old.title)
+            let newAssessment = Assessment(title: old.title, maxScore: old.safeMaxScore)
             newAssessment.unit = unit
             newAssessment.sortOrder = existingCount + index
             unit.assessments.append(newAssessment)
+
+            let existingStudentIDs = Set(newAssessment.results.compactMap { $0.student?.id })
+            for student in classStudents where !existingStudentIDs.contains(student.id) {
+                newAssessment.results.append(StudentResult(student: student, assessment: newAssessment))
+            }
         }
     }
     

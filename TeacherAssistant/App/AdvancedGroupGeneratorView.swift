@@ -3,7 +3,6 @@ import SwiftData
 
 struct AdvancedGroupGeneratorView: View {
     
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var languageManager: LanguageManager
     
     let schoolClass: SchoolClass
@@ -14,9 +13,12 @@ struct AdvancedGroupGeneratorView: View {
     // Advanced options
     @State private var balanceGender: Bool = false
     @State private var balanceAbility: Bool = false
+    @State private var pairSupportPartners: Bool = false
     @State private var respectSeparations: Bool = true
     @State private var showingSettings: Bool = true // Start expanded so users can see the options
     @State private var showingSeparationEditor: Bool = false
+    @State private var generationNotice: String?
+    @State private var generationNoticeIsWarning: Bool = false
     
     var body: some View {
         Group {
@@ -66,19 +68,12 @@ struct AdvancedGroupGeneratorView: View {
         #if !os(macOS)
         .navigationTitle(languageManager.localized("Group Generator"))
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingSeparationEditor = true
                 } label: {
                     Label(languageManager.localized("Separations"), systemImage: "person.2.slash")
                 }
-            }
-            
-            ToolbarItem(placement: .confirmationAction) {
-                Button(languageManager.localized("Done")) {
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
             }
         }
         #endif
@@ -220,6 +215,18 @@ struct AdvancedGroupGeneratorView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            if let generationNotice {
+                HStack(spacing: 8) {
+                    Image(systemName: generationNoticeIsWarning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                        .foregroundColor(generationNoticeIsWarning ? .orange : .green)
+                    Text(generationNotice)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             
             // Generate button
             Button {
@@ -318,6 +325,24 @@ struct AdvancedGroupGeneratorView: View {
                     .toggleStyle(.switch)
                     
                     Divider()
+
+                    // Pair support partners toggle
+                    Toggle(isOn: $pairSupportPartners) {
+                        HStack {
+                            Image(systemName: "person.2.wave.2.fill")
+                                .foregroundColor(.teal)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Pair Support Partners".localized)
+                                    .font(.subheadline)
+                                Text("Try to place students needing help with supportive peers".localized)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    
+                    Divider()
                     
                     // Respect separations toggle
                     Toggle(isOn: $respectSeparations) {
@@ -383,6 +408,9 @@ struct AdvancedGroupGeneratorView: View {
                     if balanceAbility {
                         Badge(icon: "chart.bar", color: .green)
                     }
+                    if pairSupportPartners {
+                        Badge(icon: "person.2.wave.2.fill", color: .teal)
+                    }
                     if respectSeparations {
                         Badge(icon: "person.2.slash", color: .red)
                     }
@@ -408,142 +436,109 @@ struct AdvancedGroupGeneratorView: View {
     // MARK: - Logic
     
     func generateGroups() {
-        var availableStudents = schoolClass.students
-        groups = []
-        
-        // If balancing ability, sort students by ability level first
-        if balanceAbility {
-            availableStudents.sort { s1, s2 in
-                (s1.needsHelp ? 0 : 1) < (s2.needsHelp ? 0 : 1)
-            }
-        } else {
-            availableStudents.shuffle()
+        let classStudents = schoolClass.students.sorted { $0.sortOrder < $1.sortOrder }
+        guard !classStudents.isEmpty else {
+            groups = []
+            generationNotice = nil
+            generationNoticeIsWarning = false
+            return
         }
-        
-        // Get separation pairs
-        let separations = respectSeparations ? getSeparationPairs() : []
-        
-        // Create groups
-        while !availableStudents.isEmpty {
-            var group: [Student] = []
-            var attempts = 0
-            let maxAttempts = 100
-            
-            while group.count < groupSize && !availableStudents.isEmpty && attempts < maxAttempts {
-                attempts += 1
-                
-                // If this is the first student in the group, just pick one
-                if group.isEmpty {
-                    if let student = pickBestStudent(from: availableStudents, for: group, separations: separations) {
-                        group.append(student)
-                        availableStudents.removeAll { $0.id == student.id }
-                    } else if let fallback = availableStudents.first {
-                        group.append(fallback)
-                        availableStudents.removeAll { $0.id == fallback.id }
-                    }
-                } else {
-                    // Pick next student considering all constraints
-                    if let student = pickBestStudent(from: availableStudents, for: group, separations: separations) {
-                        group.append(student)
-                        availableStudents.removeAll { $0.id == student.id }
-                    } else {
-                        break
-                    }
-                }
+
+        var options = GroupingEngineOptions(
+            balanceGender: balanceGender,
+            balanceAbility: balanceAbility,
+            pairSupportPartners: pairSupportPartners,
+            respectSeparations: respectSeparations
+        )
+        let usingAdvancedRules = balanceGender || balanceAbility || pairSupportPartners || respectSeparations
+        options.maxAttempts = usingAdvancedRules ? 32 : 1
+
+        let studentsByStableID = Dictionary(uniqueKeysWithValues: classStudents.map { ($0.stableIDString, $0) })
+        let stableIDByLegacyPersistentID = Dictionary(uniqueKeysWithValues: classStudents.map { (String(describing: $0.id), $0.stableIDString) })
+        let knownStableIDs = Set(studentsByStableID.keys)
+
+        let engineStudents = classStudents.map { student in
+            let resolvedSeparationIDs = student.separationTokens.compactMap { token -> String? in
+                if knownStableIDs.contains(token) { return token }
+                return stableIDByLegacyPersistentID[token]
             }
-            
-            if !group.isEmpty {
-                groups.append(group)
+            return GroupingEngineStudent(
+                id: student.stableIDString,
+                name: student.name,
+                gender: student.gender,
+                needsHelp: student.needsHelp,
+                isSupportPartner: student.isSupportPartnerCandidate,
+                separationIDs: Array(Set(resolvedSeparationIDs))
+            )
+        }
+        let generationResult = GroupingEngine.generateGroups(
+            students: engineStudents,
+            preferredGroupSize: groupSize,
+            options: options
+        )
+
+        groups = generationResult.groups.map { group in
+            group.compactMap { studentsByStableID[$0.id] }
+        }.filter { !$0.isEmpty }
+
+        let notice = engineNotice(for: generationResult)
+        generationNotice = notice.text
+        generationNoticeIsWarning = notice.isWarning
+    }
+
+    func engineNotice(for result: GroupingEngineResult) -> (text: String, isWarning: Bool) {
+        if groups.isEmpty {
+            return (languageManager.localized("No groups were generated."), true)
+        }
+
+        switch result.strategy {
+        case .strict:
+            return (
+                String(
+                    format: languageManager.localized("Generated %d balanced groups."),
+                    groups.count
+                ),
+                false
+            )
+        case .relaxedConstraints:
+            if result.separationConflicts > 0 {
+                return (
+                    String(
+                        format: languageManager.localized("Used fallback strategy: constraints were relaxed and %d separation conflict(s) remain."),
+                        result.separationConflicts
+                    ),
+                    true
+                )
             }
+            return (
+                languageManager.localized("Used fallback strategy: regenerated with relaxed ordering to satisfy constraints."),
+                false
+            )
+        case .forcedPlacement:
+            return (
+                String(
+                    format: languageManager.localized("Used emergency fallback placement. %d separation conflict(s) remain."),
+                    result.separationConflicts
+                ),
+                true
+            )
+        case .failed:
+            return (
+                String(
+                    format: languageManager.localized("Could not satisfy all rules. %d student(s) could not be assigned."),
+                    result.unassignedCount
+                ),
+                true
+            )
         }
     }
-    
-    func pickBestStudent(from students: [Student], for group: [Student], separations: Set<StudentPair>) -> Student? {
-        var candidates = students
-        
-        // Filter out separated students
-        if respectSeparations && !group.isEmpty {
-            candidates = candidates.filter { candidate in
-                !group.contains { existing in
-                    separations.contains(StudentPair(student1: existing.id, student2: candidate.id))
-                }
-            }
-        }
-        
-        if candidates.isEmpty {
-            return nil
-        }
-        
-        // If balancing gender, try to pick different gender
-        if balanceGender && !group.isEmpty {
-            let gendersInGroup = Set(group.map { $0.genderEnum })
-            let differentGender = candidates.first { !gendersInGroup.contains($0.genderEnum) }
-            if let student = differentGender {
-                return student
-            }
-        }
-        
-        // If balancing ability, alternate
-        if balanceAbility && !group.isEmpty {
-            let hasNeedHelp = group.contains { $0.needsHelp }
-            if hasNeedHelp {
-                // Pick someone who doesn't need help
-                if let student = candidates.first(where: { !$0.needsHelp }) {
-                    return student
-                }
-            } else {
-                // Pick someone who needs help
-                if let student = candidates.first(where: { $0.needsHelp }) {
-                    return student
-                }
-            }
-        }
-        
-        // Otherwise, return first available
-        return candidates.first
-    }
-    
-    func getSeparationPairs() -> Set<StudentPair> {
-        var pairs = Set<StudentPair>()
-        
-        for student in schoolClass.students {
-            let separatedIDStrings = student.separationList.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
-            for idString in separatedIDStrings {
-                // Find student with matching ID string
-                if let separatedStudent = schoolClass.students.first(where: { String(describing: $0.id) == idString }) {
-                    pairs.insert(StudentPair(student1: student.id, student2: separatedStudent.id))
-                }
-            }
-        }
-        
-        return pairs
-    }
+
     var cardBackground: Color {
         #if os(macOS)
         return Color(NSColor.controlBackgroundColor)
         #else
         return Color(UIColor.secondarySystemBackground)
         #endif
-    }
-}
-
-// MARK: - Helper Types
-
-struct StudentPair: Hashable {
-    let student1: PersistentIdentifier
-    let student2: PersistentIdentifier
-    
-    init(student1: PersistentIdentifier, student2: PersistentIdentifier) {
-        // Always store in sorted order so (A,B) == (B,A)
-        let id1String = String(describing: student1)
-        let id2String = String(describing: student2)
-        if id1String < id2String {
-            self.student1 = student1
-            self.student2 = student2
-        } else {
-            self.student1 = student2
-            self.student2 = student1
-        }
     }
 }
 
@@ -626,14 +621,19 @@ struct StudentSeparationRow: View {
     }
     
     func loadSeparations() {
-        let idStrings = student.separationList.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
-        selectedStudents = Set(allStudents.filter { student in
-            idStrings.contains(String(describing: student.id))
-        }.map { $0.id })
+        selectedStudents = Set(
+            otherStudents
+                .filter { student.hasSeparation(with: $0) }
+                .map { $0.id }
+        )
     }
     
     func updateSeparationList() {
-        student.separationList = selectedStudents.map { String(describing: $0) }.joined(separator: ",")
+        let selectedUUIDs = allStudents
+            .filter { selectedStudents.contains($0.id) }
+            .map(\.stableIDString)
+            .sorted()
+        student.separationList = selectedUUIDs.joined(separator: ",")
     }
 }
 

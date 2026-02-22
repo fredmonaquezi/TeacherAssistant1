@@ -2,6 +2,33 @@ import SwiftUI
 import SwiftUI
 import SwiftData
 
+// MARK: - Cross-Platform Color Helpers
+#if os(macOS)
+import AppKit
+private typealias PlatformColor = NSColor
+#else
+import UIKit
+private typealias PlatformColor = UIColor
+#endif
+
+extension Color {
+    static var platformWindowBackground: Color {
+        #if os(macOS)
+        return Color(NSColor.windowBackgroundColor)
+        #else
+        return Color(UIColor.systemBackground)
+        #endif
+    }
+    
+    static var platformTextBackground: Color {
+        #if os(macOS)
+        return Color(NSColor.textBackgroundColor)
+        #else
+        return Color(UIColor.secondarySystemBackground)
+        #endif
+    }
+}
+
 struct CalendarRootView: View {
     @EnvironmentObject var languageManager: LanguageManager
     @Environment(\.modelContext) private var context
@@ -141,7 +168,7 @@ struct CalendarRootView: View {
             .pickerStyle(.segmented)
         }
         .padding()
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.6))
+        .background(Color.platformWindowBackground.opacity(0.6))
         .cornerRadius(16)
     }
 
@@ -247,17 +274,11 @@ struct CalendarRootView: View {
             formatter.dateFormat = "LLLL yyyy"
             return formatter.string(from: date)
         }
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        return date.appDateString(systemStyle: .medium)
     }
 
     func shortDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: languageManager.currentLanguage.localeIdentifier)
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        date.appDateString(systemStyle: .medium)
     }
 
     func upcomingEvents(limit: Int) -> [CalendarEvent] {
@@ -294,7 +315,7 @@ struct MonthCalendarView: View {
             }
         }
         .padding()
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -319,8 +340,6 @@ struct MonthCalendarView: View {
     func dayCell(for date: Date) -> some View {
         let isCurrentMonth = Calendar.current.isDate(date, equalTo: monthDate, toGranularity: .month)
         let isSelected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-        let entryCount = entriesFor(date).count
-        let eventCount = eventsFor(date).count
         let dayEntries = entriesFor(date)
         let dayEvents = eventsFor(date)
         let previewEvents = Array(dayEvents.prefix(2))
@@ -408,7 +427,7 @@ struct WeekCalendarView: View {
             }
         }
         .padding()
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -418,8 +437,6 @@ struct WeekCalendarView: View {
 
     func weekDayCell(for date: Date) -> some View {
         let isSelected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-        let entryCount = entriesFor(date).count
-        let eventCount = eventsFor(date).count
         let dayEntries = entriesFor(date)
         let dayEvents = eventsFor(date)
         let previewEvents = Array(dayEvents.prefix(2))
@@ -685,7 +702,7 @@ struct DayDetailSheet: View {
             }
         }
         .padding(16)
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(14)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -731,7 +748,7 @@ struct DayDetailSheet: View {
             }
         }
         .padding(16)
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(14)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -763,11 +780,7 @@ struct DayDetailSheet: View {
 
     func timeRangeText(start: Date?, end: Date?) -> String? {
         guard let start, let end else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: languageManager.currentLanguage.localeIdentifier)
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
+        return "\(start.appTimeString(systemStyle: .short)) – \(end.appTimeString(systemStyle: .short))"
     }
 
     func eventTimeText(_ event: CalendarEvent) -> String? {
@@ -778,11 +791,7 @@ struct DayDetailSheet: View {
     }
 
     func shortDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: languageManager.currentLanguage.localeIdentifier)
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        date.appDateString(systemStyle: .medium)
     }
 
     var diaryEntriesForDay: [ClassDiaryEntry] {
@@ -813,11 +822,7 @@ struct DayDetailSheet: View {
     }
 
     func longDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: languageManager.currentLanguage.localeIdentifier)
-        formatter.dateStyle = .full
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        date.appDateString(systemStyle: .full)
     }
 
     func merge(date: Date, time: Date) -> Date {
@@ -942,7 +947,7 @@ struct DiaryEntryEditor: View {
             Spacer()
         }
         .padding()
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(14)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -1011,7 +1016,7 @@ struct DiaryEntryEditor: View {
             }
         }
         .padding()
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(14)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -1046,7 +1051,7 @@ struct DiaryEntryEditor: View {
                 .cornerRadius(10)
         }
         .padding()
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(14)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -1055,11 +1060,7 @@ struct DiaryEntryEditor: View {
     }
 
     func longDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: languageManager.currentLanguage.localeIdentifier)
-        formatter.dateStyle = .full
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        date.appDateString(systemStyle: .full)
     }
 
     func merge(date: Date, time: Date) -> Date {
@@ -1156,7 +1157,7 @@ struct EventEditor: View {
             Spacer()
         }
         .padding()
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(14)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -1227,7 +1228,7 @@ struct EventEditor: View {
             }
         }
         .padding()
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(14)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -1250,7 +1251,7 @@ struct EventEditor: View {
                 .cornerRadius(10)
         }
         .padding()
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color.platformTextBackground)
         .cornerRadius(14)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
@@ -1259,11 +1260,7 @@ struct EventEditor: View {
     }
 
     func longDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: languageManager.currentLanguage.localeIdentifier)
-        formatter.dateStyle = .full
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        date.appDateString(systemStyle: .full)
     }
 
     func merge(date: Date, time: Date) -> Date {

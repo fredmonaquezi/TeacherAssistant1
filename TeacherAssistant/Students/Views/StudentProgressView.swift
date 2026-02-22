@@ -68,7 +68,7 @@ struct StudentProgressView: View {
     
     var attendanceRecordsForStudent: [AttendanceRecord] {
         allAttendanceSessions.flatMap { session in
-            session.records.filter { $0.student.id == student.id }
+            session.records.filter { $0.student?.id == student.id }
         }
     }
     
@@ -282,9 +282,7 @@ struct StudentProgressView: View {
             student.name.draw(at: CGPoint(x: 50, y: currentY), withAttributes: nameAttrs)
             currentY += 30
             
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateStyle = .long
-            "Generated: \(dateFormatter.string(from: Date()))".draw(at: CGPoint(x: 50, y: currentY), withAttributes: infoAttrs)
+            "Generated: \(Date().appDateString(systemStyle: .long))".draw(at: CGPoint(x: 50, y: currentY), withAttributes: infoAttrs)
             currentY += 25
             
             if !schoolName.isEmpty {
@@ -345,7 +343,7 @@ struct StudentProgressView: View {
             // Footer
             let footerFont = UIFont.systemFont(ofSize: 10)
             let footerAttrs: [NSAttributedString.Key: Any] = [.font: footerFont, .foregroundColor: UIColor.gray]
-            let footerText = "Generated on \(dateFormatter.string(from: Date())) • Student Progress Tracker"
+            let footerText = "Generated on \(Date().appDateString(systemStyle: .long)) • Student Progress Tracker"
             let footerSize = (footerText as NSString).size(withAttributes: footerAttrs)
             footerText.draw(at: CGPoint(x: (pageRect.width - footerSize.width) / 2, y: pageRect.height - 40), withAttributes: footerAttrs)
             
@@ -457,9 +455,7 @@ struct StudentProgressView: View {
                     record.textTitle.draw(at: CGPoint(x: 50, y: currentY), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 14), .foregroundColor: UIColor.black])
                     currentY += 20
                     
-                    let dateFormatter = DateFormatter()
-                    dateFormatter.dateStyle = .short
-                    let details = "\(dateFormatter.string(from: record.date)) • \(String(format: "%.1f%%", record.accuracy)) • \(self.readingLevelName(record.readingLevel))"
+                    let details = "\(record.date.appDateString(systemStyle: .short)) • \(String(format: "%.1f%%", record.accuracy)) • \(self.readingLevelName(record.readingLevel))"
                     let captionAttrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 12), .foregroundColor: UIColor.gray]
                     details.draw(at: CGPoint(x: 70, y: currentY), withAttributes: captionAttrs)
                     currentY += 30
@@ -652,9 +648,7 @@ struct StudentProgressView: View {
             }
             
             // Footer
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateStyle = .long
-            let footerText = "Generated on \(dateFormatter.string(from: Date())) • Student Progress Tracker"
+            let footerText = "Generated on \(Date().appDateString(systemStyle: .long)) • Student Progress Tracker"
             let footerFont = UIFont.systemFont(ofSize: 10)
             let footerAttrs: [NSAttributedString.Key: Any] = [.font: footerFont, .foregroundColor: UIColor.gray]
             let footerSize = (footerText as NSString).size(withAttributes: footerAttrs)
@@ -698,9 +692,7 @@ struct StudentProgressView: View {
         
         (student.name as NSString).draw(at: CGPoint(x: 50, y: yOffset), withAttributes: nameAttributes)
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .long
-        let dateString = "Generated: \(dateFormatter.string(from: Date()))"
+        let dateString = "Generated: \(Date().appDateString(systemStyle: .long))"
         (dateString as NSString).draw(at: CGPoint(x: 50, y: yOffset + 25), withAttributes: infoAttributes)
         
         if !schoolName.isEmpty {
@@ -868,16 +860,13 @@ struct StudentProgressView: View {
         let sortedRecords = student.runningRecords.sorted { $0.date > $1.date }
         
         for record in sortedRecords.prefix(15) {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateStyle = .short
-            
             (record.textTitle as NSString).draw(
                 at: CGPoint(x: margin, y: currentY),
                 withAttributes: [.font: UIFont.boldSystemFont(ofSize: 14), .foregroundColor: UIColor.black]
             )
             currentY += 20
             
-            let details = "\(dateFormatter.string(from: record.date)) • \(String(format: "%.1f%%", record.accuracy)) • \(readingLevelName(record.readingLevel))"
+            let details = "\(record.date.appDateString(systemStyle: .short)) • \(String(format: "%.1f%%", record.accuracy)) • \(readingLevelName(record.readingLevel))"
             (details as NSString).draw(
                 at: CGPoint(x: margin + 20, y: currentY),
                 withAttributes: [.font: captionFont, .foregroundColor: UIColor.gray]
@@ -950,9 +939,7 @@ struct StudentProgressView: View {
             .foregroundColor: UIColor.gray
         ]
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .long
-        let footerText = "Generated on \(dateFormatter.string(from: Date())) • Student Progress Tracker"
+        let footerText = "Generated on \(Date().appDateString(systemStyle: .long)) • Student Progress Tracker"
         let footerSize = (footerText as NSString).size(withAttributes: footerAttributes)
         
         let footerRect = CGRect(
@@ -976,7 +963,7 @@ struct StudentProgressView: View {
         
         let pageWidth: CGFloat = 612.0  // 8.5 inches
         let pageHeight: CGFloat = 792.0 // 11 inches
-        var pageRect = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+        let pageRect = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
         
         guard let consumer = CGDataConsumer(data: pdfData) else {
             return tempURL
@@ -1152,9 +1139,7 @@ struct StudentProgressView: View {
         }
         
         // Footer
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .long
-        let footerText = "Generated on \(dateFormatter.string(from: Date())) • Student Progress Tracker"
+        let footerText = "Generated on \(Date().appDateString(systemStyle: .long)) • Student Progress Tracker"
         let footerFont = NSFont.systemFont(ofSize: 10)
         let footerAttrs: [NSAttributedString.Key: Any] = [.font: footerFont, .foregroundColor: NSColor(calibratedWhite: 0.5, alpha: 1.0)]
         footerText.draw(at: CGPoint(x: margin, y: pageRect.height - 40), withAttributes: footerAttrs as [NSAttributedString.Key : Any])
@@ -1170,7 +1155,7 @@ struct StudentProgressView: View {
         
         let pageWidth: CGFloat = 612.0
         let pageHeight: CGFloat = 792.0
-        var pageRect = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+        let pageRect = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
         
         guard let consumer = CGDataConsumer(data: pdfData) else {
             return tempURL
@@ -1259,9 +1244,7 @@ struct StudentProgressView: View {
         let nameString = NSAttributedString(string: student.name, attributes: nameAttributes)
         nameString.draw(at: CGPoint(x: 50, y: yOffset))
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .long
-        let dateString = NSAttributedString(string: "Generated: \(dateFormatter.string(from: Date()))", attributes: infoAttributes)
+        let dateString = NSAttributedString(string: "Generated: \(Date().appDateString(systemStyle: .long))", attributes: infoAttributes)
         dateString.draw(at: CGPoint(x: 50, y: yOffset + 25))
         
         if !schoolName.isEmpty {
@@ -1436,14 +1419,11 @@ struct StudentProgressView: View {
         let sortedRecords = student.runningRecords.sorted { $0.date > $1.date }
         
         for record in sortedRecords.prefix(15) {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateStyle = .short
-            
             NSAttributedString(string: record.textTitle, attributes: [.font: NSFont.boldSystemFont(ofSize: 14), .foregroundColor: NSColor(calibratedWhite: 0.0, alpha: 1.0)])
                 .draw(at: CGPoint(x: margin, y: currentY))
             currentY += 20
             
-            let details = "\(dateFormatter.string(from: record.date)) • \(String(format: "%.1f%%", record.accuracy)) • \(readingLevelName(record.readingLevel))"
+            let details = "\(record.date.appDateString(systemStyle: .short)) • \(String(format: "%.1f%%", record.accuracy)) • \(readingLevelName(record.readingLevel))"
             NSAttributedString(string: details, attributes: captionAttributes)
                 .draw(at: CGPoint(x: margin + 20, y: currentY))
             currentY += 25
@@ -1513,9 +1493,7 @@ struct StudentProgressView: View {
             .foregroundColor: NSColor(calibratedWhite: 0.5, alpha: 1.0)
         ]
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .long
-        let footerText = "Generated on \(dateFormatter.string(from: Date())) • Student Progress Tracker"
+        let footerText = "Generated on \(Date().appDateString(systemStyle: .long)) • Student Progress Tracker"
         let footerString = NSAttributedString(string: footerText, attributes: footerAttributes)
         let footerSize = footerString.size()
         
@@ -2011,7 +1989,7 @@ struct StudentProgressView: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(readingLevelColor(latestRecord.readingLevel))
                                 
-                                Text(latestRecord.date, style: .date)
+                                Text(latestRecord.date.appDateString)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -2105,7 +2083,7 @@ struct StudentProgressView: View {
                     Text(record.textTitle)
                         .font(.headline)
                     
-                    Text(record.date, style: .date)
+                    Text(record.date.appDateString)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -2303,7 +2281,7 @@ struct StudentProgressView: View {
                     .foregroundColor(.secondary)
             }
             
-            Text(score.date, style: .date)
+            Text(score.date.appDateString)
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }

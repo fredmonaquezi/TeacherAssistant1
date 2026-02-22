@@ -5,6 +5,7 @@ import SwiftData
 class SchoolClass {
     var name: String
     var grade: String
+    var schoolYear: String?
     
     @Relationship(deleteRule: .cascade, inverse: \Student.schoolClass)
     var students: [Student] = []
@@ -22,6 +23,7 @@ class SchoolClass {
     init(
         name: String,
         grade: String,
+        schoolYear: String? = nil,
         sortOrder: Int = 0,
         students: [Student] = [],
         categories: [AssessmentCategory] = [],
@@ -30,6 +32,7 @@ class SchoolClass {
     ) {
         self.name = name
         self.grade = grade
+        self.schoolYear = schoolYear
         self.students = students
         self.categories = categories
         self.attendanceSessions = attendanceSessions

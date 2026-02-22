@@ -3,7 +3,6 @@ import SwiftData
 
 struct AttendanceListView: View {
     
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var languageManager: LanguageManager
     @Bindable var schoolClass: SchoolClass
     
@@ -65,12 +64,6 @@ struct AttendanceListView: View {
                     } label: {
                         Label(languageManager.localized("Today"), systemImage: "plus.circle.fill")
                     }
-                }
-            }
-            
-            ToolbarItem(placement: .cancellationAction) {
-                Button(languageManager.localized("Done")) {
-                    dismiss()
                 }
             }
         }
@@ -267,7 +260,7 @@ struct AttendanceListView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text(selectedDate.formatted(date: .complete, time: .omitted))
+                    Text(selectedDate.appDateString)
                         .font(.headline)
                         .foregroundColor(.blue)
                         .padding(.horizontal, 16)

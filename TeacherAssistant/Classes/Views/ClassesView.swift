@@ -10,6 +10,7 @@ struct ClassesView: View {
     @Query(sort: \SchoolClass.sortOrder) private var classes: [SchoolClass]
     
     @State private var showingAdd = false
+    @State private var classToEdit: SchoolClass?
     
     // ✅ Delete confirmation state
     @State private var classToDelete: SchoolClass?
@@ -46,6 +47,20 @@ struct ClassesView: View {
                                 })
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    classToEdit = schoolClass
+                                } label: {
+                                    Label("Edit".localized, systemImage: "pencil")
+                                }
+
+                                Button(role: .destructive) {
+                                    classToDelete = schoolClass
+                                    showingDeleteAlert = true
+                                } label: {
+                                    Label("Delete".localized, systemImage: "trash")
+                                }
+                            }
                         }
                     }
                     .padding(24)
@@ -67,6 +82,12 @@ struct ClassesView: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
+                                Button {
+                                    classToEdit = schoolClass
+                                } label: {
+                                    Label("Edit".localized, systemImage: "pencil")
+                                }
+
                                 Button(role: .destructive) {
                                     classToDelete = schoolClass
                                     showingDeleteAlert = true
@@ -115,6 +136,9 @@ struct ClassesView: View {
         #endif
         .sheet(isPresented: $showingAdd) {
             AddClassView()
+        }
+        .sheet(item: $classToEdit) { schoolClass in
+            AddClassView(editingClass: schoolClass)
         }
         .alert("Delete Class?".localized, isPresented: $showingDeleteAlert) {
             Button("Cancel".localized, role: .cancel) {

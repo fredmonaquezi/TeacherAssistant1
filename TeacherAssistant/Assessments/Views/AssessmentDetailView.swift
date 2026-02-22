@@ -48,21 +48,21 @@ struct AssessmentDetailView: View {
         HStack(spacing: 16) {
             statBox(
                 title: "Class Average".localized,
-                value: String(format: "%.1f", assessment.results.averageScore),
+                value: String(format: "%.1f%%", assessment.results.averagePercent),
                 icon: "chart.bar.fill",
-                color: averageColor(assessment.results.averageScore)
+                color: AssessmentPercentMetrics.color(for: assessment.results.averagePercent)
             )
             
             statBox(
                 title: "Highest".localized,
-                value: String(format: "%.1f", highestScore),
+                value: String(format: "%.1f%%", highestPercent),
                 icon: "arrow.up.circle.fill",
                 color: .green
             )
             
             statBox(
                 title: "Lowest".localized,
-                value: String(format: "%.1f", lowestScore),
+                value: String(format: "%.1f%%", lowestPercent),
                 icon: "arrow.down.circle.fill",
                 color: .red
             )
@@ -91,19 +91,26 @@ struct AssessmentDetailView: View {
         .cornerRadius(12)
     }
     
-    func averageColor(_ average: Double) -> Color {
-        if average >= 7.0 { return .green }
-        if average >= 5.0 { return .orange }
-        return .red
+    var highestPercent: Double {
+        assessment.results
+            .filter { $0.score > 0 }
+            .map { assessment.scorePercent($0.score) }
+            .max() ?? 0
     }
     
-    var highestScore: Double {
-        assessment.results.map { $0.score }.max() ?? 0
-    }
-    
-    var lowestScore: Double {
-        let scores = assessment.results.filter { $0.score > 0 }.map { $0.score }
+    var lowestPercent: Double {
+        let scores = assessment.results
+            .filter { $0.score > 0 }
+            .map { assessment.scorePercent($0.score) }
         return scores.min() ?? 0
+    }
+
+    var maxScoreText: String {
+        let maxScore = assessment.safeMaxScore
+        if maxScore.rounded() == maxScore {
+            return String(Int(maxScore))
+        }
+        return String(format: "%.1f", maxScore)
     }
     
     // MARK: - Assessment Info Card
@@ -121,6 +128,7 @@ struct AssessmentDetailView: View {
                     infoRow(icon: "building.2", label: "Class".localized, value: schoolClass.name)
                     infoRow(icon: "book", label: "Subject".localized, value: subject.name)
                     infoRow(icon: "folder", label: "Unit".localized, value: unit.name)
+                    infoRow(icon: "number.circle", label: "Max Score".localized, value: maxScoreText)
                 }
             }
         }
@@ -192,13 +200,18 @@ struct AssessmentDetailView: View {
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal)
+
+            Text(String(format: "Max score per student: %@".localized, maxScoreText))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
             
             if sortedResults.isEmpty {
                 emptyStateView
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(sortedResults) { result in
-                        StudentGradeCard(result: result)
+                        StudentGradeCard(result: result, assessment: assessment)
                     }
                 }
                 .padding(.horizontal)
@@ -259,6 +272,7 @@ struct AssessmentDetailView: View {
 
 struct StudentGradeCard: View {
     @Bindable var result: StudentResult
+    let assessment: Assessment
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -299,13 +313,20 @@ struct StudentGradeCard: View {
     
     @ViewBuilder
     var scoreField: some View {
+        let scoreBinding = Binding<Double>(
+            get: { result.score },
+            set: { newValue in
+                result.score = assessment.clampedScore(newValue)
+            }
+        )
+
         HStack(spacing: 10) {
             Text("Score:".localized)
                 .font(.body)  // ← Bigger label
                 .foregroundColor(.secondary)
             
             #if os(iOS)
-            TextField("0", value: $result.score, format: .number)
+            TextField("0", value: scoreBinding, format: .number)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 70)  // ← Wider field
@@ -316,7 +337,7 @@ struct StudentGradeCard: View {
                 .font(.system(size: 24, weight: .bold))  // ← Much bigger score
                 .foregroundColor(scoreColor)
             #else
-            TextField("0", value: $result.score, format: .number)
+            TextField("0", value: scoreBinding, format: .number)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 70)  // ← Wider field
                 .padding(.horizontal, 10)
@@ -326,14 +347,18 @@ struct StudentGradeCard: View {
                 .font(.system(size: 24, weight: .bold))  // ← Much bigger score
                 .foregroundColor(scoreColor)
             #endif
+
+            if result.score > 0 {
+                Text(String(format: "%.1f%%", assessment.scorePercent(result.score)))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
     }
     
     var scoreColor: Color {
-        if result.score >= 7.0 { return .green }
-        if result.score >= 5.0 { return .orange }
-        if result.score > 0 { return .red }
-        return .gray
+        guard result.score > 0 else { return .gray }
+        return AssessmentPercentMetrics.color(for: assessment.scorePercent(result.score))
     }
     
     var cardBackgroundColor: Color {

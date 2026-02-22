@@ -7,13 +7,26 @@ struct AddClassView: View {
     @Environment(\.modelContext) private var context
     
     @Query(sort: \SchoolClass.sortOrder) private var classes: [SchoolClass]
+    let editingClass: SchoolClass?
     
     @State private var name = ""
     @State private var grade = ""
+    @State private var schoolYear = ""
     @State private var showingValidationError = false
     @State private var validationErrorMessage = ""
     
     @FocusState private var isInputFocused: Bool
+
+    init(editingClass: SchoolClass? = nil) {
+        self.editingClass = editingClass
+        _name = State(initialValue: editingClass?.name ?? "")
+        _grade = State(initialValue: editingClass?.grade ?? "")
+        _schoolYear = State(initialValue: editingClass?.schoolYear ?? "")
+    }
+
+    private var isEditing: Bool {
+        editingClass != nil
+    }
     
     /// Validates the current name input
     private var isNameValid: Bool {
@@ -50,6 +63,19 @@ struct AddClassView: View {
         }
         return nil
     }
+
+    /// Returns validation message for optional school year field
+    private var schoolYearValidationMessage: String? {
+        let trimmed = schoolYear.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        if trimmed.count > SecurityHelpers.maxNameLength {
+            return "School year is too long"
+        }
+        if SecurityHelpers.sanitizeName(schoolYear) == nil {
+            return "School year contains invalid characters"
+        }
+        return nil
+    }
     
     var body: some View {
         NavigationStack {
@@ -62,11 +88,11 @@ struct AddClassView: View {
                             .font(.system(size: 60))
                             .foregroundColor(.blue)
                         
-                        Text("Create New Class".localized)
+                        Text(isEditing ? "Edit Class".localized : "Create New Class".localized)
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        Text("Add a class to organize your students".localized)
+                        Text(isEditing ? "Update class details".localized : "Add a class to organize your students".localized)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -140,6 +166,39 @@ struct AddClassView: View {
                                 }
                             }
                         }
+
+                        // School year field (optional)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("School Year (Optional)".localized, systemImage: "calendar")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+
+                            TextField("e.g., 2025-2026".localized, text: $schoolYear)
+                                .textFieldStyle(.plain)
+                                .font(.body)
+                                .focused($isInputFocused)
+                                .padding()
+                                .background(
+                                    schoolYearValidationMessage != nil ? Color.red.opacity(0.1) : Color.orange.opacity(0.1)
+                                )
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(schoolYearValidationMessage != nil ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
+                                )
+
+                            if let message = schoolYearValidationMessage {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.red)
+                                        .font(.caption)
+                                    Text(message)
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                }
+                            }
+                        }
                         
                         // Preview
                         if !name.isEmpty && !grade.isEmpty {
@@ -160,6 +219,11 @@ struct AddClassView: View {
                                         Text(grade)
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
+                                        if !schoolYear.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                            Text(schoolYear)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
                                     }
                                     
                                     Spacer()
@@ -187,7 +251,7 @@ struct AddClassView: View {
                     
                 }
             }
-            .navigationTitle("New Class".localized)
+            .navigationTitle(isEditing ? "Edit Class".localized : "New Class".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel".localized) {
@@ -206,17 +270,29 @@ struct AddClassView: View {
                             showingValidationError = true
                             return
                         }
-                        
-                        let newClass = SchoolClass(name: sanitizedName, grade: sanitizedGrade)
-                        newClass.sortOrder = classes.count
-                        context.insert(newClass)
+
+                        let sanitizedSchoolYear = SecurityHelpers.sanitizeName(schoolYear)
+
+                        if let editingClass {
+                            editingClass.name = sanitizedName
+                            editingClass.grade = sanitizedGrade
+                            editingClass.schoolYear = sanitizedSchoolYear
+                        } else {
+                            let newClass = SchoolClass(
+                                name: sanitizedName,
+                                grade: sanitizedGrade,
+                                schoolYear: sanitizedSchoolYear
+                            )
+                            newClass.sortOrder = classes.count
+                            context.insert(newClass)
+                        }
                         
                         isInputFocused = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                             dismiss()
                         }
                     }
-                    .disabled(!isNameValid || !isGradeValid)
+                    .disabled(!isNameValid || !isGradeValid || schoolYearValidationMessage != nil)
                     .buttonStyle(.borderedProminent)
                 }
             }

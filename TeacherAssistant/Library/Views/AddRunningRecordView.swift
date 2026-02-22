@@ -7,6 +7,7 @@ struct AddRunningRecordView: View {
     @EnvironmentObject var languageManager: LanguageManager
     @Query private var allStudents: [Student]
     
+    @State private var selectedClassFilter: SchoolClass?
     @State private var selectedStudent: Student?
     @State private var date = Date()
     @State private var textTitle = ""
@@ -21,9 +22,37 @@ struct AddRunningRecordView: View {
         let className: String
         let students: [Student]
     }
+
+    struct ClassFilterOption: Identifiable {
+        let id: PersistentIdentifier
+        let schoolClass: SchoolClass
+    }
+
+    var classOptions: [ClassFilterOption] {
+        var seen: Set<String> = []
+        var classes: [SchoolClass] = []
+        for student in allStudents {
+            guard let schoolClass = student.schoolClass else { continue }
+            let key = String(describing: schoolClass.id)
+            if seen.insert(key).inserted {
+                classes.append(schoolClass)
+            }
+        }
+        return classes
+            .sorted { lhs, rhs in
+                classDisplayName(for: lhs) < classDisplayName(for: rhs)
+            }
+            .map { schoolClass in
+                ClassFilterOption(id: schoolClass.id, schoolClass: schoolClass)
+            }
+    }
     
     var activeStudents: [Student] {
-        allStudents.filter { $0.schoolClass != nil }
+        allStudents.filter { student in
+            guard let studentClass = student.schoolClass else { return false }
+            guard let selectedClassFilter else { return true }
+            return studentClass.id == selectedClassFilter.id
+        }
     }
     
     var groupedStudents: [StudentGroup] {
@@ -111,6 +140,40 @@ struct AddRunningRecordView: View {
                     }
                     .padding(.top, 20)
                     
+                    // Class Filter
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(languageManager.localized("Class"), systemImage: "graduationcap.fill")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+
+                        Menu {
+                            Button(languageManager.localized("All Classes")) {
+                                selectedClassFilter = nil
+                            }
+                            if !classOptions.isEmpty {
+                                Divider()
+                            }
+                            ForEach(classOptions) { option in
+                                Button(classDisplayName(for: option.schoolClass)) {
+                                    selectedClassFilter = option.schoolClass
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text(selectedClassFilter.map(classDisplayName(for:)) ?? languageManager.localized("All Classes"))
+                                    .foregroundColor(selectedClassFilter == nil ? .secondary : .primary)
+                                Spacer()
+                                Image(systemName: "chevron.down")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.purple.opacity(0.08))
+                            .cornerRadius(10)
+                        }
+                    }
+                    .padding(.horizontal)
+
                     // Student Selection
                     VStack(alignment: .leading, spacing: 8) {
                         Label(languageManager.localized("Student"), systemImage: "person.fill")
@@ -346,6 +409,15 @@ struct AddRunningRecordView: View {
         #if os(macOS)
         .frame(minWidth: 500, minHeight: 700)
         #endif
+        .onChange(of: selectedClassFilter?.id) { _, _ in
+            guard let selectedStudent else { return }
+            if let selectedClassFilter {
+                let studentClassID = selectedStudent.schoolClass?.id
+                if studentClassID != selectedClassFilter.id {
+                    self.selectedStudent = nil
+                }
+            }
+        }
     }
     
     func saveRecord() {
@@ -391,6 +463,10 @@ struct AddRunningRecordView: View {
         guard let schoolClass = student.schoolClass else {
             return languageManager.localized("No Class")
         }
+        return classDisplayName(for: schoolClass)
+    }
+
+    func classDisplayName(for schoolClass: SchoolClass) -> String {
         
         if schoolClass.grade.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return schoolClass.name

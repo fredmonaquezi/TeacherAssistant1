@@ -12,7 +12,7 @@ struct AttendanceSessionCard: View {
             // Header with date
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(session.date.formatted(date: .abbreviated, time: .omitted))
+                    Text(session.date.appDateString)
                         .font(.title3)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
@@ -176,7 +176,7 @@ struct AttendanceSessionCard: View {
             if days > 0 && days <= 7 {
                 return String(format: languageManager.localized("%d days ago"), days)
             } else {
-                return session.date.formatted(.dateTime.weekday(.wide))
+                return session.date.appDateString
             }
         }
     }
