@@ -48,10 +48,20 @@ struct AddRunningRecordView: View {
     }
     
     var activeStudents: [Student] {
-        allStudents.filter { student in
+        var seen: Set<PersistentIdentifier> = []
+        return allStudents.filter { student in
             guard let studentClass = student.schoolClass else { return false }
             guard let selectedClassFilter else { return true }
             return studentClass.id == selectedClassFilter.id
+        }
+        .filter { student in
+            seen.insert(student.id).inserted
+        }
+        .sorted {
+            if $0.name.caseInsensitiveCompare($1.name) == .orderedSame {
+                return $0.sortOrder < $1.sortOrder
+            }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
     
@@ -101,7 +111,7 @@ struct AddRunningRecordView: View {
             ForEach(groupedStudents) { group in
                 Section {
                     ForEach(group.students, id: \.id) { student in
-                        Button(student.name) {
+                        Button(studentMenuLabel(for: student, within: group.students)) {
                             selectedStudent = student
                         }
                     }
@@ -185,7 +195,7 @@ struct AddRunningRecordView: View {
                         } label: {
                             HStack {
                                 let labelText = selectedStudent
-                                    .map { "\($0.name) — \(classDisplayName(for: $0))" }
+                                    .map { "\(studentDisplayLabel(for: $0, within: activeStudents)) — \(classDisplayName(for: $0))" }
                                     ?? languageManager.localized("Select a student")
                                 
                                 Text(labelText)
@@ -473,6 +483,31 @@ struct AddRunningRecordView: View {
         }
         
         return "\(schoolClass.name) (\(schoolClass.grade))"
+    }
+
+    private func normalizedStudentName(_ name: String) -> String {
+        name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private func studentDisplayLabel(for student: Student, within students: [Student]) -> String {
+        let normalized = normalizedStudentName(student.name)
+        let duplicates = students.filter { normalizedStudentName($0.name) == normalized }
+        guard duplicates.count > 1 else { return student.name }
+
+        let orderedDuplicates = duplicates.sorted {
+            if $0.sortOrder == $1.sortOrder {
+                return String(describing: $0.id) < String(describing: $1.id)
+            }
+            return $0.sortOrder < $1.sortOrder
+        }
+        let index = (orderedDuplicates.firstIndex(where: { $0.id == student.id }) ?? 0) + 1
+        return "\(student.name) (#\(index))"
+    }
+
+    private func studentMenuLabel(for student: Student, within students: [Student]) -> String {
+        studentDisplayLabel(for: student, within: students)
     }
     
     func levelColor(_ level: ReadingLevel) -> Color {

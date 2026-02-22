@@ -469,9 +469,16 @@ final class BackupManager {
             newClass.sortOrder = SecurityHelpers.validateCount(backupClass.sortOrder, min: 0, max: 10000)
             context.insert(newClass)
             classByKey[classKey(name: newClass.name, grade: newClass.grade)] = newClass
+
+            var seenStudentUUIDs: Set<UUID> = []
             
             // Students
             for s in backupClass.students {
+                guard seenStudentUUIDs.insert(s.uuid).inserted else {
+                    SecureLogger.warning("Skipping duplicate student UUID in class backup payload")
+                    continue
+                }
+
                 guard let sanitizedName = SecurityHelpers.sanitizeName(s.name) else {
                     SecureLogger.warning("Skipping student with invalid name")
                     continue

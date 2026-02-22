@@ -21,6 +21,12 @@ struct AddStudentView: View {
     private var sanitizedName: String? {
         SecurityHelpers.sanitizeName(name)
     }
+
+    private func normalizedStudentName(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
     
     /// Validation message for the current input
     private var validationMessage: String? {
@@ -181,9 +187,18 @@ struct AddStudentView: View {
                             showingValidationError = true
                             return
                         }
+
+                        let normalizedName = normalizedStudentName(validName)
+                        let hasDuplicateName = schoolClass.students.contains { student in
+                            normalizedStudentName(student.name) == normalizedName
+                        }
+                        if hasDuplicateName {
+                            validationErrorMessage = "A student with this name already exists in this class."
+                            showingValidationError = true
+                            return
+                        }
                         
                         let newStudent = Student(name: validName, gender: gender)
-                        newStudent.schoolClass = schoolClass
                         newStudent.sortOrder = schoolClass.students.count
                         
                         // Create one score per category

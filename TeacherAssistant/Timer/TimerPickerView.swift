@@ -2,7 +2,6 @@ import SwiftUI
 
 struct TimerPickerView: View {
 
-    @Environment(\.dismiss) var dismiss
     @ObservedObject var timer: ClassroomTimerManager
 
     @State private var customMinutes: Int = 5
@@ -19,15 +18,7 @@ struct TimerPickerView: View {
     ]
 
     var body: some View {
-        #if os(macOS)
-        // macOS: No NavigationStack needed, header navigation handles it
         timerContent
-        #else
-        // iOS: Keep NavigationStack for proper navigation
-        NavigationStack {
-            timerContent
-        }
-        #endif
     }
     
     var timerContent: some View {
@@ -48,13 +39,6 @@ struct TimerPickerView: View {
         }
         #if !os(macOS)
         .navigationTitle("Timer".localized)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel".localized) {
-                    dismiss()
-                }
-            }
-        }
         #endif
     }
     
@@ -105,7 +89,6 @@ struct TimerPickerView: View {
         Button {
             playHaptic()
             timer.start(minutes: preset.minutes)
-            dismiss()
         } label: {
             VStack(spacing: 12) {
                 Image(systemName: preset.icon)
@@ -196,7 +179,6 @@ struct TimerPickerView: View {
                     let totalSeconds = customMinutes * 60 + customSeconds
                     guard totalSeconds > 0 else { return }
                     timer.start(seconds: totalSeconds)
-                    dismiss()
                 } label: {
                     HStack {
                         Image(systemName: "play.fill")

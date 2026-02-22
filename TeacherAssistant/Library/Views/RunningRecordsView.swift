@@ -41,12 +41,21 @@ struct RunningRecordsView: View {
     }
 
     var studentOptions: [Student] {
-        allStudents
+        var seen: Set<PersistentIdentifier> = []
+        return allStudents
             .filter { student in
                 guard let selectedClass else { return true }
                 return student.schoolClass?.id == selectedClass.id
             }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .filter { student in
+                seen.insert(student.id).inserted
+            }
+            .sorted {
+                if $0.name.caseInsensitiveCompare($1.name) == .orderedSame {
+                    return $0.sortOrder < $1.sortOrder
+                }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
     }
 
     var normalizedCustomRange: (start: Date, end: Date) {
@@ -396,14 +405,14 @@ struct RunningRecordsView: View {
                         }
                         Divider()
                         ForEach(studentOptions, id: \.id) { student in
-                            Button(student.name) {
+                            Button(studentMenuLabel(for: student, within: studentOptions)) {
                                 selectedStudent = student
                             }
                         }
                     } label: {
                         filterChip(
                             icon: "person.fill",
-                            title: selectedStudent?.name ?? languageManager.localized("All Students"),
+                            title: selectedStudent.map { studentMenuLabel(for: $0, within: studentOptions) } ?? languageManager.localized("All Students"),
                             isActive: selectedStudent != nil,
                             activeColor: .blue
                         )
@@ -731,6 +740,27 @@ struct RunningRecordsView: View {
         sortOption = .dateDescending
         customDateStart = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
         customDateEnd = Date()
+    }
+
+    private func normalizedStudentName(_ name: String) -> String {
+        name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private func studentMenuLabel(for student: Student, within students: [Student]) -> String {
+        let normalized = normalizedStudentName(student.name)
+        let duplicates = students.filter { normalizedStudentName($0.name) == normalized }
+        guard duplicates.count > 1 else { return student.name }
+
+        let orderedDuplicates = duplicates.sorted {
+            if $0.sortOrder == $1.sortOrder {
+                return String(describing: $0.id) < String(describing: $1.id)
+            }
+            return $0.sortOrder < $1.sortOrder
+        }
+        let index = (orderedDuplicates.firstIndex(where: { $0.id == student.id }) ?? 0) + 1
+        return "\(student.name) (#\(index))"
     }
 }
 
