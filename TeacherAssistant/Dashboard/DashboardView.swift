@@ -22,6 +22,11 @@ struct DashboardView: View {
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var showingPreferences = false
+    @State private var showingCleanupConfirmation = false
+    @State private var showingCleanupReportAlert = false
+    @State private var cleanupReportMessage = ""
+    @State private var cleanupInProgress = false
+    @State private var duplicateCleanupCompleted = DuplicateStudentCleanupService.hasCompleted
 
     var body: some View {
         #if os(macOS)
@@ -116,6 +121,15 @@ struct DashboardView: View {
 #endif
                 }
 
+                DashboardButton(
+                    title: duplicateCleanupCompleted ? "Cleanup Duplicates (Done)" : "Cleanup Duplicates",
+                    systemImage: "person.2.badge.gearshape.fill",
+                    color: .gray
+                ) {
+                    showingCleanupConfirmation = true
+                }
+                .disabled(cleanupInProgress || duplicateCleanupCompleted)
+
             }
             .padding()
             
@@ -208,12 +222,38 @@ struct DashboardView: View {
             Text("This will DELETE all current data and replace it with the backup. This cannot be undone.".localized)
         }
 
+        .alert("Cleanup Duplicate Students?".localized, isPresented: $showingCleanupConfirmation) {
+            Button("Cancel".localized, role: .cancel) { }
+            Button("Run Cleanup".localized, role: .destructive) {
+                cleanupInProgress = true
+                defer { cleanupInProgress = false }
+
+                do {
+                    let report = try DuplicateStudentCleanupService.run(context: context)
+                    cleanupReportMessage = report.summaryMessage
+                    duplicateCleanupCompleted = DuplicateStudentCleanupService.hasCompleted
+                    showingCleanupReportAlert = true
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showingErrorAlert = true
+                }
+            }
+        } message: {
+            Text("One-time safe cleanup: merges duplicate students within each class, keeps linked records, removes extra entries, and skips ambiguous same-name students that both contain data.".localized)
+        }
+
         // MARK: - Alerts
 
         .alert("Restore Complete".localized, isPresented: $showingSuccessAlert) {
             Button("OK".localized) { }
         } message: {
             Text("Your data has been successfully restored.".localized)
+        }
+
+        .alert("Duplicate Cleanup Report".localized, isPresented: $showingCleanupReportAlert) {
+            Button("OK".localized) { }
+        } message: {
+            Text(cleanupReportMessage)
         }
 
         .alert("Error".localized, isPresented: $showingErrorAlert) {
