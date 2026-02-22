@@ -3,7 +3,6 @@ import SwiftData
 
 struct ClassPickerView: View {
     
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var languageManager: LanguageManager
     @Query(sort: \SchoolClass.sortOrder) private var classes: [SchoolClass]
     
@@ -36,13 +35,6 @@ struct ClassPickerView: View {
         }
         #if !os(macOS)
         .navigationTitle("Choose Class".localized)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel".localized) {
-                    dismiss()
-                }
-            }
-        }
         #endif
     }
     

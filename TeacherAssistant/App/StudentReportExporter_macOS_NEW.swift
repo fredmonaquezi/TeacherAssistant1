@@ -157,7 +157,7 @@ enum StudentReportExporterMac {
         
         // Attendance section
         let records: [AttendanceRecord] = allAttendanceSessions.flatMap { session in
-            session.records.filter { $0.student.id == student.id }
+            session.records.filter { $0.student?.id == student.id }
         }
         
         let total = records.count
@@ -225,7 +225,7 @@ enum StudentReportExporterMac {
         
         text += "Attendance".localized.uppercased() + "\n"
         let records: [AttendanceRecord] = allAttendanceSessions.flatMap { session in
-            session.records.filter { $0.student.id == student.id }
+            session.records.filter { $0.student?.id == student.id }
         }
         text += "Total Sessions".localized + ": \(records.count)\n"
         text += "Present".localized + ": \(records.filter { $0.status == .present }.count)\n\n"

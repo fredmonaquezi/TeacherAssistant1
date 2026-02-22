@@ -50,6 +50,10 @@ struct AssessmentCardView: View {
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(averageColor(assessmentAverage))
+
+                    Text(String(format: "%.0f%%", assessmentAveragePercent))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()
@@ -111,6 +115,10 @@ struct AssessmentCardView: View {
     
     var assessmentAverage: Double {
         assessment.results.averageScore
+    }
+
+    var assessmentAveragePercent: Double {
+        assessment.results.averagePercent
     }
     
     func averageColor(_ average: Double) -> Color {

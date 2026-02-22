@@ -3,6 +3,7 @@ import Combine
 
 /// Manages the app's display language
 class LanguageManager: ObservableObject {
+    static let languageStorageKey = "appLanguage"
     
     enum Language: String, CaseIterable {
         case english = "en"
@@ -29,7 +30,7 @@ class LanguageManager: ObservableObject {
     
     @Published var currentLanguage: Language {
         didSet {
-            UserDefaults.standard.set(currentLanguage.rawValue, forKey: "appLanguage")
+            UserDefaults.standard.set(currentLanguage.rawValue, forKey: Self.languageStorageKey)
             // Force UI refresh
             objectWillChange.send()
         }
@@ -37,8 +38,7 @@ class LanguageManager: ObservableObject {
     
     init() {
         // Load saved language preference
-        let savedLanguage = UserDefaults.standard.string(forKey: "appLanguage") ?? Language.english.rawValue
-        let normalized = savedLanguage == "pt" ? Language.portuguese.rawValue : savedLanguage
+        let normalized = Self.normalizedLanguageCode(UserDefaults.standard.string(forKey: Self.languageStorageKey))
         self.currentLanguage = Language(rawValue: normalized) ?? .english
     }
     
@@ -55,5 +55,22 @@ class LanguageManager: ObservableObject {
             return NSLocalizedString(key, comment: "")
         }
         return NSLocalizedString(key, bundle: bundle, comment: "")
+    }
+
+    var currentLocale: Locale {
+        Locale(identifier: currentLanguage.localeIdentifier)
+    }
+
+    static func persistedLocale() -> Locale {
+        Locale(identifier: persistedLanguageCode())
+    }
+
+    static func persistedLanguageCode() -> String {
+        normalizedLanguageCode(UserDefaults.standard.string(forKey: languageStorageKey))
+    }
+
+    private static func normalizedLanguageCode(_ rawValue: String?) -> String {
+        let savedLanguage = rawValue ?? Language.english.rawValue
+        return savedLanguage == "pt" ? Language.portuguese.rawValue : savedLanguage
     }
 }

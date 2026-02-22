@@ -9,6 +9,13 @@ struct NavigationHeaderView: View {
 
     private let barHeight: CGFloat = 44
     private var backButtonVisible: Bool { showBackButton && onBack != nil }
+    private var leadingInset: CGFloat {
+        #if os(macOS)
+        78
+        #else
+        12
+        #endif
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -126,7 +133,7 @@ struct NavigationHeaderView: View {
                 .buttonStyle(.plain)
                 .help(languageManager.localized("Toggle Language"))
             }
-            .padding(.leading, 78)
+            .padding(.leading, leadingInset)
             .padding(.trailing, 12)
             .frame(height: barHeight)
             .background(.thinMaterial)

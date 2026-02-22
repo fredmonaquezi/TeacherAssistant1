@@ -14,7 +14,8 @@ enum RunningRecordPDFExporter {
     static func export(
         student: Student,
         schoolName: String,
-        runningRecords: [RunningRecord]
+        runningRecords: [RunningRecord],
+        appliedFilters: String? = nil
     ) -> URL {
 
         let pageWidth: CGFloat = 595.2   // A4
@@ -175,9 +176,10 @@ enum RunningRecordPDFExporter {
             y = infoBoxY + 64 + 12
 
             // Date
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateStyle = .long
-            drawLeft("Report Date: \(dateFormatter.string(from: Date()))", fontSize: 11, color: .gray)
+            drawLeft("Report Date: \(Date().appDateString(systemStyle: .long))", fontSize: 11, color: .gray)
+            if let appliedFilters, !appliedFilters.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                drawLeft("Filters: \(appliedFilters)", fontSize: 10, color: .gray)
+            }
             y += 8
 
             drawHorizontalLine()
@@ -280,8 +282,6 @@ enum RunningRecordPDFExporter {
             drawLeft("Assessment History", fontSize: 18, bold: true)
             y += 4
 
-            dateFormatter.dateStyle = .medium
-
             for (index, record) in sorted.enumerated() {
                 let cardHeight: CGFloat = record.notes.isEmpty ? 160 : 190
                 startNewPageIfNeeded(cardHeight)
@@ -301,7 +301,7 @@ enum RunningRecordPDFExporter {
                 let inset: CGFloat = 16
 
                 // Record number & date
-                let headerText = "#\(index + 1)  •  \(dateFormatter.string(from: record.date))"
+                let headerText = "#\(index + 1)  •  \(record.date.appDateString(systemStyle: .medium))"
                 drawLeft(headerText, fontSize: 10, color: .gray, indent: inset)
 
                 // Book title
@@ -396,14 +396,16 @@ enum RunningRecordPDFExporter {
     static func export(
         student: Student,
         schoolName: String,
-        runningRecords: [RunningRecord]
+        runningRecords: [RunningRecord],
+        appliedFilters: String? = nil
     ) -> URL {
 
         let sorted = runningRecords.sorted { $0.date > $1.date }
         let attributedString = createFormattedReport(
             student: student,
             schoolName: schoolName,
-            records: sorted
+            records: sorted,
+            appliedFilters: appliedFilters
         )
 
         let safeFilename = SecurityHelpers.generateSecureFilename(
@@ -443,7 +445,8 @@ enum RunningRecordPDFExporter {
     private static func createFormattedReport(
         student: Student,
         schoolName: String,
-        records: [RunningRecord]
+        records: [RunningRecord],
+        appliedFilters: String?
     ) -> NSAttributedString {
         let attributedString = NSMutableAttributedString()
 
@@ -464,10 +467,6 @@ enum RunningRecordPDFExporter {
         footerParagraph.paragraphSpacing = 2
 
         let separatorLine = String(repeating: "_", count: 82)
-        let reportDateFormatter = DateFormatter()
-        reportDateFormatter.dateStyle = .long
-        let recordDateFormatter = DateFormatter()
-        recordDateFormatter.dateStyle = .medium
 
         let schoolFont = NSFontManager.shared.convert(
             NSFont.systemFont(ofSize: 22, weight: .bold),
@@ -522,11 +521,19 @@ enum RunningRecordPDFExporter {
                 .paragraphStyle: bodyParagraph
             ])
         }
-        append("Report Date: \(reportDateFormatter.string(from: Date()))\n\n", attributes: [
+        append("Report Date: \(Date().appDateString(systemStyle: .long))\n\n", attributes: [
             .font: NSFont.systemFont(ofSize: 19),
             .foregroundColor: NSColor.black,
             .paragraphStyle: bodyParagraph
         ])
+
+        if let appliedFilters, !appliedFilters.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            append("Filters: \(appliedFilters)\n\n", attributes: [
+                .font: NSFont.systemFont(ofSize: 15),
+                .foregroundColor: NSColor.darkGray,
+                .paragraphStyle: bodyParagraph
+            ])
+        }
         append(separatorLine + "\n\n", attributes: [
             .font: NSFont.systemFont(ofSize: 12, weight: .bold),
             .foregroundColor: NSColor.black,
@@ -580,7 +587,7 @@ enum RunningRecordPDFExporter {
         ])
 
         for (index, record) in records.enumerated() {
-            append("Record #\(index + 1) - \(recordDateFormatter.string(from: record.date))\n", attributes: [
+            append("Record #\(index + 1) - \(record.date.appDateString(systemStyle: .medium))\n", attributes: [
                 .font: NSFont.systemFont(ofSize: 26, weight: .bold),
                 .foregroundColor: NSColor.systemBlue,
                 .paragraphStyle: sectionParagraph

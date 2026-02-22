@@ -314,7 +314,7 @@ struct RunningRecordDetailView: View {
                             .font(.headline)
                             .foregroundColor(.secondary)
                         
-                        Text(record.date, style: .date)
+                        Text(record.date.appDateString)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }

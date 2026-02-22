@@ -21,6 +21,7 @@ struct DashboardView: View {
     @State private var showingSuccessAlert = false
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
+    @State private var showingPreferences = false
 
     var body: some View {
         #if os(macOS)
@@ -81,6 +82,10 @@ struct DashboardView: View {
                     selectedSection = .runningRecords
                 }
 
+                DashboardButton(title: "Preferences".localized, systemImage: "gearshape.fill", color: .indigo) {
+                    showingPreferences = true
+                }
+
                 // MARK: - Backup
 
                 DashboardButton(title: "Backup".localized, systemImage: "externaldrive.fill", color: .gray) {
@@ -126,6 +131,9 @@ struct DashboardView: View {
         #endif
         .onAppear {
             backupReminderManager.checkIfReminderNeeded()
+        }
+        .sheet(isPresented: $showingPreferences) {
+            PreferencesView()
         }
 
         // MARK: - iOS Exporter
@@ -215,4 +223,3 @@ struct DashboardView: View {
         }
     }
 }
-

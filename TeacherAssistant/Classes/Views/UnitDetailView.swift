@@ -35,6 +35,7 @@ struct UnitDetailView: View {
     // Add assessment dialog
     @State private var showingAddAssessmentDialog = false
     @State private var newAssessmentName = ""
+    @State private var newAssessmentMaxScore = "10"
     
     var body: some View {
         ScrollView {
@@ -83,9 +84,13 @@ struct UnitDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddAssessmentDialog) {
-            AddAssessmentDialog(assessmentName: $newAssessmentName, onAdd: {
-                addAssessment()
-            })
+            AddAssessmentDialog(
+                assessmentName: $newAssessmentName,
+                maxScoreText: $newAssessmentMaxScore,
+                onAdd: {
+                    addAssessment()
+                }
+            )
         }
         .sheet(item: $copyStep) { step in
             CopyCriteriaSheet(
@@ -106,9 +111,9 @@ struct UnitDetailView: View {
         HStack(spacing: 16) {
             statBox(
                 title: "Unit Average".localized,
-                value: String(format: "%.1f", unitAverage),
+                value: String(format: "%.1f%%", unitAveragePercent),
                 icon: "chart.bar.fill",
-                color: averageColor(unitAverage)
+                color: AssessmentPercentMetrics.color(for: unitAveragePercent)
             )
             
             statBox(
@@ -147,12 +152,6 @@ struct UnitDetailView: View {
         .padding()
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
-    }
-    
-    func averageColor(_ average: Double) -> Color {
-        if average >= 7.0 { return .green }
-        if average >= 5.0 { return .orange }
-        return .red
     }
     
     // MARK: - Quick Actions
@@ -313,13 +312,16 @@ struct UnitDetailView: View {
     // MARK: - Actions
     
     func addAssessment() {
-        let newAssessment = Assessment(title: newAssessmentName)
+        let parsedMaxScore = parsedMaxScore(from: newAssessmentMaxScore)
+        let newAssessment = Assessment(title: newAssessmentName, maxScore: parsedMaxScore)
         newAssessment.unit = unit
         newAssessment.sortOrder = unit.assessments.count
         unit.assessments.append(newAssessment)
+        ensureResultsExist(for: newAssessment)
         
         // Reset the text field for next time
         newAssessmentName = ""
+        newAssessmentMaxScore = "10"
     }
     
     func copyCriteria(from sourceUnit: Unit) {
@@ -327,10 +329,11 @@ struct UnitDetailView: View {
         let sourceSorted = sourceUnit.assessments.sorted { $0.sortOrder < $1.sortOrder }
         
         for (index, old) in sourceSorted.enumerated() {
-            let newAssessment = Assessment(title: old.title)
+            let newAssessment = Assessment(title: old.title, maxScore: old.safeMaxScore)
             newAssessment.unit = unit
             newAssessment.sortOrder = existingCount + index
             unit.assessments.append(newAssessment)
+            ensureResultsExist(for: newAssessment)
         }
     }
     
@@ -342,13 +345,31 @@ struct UnitDetailView: View {
     
     // MARK: - Helpers
     
-    var unitAverage: Double {
+    var unitAveragePercent: Double {
         let allResults = unit.assessments.flatMap { $0.results }
-        return allResults.averageScore
+        return allResults.averagePercent
     }
     
     var totalGrades: Int {
         unit.assessments.flatMap { $0.results }.filter { $0.score > 0 }.count
+    }
+
+    func parsedMaxScore(from text: String) -> Double {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(cleaned), value.isFinite else {
+            return Assessment.defaultMaxScore
+        }
+        return Swift.min(Swift.max(value, 1), 1000)
+    }
+
+    func ensureResultsExist(for assessment: Assessment) {
+        let students = studentsInCurrentClass()
+        guard !students.isEmpty else { return }
+
+        let existingStudentIDs = Set(assessment.results.compactMap { $0.student?.id })
+        for student in students where !existingStudentIDs.contains(student.id) {
+            assessment.results.append(StudentResult(student: student, assessment: assessment))
+        }
     }
     
     func subjectsInCurrentClass() -> [Subject] {
@@ -357,13 +378,24 @@ struct UnitDetailView: View {
         }
         return []
     }
+
+    func studentsInCurrentClass() -> [Student] {
+        unit.subject?.schoolClass?.students.sorted { $0.sortOrder < $1.sortOrder } ?? []
+    }
 }
 // MARK: - Add Assessment Dialog
 
 struct AddAssessmentDialog: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var assessmentName: String
+    @Binding var maxScoreText: String
     let onAdd: () -> Void
+
+    var isMaxScoreValid: Bool {
+        let cleaned = maxScoreText.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(cleaned), value.isFinite else { return false }
+        return value >= 1 && value <= 1000
+    }
     
     var body: some View {
         NavigationStack {
@@ -395,6 +427,37 @@ struct AddAssessmentDialog: View {
                         .cornerRadius(10)
                 }
                 .padding(.horizontal)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Maximum Score".localized)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+
+                    #if os(iOS)
+                    TextField("e.g., 10".localized, text: $maxScoreText)
+                        .keyboardType(.decimalPad)
+                        .textFieldStyle(.plain)
+                        .font(.body)
+                        .padding()
+                        .background(isMaxScoreValid ? Color.blue.opacity(0.1) : Color.red.opacity(0.1))
+                        .cornerRadius(10)
+                    #else
+                    TextField("e.g., 10".localized, text: $maxScoreText)
+                        .textFieldStyle(.plain)
+                        .font(.body)
+                        .padding()
+                        .background(isMaxScoreValid ? Color.blue.opacity(0.1) : Color.red.opacity(0.1))
+                        .cornerRadius(10)
+                    #endif
+
+                    if !isMaxScoreValid {
+                        Text("Enter a value between 1 and 1000".localized)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+                .padding(.horizontal)
                 
                 if !assessmentName.isEmpty {
                     VStack(spacing: 8) {
@@ -407,8 +470,13 @@ struct AddAssessmentDialog: View {
                             Image(systemName: "doc.text.fill")
                                 .font(.title2)
                                 .foregroundColor(.blue)
-                            Text(assessmentName)
-                                .font(.headline)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(assessmentName)
+                                    .font(.headline)
+                                Text(String(format: "Max: %@".localized, maxScoreText))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         .padding()
                         .background(Color.blue.opacity(0.15))
@@ -427,6 +495,7 @@ struct AddAssessmentDialog: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel".localized) {
                         assessmentName = ""
+                        maxScoreText = "10"
                         dismiss()
                     }
                 }
@@ -435,7 +504,7 @@ struct AddAssessmentDialog: View {
                         onAdd()
                         dismiss()
                     }
-                    .disabled(assessmentName.isEmpty)
+                    .disabled(assessmentName.isEmpty || !isMaxScoreValid)
                     .buttonStyle(.borderedProminent)
                     .tint(.blue)
                 }

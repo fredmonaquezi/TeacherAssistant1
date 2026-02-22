@@ -22,28 +22,48 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 import AppKit
 
-// =======================
-// ✅ macOS IMPLEMENTATION
-// =======================
-
-struct ShareSheet: View {
-
+struct ShareSheet: NSViewControllerRepresentable {
     let activityItems: [Any]
 
-    var body: some View {
-        Button("Share") {
-            share()
-        }
+    func makeNSViewController(context: Context) -> MacShareViewController {
+        let viewController = MacShareViewController()
+        viewController.activityItems = activityItems
+        return viewController
     }
 
-    func share() {
-        guard let item = activityItems.first else { return }
+    func updateNSViewController(_ viewController: MacShareViewController, context: Context) {
+        viewController.activityItems = activityItems
+        viewController.presentSharingPickerIfPossible()
+    }
+}
 
-        let picker = NSSharingServicePicker(items: [item])
+final class MacShareViewController: NSViewController {
+    var activityItems: [Any] = []
+    private var hasPresentedPicker = false
 
-        if let window = NSApplication.shared.keyWindow {
-            picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .minY)
-        }
+    override func loadView() {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 90))
+        let label = NSTextField(labelWithString: "Sharing options")
+        label.alignment = .center
+        label.textColor = .secondaryLabelColor
+        label.frame = NSRect(x: 20, y: 34, width: 320, height: 22)
+        container.addSubview(label)
+        view = container
+    }
+
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        presentSharingPickerIfPossible()
+    }
+
+    func presentSharingPickerIfPossible() {
+        guard !hasPresentedPicker else { return }
+        guard !activityItems.isEmpty else { return }
+        guard view.window != nil else { return }
+
+        hasPresentedPicker = true
+        let picker = NSSharingServicePicker(items: activityItems)
+        picker.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
     }
 }
 

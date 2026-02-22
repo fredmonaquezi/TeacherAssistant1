@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftUI
 import SwiftData
 
 struct ClassOverviewView: View {
@@ -39,19 +38,19 @@ struct ClassOverviewView: View {
     // MARK: - Computed Stats
     
     var classAverage: Double {
-        filteredResults.averageScore
+        filteredResults.averagePercent
     }
     
     var attendanceRate: Double {
         let allRecords = allAttendanceSessions
             .filter { session in
                 session.records.contains(where: { record in
-                    schoolClass.students.contains(where: { $0.id == record.student.id })
+                    schoolClass.students.contains(where: { $0.id == record.student?.id })
                 })
             }
             .flatMap { $0.records }
             .filter { record in
-                schoolClass.students.contains(where: { $0.id == record.student.id })
+                schoolClass.students.contains(where: { $0.id == record.student?.id })
             }
         
         guard !allRecords.isEmpty else { return 0 }
@@ -76,7 +75,7 @@ struct ClassOverviewView: View {
         students.compactMap { student in
             let studentResults = filteredResults.filter { $0.student?.id == student.id }
             guard !studentResults.isEmpty else { return nil }
-            let avg = studentResults.averageScore
+            let avg = studentResults.averagePercent
             return (student, avg)
         }
         .sorted { $0.average > $1.average }
@@ -88,9 +87,9 @@ struct ClassOverviewView: View {
         students.compactMap { student in
             let studentResults = filteredResults.filter { $0.student?.id == student.id }
             guard !studentResults.isEmpty else { return nil }
-            let avg = studentResults.averageScore
+            let avg = studentResults.averagePercent
             
-            guard avg < 6.0 else { return nil }
+            guard avg < AssessmentPercentMetrics.satisfactoryThresholdPercent else { return nil }
             
             var flags: [String] = []
             if student.needsHelp { flags.append("Needs Help".localized) }
@@ -98,7 +97,7 @@ struct ClassOverviewView: View {
             
             let studentAttendance = allAttendanceSessions
                 .flatMap { $0.records }
-                .filter { $0.student.id == student.id }
+                .filter { $0.student?.id == student.id }
             
             let absentCount = studentAttendance.filter { $0.status == .absent }.count
             if absentCount > 3 { flags.append("Absent often".localized) }
@@ -112,12 +111,15 @@ struct ClassOverviewView: View {
         let studentAverages = students.compactMap { student -> Double? in
             let studentResults = filteredResults.filter { $0.student?.id == student.id }
             guard !studentResults.isEmpty else { return nil }
-            return studentResults.averageScore
+            return studentResults.averagePercent
         }
         
-        let excellent = studentAverages.filter { $0 >= 8.0 }.count
-        let good = studentAverages.filter { $0 >= 6.0 && $0 < 8.0 }.count
-        let needsWork = studentAverages.filter { $0 < 6.0 }.count
+        let excellent = studentAverages.filter { $0 >= AssessmentPercentMetrics.excellentThresholdPercent }.count
+        let good = studentAverages.filter {
+            $0 >= AssessmentPercentMetrics.satisfactoryThresholdPercent &&
+            $0 < AssessmentPercentMetrics.excellentThresholdPercent
+        }.count
+        let needsWork = studentAverages.filter { $0 < AssessmentPercentMetrics.satisfactoryThresholdPercent }.count
         
         return (excellent, good, needsWork)
     }
@@ -213,7 +215,7 @@ struct ClassOverviewView: View {
         HStack(spacing: 16) {
             statCard(
                 title: "Class Average".localized,
-                value: String(format: "%.1f", classAverage),
+                value: String(format: "%.1f%%", classAverage),
                 icon: "chart.bar.fill",
                 color: averageColor(classAverage)
             )
@@ -269,21 +271,21 @@ struct ClassOverviewView: View {
             if total > 0 {
                 VStack(spacing: 12) {
                     distributionBar(
-                        label: "Excellent (8.0+)".localized,
+                        label: "Excellent (70%+)".localized,
                         count: dist.excellent,
                         total: total,
                         color: .green
                     )
                     
                     distributionBar(
-                        label: "Good (6.0-7.9)".localized,
+                        label: "Good (50%-69%)".localized,
                         count: dist.good,
                         total: total,
                         color: .orange
                     )
                     
                     distributionBar(
-                        label: "Needs Work (<6.0)".localized,
+                        label: "Needs Work (<50%)".localized,
                         count: dist.needsWork,
                         total: total,
                         color: .red
@@ -363,10 +365,10 @@ struct ClassOverviewView: View {
                             
                             Spacer()
                             
-                            Text(String(format: "%.1f", performer.average))
+                            Text(String(format: "%.1f%%", performer.average))
                                 .font(.title3)
                                 .fontWeight(.bold)
-                                .foregroundColor(.green)
+                                .foregroundColor(averageColor(performer.average))
                             
                             Image(systemName: "star.fill")
                                 .foregroundColor(.yellow)
@@ -425,10 +427,10 @@ struct ClassOverviewView: View {
                         
                         Spacer()
                         
-                        Text(String(format: "%.1f", item.average))
+                        Text(String(format: "%.1f%%", item.average))
                             .font(.title3)
                             .fontWeight(.bold)
-                            .foregroundColor(.red)
+                            .foregroundColor(averageColor(item.average))
                     }
                     .padding()
                     .background(Color.red.opacity(0.05))
@@ -464,7 +466,7 @@ struct ClassOverviewView: View {
             result.assessment?.unit?.subject?.id == subject.id &&
             schoolClass.students.contains(where: { $0.id == result.student?.id })
         }
-        let avg = subjectResults.averageScore
+        let avg = subjectResults.averagePercent
         
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -473,7 +475,7 @@ struct ClassOverviewView: View {
                 
                 Spacer()
                 
-                Text(String(format: "%.1f", avg))
+                Text(String(format: "%.1f%%", avg))
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(averageColor(avg))
@@ -487,7 +489,7 @@ struct ClassOverviewView: View {
                     
                     RoundedRectangle(cornerRadius: 4)
                         .fill(averageColor(avg))
-                        .frame(width: geometry.size.width * (avg / 10.0), height: 8)
+                        .frame(width: geometry.size.width * (avg / 100.0), height: 8)
                 }
             }
             .frame(height: 8)
@@ -497,9 +499,7 @@ struct ClassOverviewView: View {
     // MARK: - Helpers
     
     func averageColor(_ average: Double) -> Color {
-        if average >= 8.0 { return .green }
-        if average >= 6.0 { return .orange }
-        return .red
+        AssessmentPercentMetrics.color(for: average)
     }
     
     func attendanceColor(_ rate: Double) -> Color {

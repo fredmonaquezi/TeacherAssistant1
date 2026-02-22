@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftUI
 import SwiftData
 
 struct UnitGradebookView: View {
@@ -119,8 +118,14 @@ struct UnitGradebookView: View {
             )
         ) {
             if let result = selectedResult {
-                ScorePickerSheet(studentResult: result)
+                ScoreEntrySheet(
+                    studentResult: result,
+                    maxScore: result.assessment?.safeMaxScore ?? Assessment.defaultMaxScore
+                )
             }
+        }
+        .onAppear {
+            ensureResultsExist()
         }
         .macNavigationDepth()
     }
@@ -152,8 +157,8 @@ struct UnitGradebookView: View {
             statItem(
                 icon: "chart.bar.fill",
                 label: "Unit Average".localized,
-                value: String(format: "%.1f", unitAverage),
-                color: averageColor(unitAverage)
+                value: String(format: "%.1f%%", unitAveragePercent),
+                color: AssessmentPercentMetrics.color(for: unitAveragePercent)
             )
             
             Spacer()
@@ -187,19 +192,20 @@ struct UnitGradebookView: View {
     @ViewBuilder
     func gradeCell(student: Student, assessment: Assessment) -> some View {
         let result = findResult(student: student, assessment: assessment)
+        let hasScore = (result?.score ?? 0) > 0
         
         Button {
             let finalResult = result ?? createResult(student: student, assessment: assessment)
             selectedResult = finalResult
         } label: {
-            Text(displayText(for: result))
+            Text(displayText(for: result, assessment: assessment))
                 .font(.body)
-                .fontWeight(result?.score ?? 0 > 0 ? .semibold : .regular)
-                .foregroundColor(result?.score ?? 0 > 0 ? gradeColor(result?.score ?? 0) : .secondary)
+                .fontWeight(hasScore ? .semibold : .regular)
+                .foregroundColor(hasScore ? gradeColor(result?.score ?? 0, assessment: assessment) : .secondary)
                 .frame(width: gradeColumnWidth, height: cellHeight)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(gradeCellBackground(for: result))
+                        .fill(gradeCellBackground(for: result, assessment: assessment))
                 )
         }
         .buttonStyle(.plain)
@@ -211,12 +217,12 @@ struct UnitGradebookView: View {
         let studentResults = assessments.compactMap { assessment in
             findResult(student: student, assessment: assessment)
         }
-        let average = studentResults.averageScore
+        let averagePercent = studentResults.averagePercent
         
-        return Text(String(format: "%.1f", average))
+        return Text(String(format: "%.1f%%", averagePercent))
             .font(.body)
             .fontWeight(.bold)
-            .foregroundColor(averageColor(average))
+            .foregroundColor(AssessmentPercentMetrics.color(for: averagePercent))
             .frame(width: gradeColumnWidth, height: cellHeight)
             .background(Color.gray.opacity(0.1))
     }
@@ -237,45 +243,52 @@ struct UnitGradebookView: View {
         return newResult
     }
     
-    func displayText(for result: StudentResult?) -> String {
+    func displayText(for result: StudentResult?, assessment: Assessment) -> String {
         guard let result else { return "—" }
         if result.score == 0 {
             return "—"
         } else {
-            return String(format: "%.1f", result.score)
+            let scoreText = formatScore(result.score)
+            if assessment.safeMaxScore == Assessment.defaultMaxScore {
+                return scoreText
+            }
+            return "\(scoreText)/\(formatScore(assessment.safeMaxScore))"
         }
     }
     
-    func gradeColor(_ score: Double) -> Color {
-        if score >= 7.0 { return .green }
-        if score >= 5.0 { return .orange }
-        return .red
+    func gradeColor(_ score: Double, assessment: Assessment) -> Color {
+        AssessmentPercentMetrics.color(for: assessment.scorePercent(score))
     }
     
-    func averageColor(_ average: Double) -> Color {
-        if average >= 7.0 { return .green }
-        if average >= 5.0 { return .orange }
-        if average > 0 { return .red }
-        return .gray
-    }
-    
-    func gradeCellBackground(for result: StudentResult?) -> Color {
+    func gradeCellBackground(for result: StudentResult?, assessment: Assessment) -> Color {
         guard let result, result.score > 0 else {
-            return Color.gray.opacity(0.05)
+            return AssessmentPercentMetrics.tintColor(for: nil)
         }
-        
-        if result.score >= 7.0 {
-            return Color.green.opacity(0.1)
-        } else if result.score >= 5.0 {
-            return Color.orange.opacity(0.1)
-        } else {
-            return Color.red.opacity(0.1)
+        return AssessmentPercentMetrics.tintColor(for: assessment.scorePercent(result.score))
+    }
+
+    func formatScore(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
         }
+        return String(format: "%.1f", value)
     }
     
-    var unitAverage: Double {
+    var unitAveragePercent: Double {
         let allResults = assessments.flatMap { $0.results }
-        return allResults.averageScore
+        return allResults.averagePercent
+    }
+
+    func ensureResultsExist() {
+        let students = studentsInThisUnit
+        guard !students.isEmpty else { return }
+
+        for assessment in assessments {
+            let existingStudentIDs = Set(assessment.results.compactMap { $0.student?.id })
+            for student in students where !existingStudentIDs.contains(student.id) {
+                assessment.results.append(StudentResult(student: student, assessment: assessment))
+            }
+        }
     }
     
     var headerBackgroundColor: Color {

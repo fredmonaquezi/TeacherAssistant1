@@ -33,9 +33,9 @@ struct StudentDetailView: View {
     
     var attendanceRecords: [AttendanceRecord] {
         allAttendanceSessions
-            .filter { $0.records.contains(where: { $0.student.id == student.id }) }
+            .filter { $0.records.contains(where: { $0.student?.id == student.id }) }
             .compactMap { session in
-                session.records.first(where: { $0.student.id == student.id })
+                session.records.first(where: { $0.student?.id == student.id })
             }
     }
     

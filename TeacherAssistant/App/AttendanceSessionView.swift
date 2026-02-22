@@ -29,7 +29,7 @@ struct AttendanceSessionView: View {
             .padding(.vertical, 20)
         }
         #if !os(macOS)
-        .navigationTitle(session.date.formatted(date: .abbreviated, time: .omitted))
+        .navigationTitle(session.date.appDateString)
         #endif
         .macNavigationDepth()
     }
@@ -45,7 +45,7 @@ struct AttendanceSessionView: View {
                     .foregroundColor(.blue)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(session.date.formatted(date: .long, time: .omitted))
+                    Text(session.date.appDateString)
                         .font(.headline)
                     Text("\(session.records.count) " + "students".localized)
                         .font(.subheadline)
@@ -158,7 +158,7 @@ struct StudentAttendanceCard: View {
                             .foregroundColor(statusColor)
                     }
                     
-                    Text(record.student.name)
+                    Text(record.student?.name ?? "Unknown Student".localized)
                         .font(.body)
                         .fontWeight(.medium)
                     

@@ -213,13 +213,13 @@ struct AddStudentView: View {
     // MARK: - Background Sync
 
     func syncStudentResults(for student: Student) {
-        for subject in schoolClass.subjects {
-            for unit in subject.units {
+        let sortedSubjects = schoolClass.subjects.sorted { $0.sortOrder < $1.sortOrder }
+        for subject in sortedSubjects {
+            for unit in subject.units.sorted(by: { $0.sortOrder < $1.sortOrder }) {
                 for assessment in unit.assessments {
-                    let hasResult = assessment.results.contains { $0.student?.id == student.id }
-                    if hasResult { continue }
-                    let result = StudentResult(student: student, assessment: assessment)
-                    assessment.results.append(result)
+                    let existingStudentIDs = Set(assessment.results.compactMap { $0.student?.id })
+                    guard !existingStudentIDs.contains(student.id) else { continue }
+                    assessment.results.append(StudentResult(student: student, assessment: assessment))
                 }
             }
         }

@@ -93,7 +93,7 @@ struct SimplePDFExporter {
         // Attendance
         text += "\n◆ ◆ ◆\n\n"
         let records: [AttendanceRecord] = allAttendanceSessions.flatMap { session in
-            session.records.filter { $0.student.id == student.id }
+            session.records.filter { $0.student?.id == student.id }
         }
         
         let total = records.count

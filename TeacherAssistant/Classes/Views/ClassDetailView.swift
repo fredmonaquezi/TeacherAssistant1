@@ -203,9 +203,15 @@ struct ClassDetailView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 
-                Text(schoolClass.grade)
-                    .font(.title3)
-                    .foregroundColor(.secondary)
+                if let schoolYear = schoolClass.schoolYear, !schoolYear.isEmpty {
+                    Text("\(schoolClass.grade) • \(schoolYear)")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(schoolClass.grade)
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                }
                 
                 HStack(spacing: 20) {
                     Label("\(schoolClass.students.count) \(schoolClass.students.count == 1 ? "Student".localized : "Students".localized)", systemImage: "person.3.fill")

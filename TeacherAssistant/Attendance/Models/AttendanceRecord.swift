@@ -4,7 +4,7 @@ import SwiftData
 @Model
 class AttendanceRecord {
     @Relationship(deleteRule: .nullify)
-    var student: Student  // ← ADD @Relationship
+    var student: Student?
 
     var statusRaw: String
     var notes: String = ""
@@ -14,7 +14,7 @@ class AttendanceRecord {
         set { statusRaw = newValue.rawValue }
     }
 
-    init(student: Student, status: AttendanceStatus = .present, notes: String = "") {
+    init(student: Student? = nil, status: AttendanceStatus = .present, notes: String = "") {
         self.student = student
         self.statusRaw = status.rawValue
         self.notes = notes
