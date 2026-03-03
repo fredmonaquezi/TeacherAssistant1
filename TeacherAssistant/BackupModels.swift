@@ -4,6 +4,34 @@ struct BackupFile: Codable {
     var classes: [BackupClass]
 }
 
+struct BackupUsefulLink: Codable {
+    var id: UUID
+    var title: String
+    var url: String
+    var description: String
+    var sortOrder: Int
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        url: String,
+        description: String = "",
+        sortOrder: Int = 0,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.title = title
+        self.url = url
+        self.description = description
+        self.sortOrder = sortOrder
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
 struct BackupClass: Codable {
     var name: String
     var grade: String
@@ -244,12 +272,14 @@ struct BackupResult: Codable {
     var studentUUID: UUID?
     var studentName: String
     var score: Double
+    var hasScore: Bool?
     var notes: String
 
-    init(studentUUID: UUID? = nil, studentName: String, score: Double, notes: String) {
+    init(studentUUID: UUID? = nil, studentName: String, score: Double, hasScore: Bool? = nil, notes: String) {
         self.studentUUID = studentUUID
         self.studentName = studentName
         self.score = score
+        self.hasScore = hasScore
         self.notes = notes
     }
 }
@@ -274,6 +304,7 @@ struct BackupRunningRecord: Codable {
     var studentUUID: UUID
     var date: Date
     var textTitle: String
+    var bookLevel: String?
     var totalWords: Int
     var errors: Int
     var selfCorrections: Int

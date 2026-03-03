@@ -17,6 +17,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case randomPicker = "Random Picker"
     case timer = "Timer"
     case runningRecords = "Running Records"
+    case usefulLinks = "Useful Links"
     case calendar = "Calendar"
 
     var id: String { rawValue }
@@ -24,6 +25,8 @@ enum AppSection: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
 
+    @AppStorage(AppPreferencesKeys.dateFormat) private var dateFormatRawValue: String = AppDateFormatPreference.system.rawValue
+    @AppStorage(AppPreferencesKeys.timeFormat) private var timeFormatRawValue: String = AppTimeFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.defaultLandingSection) private var defaultLandingSectionRawValue: String = AppSection.dashboard.rawValue
     @State private var selectedSection: AppSection?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
@@ -75,6 +78,12 @@ struct ContentView: View {
             if selectedSection == nil {
                 selectedSection = AppSection(rawValue: newValue) ?? .dashboard
             }
+        }
+        .onChange(of: dateFormatRawValue) { _, _ in
+            refreshForPreferenceChange()
+        }
+        .onChange(of: timeFormatRawValue) { _, _ in
+            refreshForPreferenceChange()
         }
     }
     
@@ -228,6 +237,10 @@ struct ContentView: View {
         case .runningRecords:
             RunningRecordsView()
                 .macNavigationRoot()
+
+        case .usefulLinks:
+            UsefulLinksView()
+                .macNavigationRoot()
             
         case .calendar:
             CalendarRootView()
@@ -261,11 +274,21 @@ struct ContentView: View {
         case .randomPicker: return "die.face.5.fill"
         case .timer: return "timer"
         case .runningRecords: return "doc.text.magnifyingglass"
+        case .usefulLinks: return "link"
         case .calendar: return "calendar"
         }
     }
 
     private func handleBackupRestoreCompleted() {
+        selectedSection = AppSection(rawValue: defaultLandingSectionRawValue) ?? .dashboard
+        appViewResetID = UUID()
+        navigationStackResetID = UUID()
+        #if os(macOS)
+        macNavigationState.reset()
+        #endif
+    }
+
+    private func refreshForPreferenceChange() {
         appViewResetID = UUID()
         navigationStackResetID = UUID()
         #if os(macOS)

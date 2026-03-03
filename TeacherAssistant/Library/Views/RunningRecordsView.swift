@@ -480,7 +480,7 @@ struct RunningRecordsView: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
-                TextField(languageManager.localized("Search student, class, text, notes"), text: $searchText)
+                TextField(languageManager.localized("Search student, class, text, book level, notes"), text: $searchText)
                     .textFieldStyle(.plain)
                 if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Button {
@@ -824,6 +824,20 @@ struct RunningRecordCard: View {
                 .padding(.vertical, 6)
                 .background(levelColor(record.readingLevel).opacity(0.15))
                 .cornerRadius(8)
+
+                if let bookLevel = record.bookLevel, !bookLevel.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "textformat.abc")
+                        Text("\(languageManager.localized("Book Level")): \(bookLevel)")
+                            .fontWeight(.semibold)
+                    }
+                    .font(.caption)
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.green.opacity(0.12))
+                    .cornerRadius(8)
+                }
             }
             .padding()
             .frame(maxWidth: .infinity)

@@ -179,10 +179,11 @@ enum StudentReportExporterMac {
         
         // Academic section
         let results = allResults.filter { $0.student?.id == student.id }
-        let average = results.averageScore
+        let scoredResults = results.filter(\.isScored)
+        let average = scoredResults.averageScore
         
         drawText("Academic Performance".localized, fontSize: 20, bold: true)
-        drawText(String(format: "Total Assessments: %d".localized, results.count), fontSize: 14)
+        drawText(String(format: "Total Assessments: %d".localized, scoredResults.count), fontSize: 14)
         drawText(String(format: "Overall Average: %.1f".localized, average), fontSize: 14)
         
         // Draw footer
@@ -232,8 +233,9 @@ enum StudentReportExporterMac {
         
         text += "Academic Performance".localized.uppercased() + "\n"
         let results = allResults.filter { $0.student?.id == student.id }
-        text += "Total Assessments".localized + ": \(results.count)\n"
-        text += "Overall Average".localized + ": \(String(format: "%.1f", results.averageScore))\n"
+        let scoredResults = results.filter(\.isScored)
+        text += "Total Assessments".localized + ": \(scoredResults.count)\n"
+        text += "Overall Average".localized + ": \(String(format: "%.1f", scoredResults.averageScore))\n"
         
         return text
     }

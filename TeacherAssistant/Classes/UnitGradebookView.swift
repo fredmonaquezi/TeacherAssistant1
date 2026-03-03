@@ -192,7 +192,7 @@ struct UnitGradebookView: View {
     @ViewBuilder
     func gradeCell(student: Student, assessment: Assessment) -> some View {
         let result = findResult(student: student, assessment: assessment)
-        let hasScore = (result?.score ?? 0) > 0
+        let hasScore = result?.isScored ?? false
         
         Button {
             let finalResult = result ?? createResult(student: student, assessment: assessment)
@@ -245,7 +245,7 @@ struct UnitGradebookView: View {
     
     func displayText(for result: StudentResult?, assessment: Assessment) -> String {
         guard let result else { return "—" }
-        if result.score == 0 {
+        if !result.isScored {
             return "—"
         } else {
             let scoreText = formatScore(result.score)
@@ -261,7 +261,7 @@ struct UnitGradebookView: View {
     }
     
     func gradeCellBackground(for result: StudentResult?, assessment: Assessment) -> Color {
-        guard let result, result.score > 0 else {
+        guard let result, result.isScored else {
             return AssessmentPercentMetrics.tintColor(for: nil)
         }
         return AssessmentPercentMetrics.tintColor(for: assessment.scorePercent(result.score))

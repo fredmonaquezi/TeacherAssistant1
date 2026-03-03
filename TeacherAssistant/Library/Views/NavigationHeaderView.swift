@@ -103,6 +103,12 @@ struct NavigationHeaderView: View {
                         )
 
                         headerButton(
+                            title: languageManager.localized("Useful Links"),
+                            icon: "link",
+                            section: .usefulLinks
+                        )
+
+                        headerButton(
                             title: languageManager.localized("Timer"),
                             icon: "timer",
                             section: .timer

@@ -351,7 +351,7 @@ struct UnitDetailView: View {
     }
     
     var totalGrades: Int {
-        unit.assessments.flatMap { $0.results }.filter { $0.score > 0 }.count
+        unit.assessments.flatMap { $0.results }.filter(\.isScored).count
     }
 
     func parsedMaxScore(from text: String) -> Double {

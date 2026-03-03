@@ -27,6 +27,7 @@ struct TeacherAssistantApp: App {
             RunningRecord.self,
             CalendarEvent.self,
             ClassDiaryEntry.self,
+            UsefulLink.self,
         ])
 
         let modelConfiguration = ModelConfiguration(

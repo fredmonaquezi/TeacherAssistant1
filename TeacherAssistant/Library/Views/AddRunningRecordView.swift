@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 struct AddRunningRecordView: View {
+    let existingRecord: RunningRecord?
+
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var languageManager: LanguageManager
@@ -11,11 +13,25 @@ struct AddRunningRecordView: View {
     @State private var selectedStudent: Student?
     @State private var date = Date()
     @State private var textTitle = ""
+    @State private var bookLevel = ""
     @State private var totalWords = ""
     @State private var errors = ""
     @State private var selfCorrections = ""
     @State private var notes = ""
     @State private var showingSymbolGuide = false
+
+    init(existingRecord: RunningRecord? = nil) {
+        self.existingRecord = existingRecord
+        _selectedClassFilter = State(initialValue: existingRecord?.student?.schoolClass)
+        _selectedStudent = State(initialValue: existingRecord?.student)
+        _date = State(initialValue: existingRecord?.date ?? Date())
+        _textTitle = State(initialValue: existingRecord?.textTitle ?? "")
+        _bookLevel = State(initialValue: existingRecord?.bookLevel ?? "")
+        _totalWords = State(initialValue: existingRecord.map { String($0.totalWords) } ?? "")
+        _errors = State(initialValue: existingRecord.map { String($0.errors) } ?? "")
+        _selfCorrections = State(initialValue: existingRecord.map { String($0.selfCorrections) } ?? "")
+        _notes = State(initialValue: existingRecord?.notes ?? "")
+    }
     
     struct StudentGroup: Identifiable {
         let id: String
@@ -129,6 +145,14 @@ struct AddRunningRecordView: View {
         errorsInt >= 0 &&
         selfCorrectionsInt >= 0
     }
+
+    var isEditing: Bool {
+        existingRecord != nil
+    }
+
+    var bookLevelOptions: [String] {
+        (65...90).compactMap { UnicodeScalar($0).map(String.init) }
+    }
     
     var body: some View {
         NavigationStack {
@@ -140,11 +164,11 @@ struct AddRunningRecordView: View {
                             .font(.system(size: 60))
                             .foregroundColor(.blue)
                         
-                        Text(languageManager.localized("New Running Record"))
+                        Text(languageManager.localized(isEditing ? "Edit Running Record" : "New Running Record"))
                             .font(.title2)
                             .fontWeight(.bold)
                         
-                        Text(languageManager.localized("Record reading assessment data"))
+                        Text(languageManager.localized(isEditing ? "Update reading assessment data" : "Record reading assessment data"))
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -220,6 +244,37 @@ struct AddRunningRecordView: View {
                         DatePicker("", selection: $date, displayedComponents: [.date])
                             .datePickerStyle(.compact)
                             .labelsHidden()
+                    }
+                    .padding(.horizontal)
+
+                    // Book Level
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(languageManager.localized("Book Level"), systemImage: "textformat.abc")
+                            .font(.headline)
+
+                        Menu {
+                            Button(languageManager.localized("No Book Level")) {
+                                bookLevel = ""
+                            }
+                            Divider()
+                            ForEach(bookLevelOptions, id: \.self) { level in
+                                Button(level) {
+                                    bookLevel = level
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text(bookLevel.isEmpty ? languageManager.localized("Select a level (optional)") : bookLevel)
+                                    .foregroundColor(bookLevel.isEmpty ? .secondary : .primary)
+                                Spacer()
+                                Image(systemName: "chevron.down")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.green.opacity(0.08))
+                            .cornerRadius(10)
+                        }
                     }
                     .padding(.horizontal)
                     
@@ -392,7 +447,7 @@ struct AddRunningRecordView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle(languageManager.localized("New Running Record"))
+            .navigationTitle(languageManager.localized(isEditing ? "Edit Running Record" : "New Running Record"))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -404,7 +459,7 @@ struct AddRunningRecordView: View {
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(languageManager.localized("Save")) {
+                    Button(languageManager.localized(isEditing ? "Update" : "Save")) {
                         saveRecord()
                     }
                     .disabled(!isValid)
@@ -443,19 +498,31 @@ struct AddRunningRecordView: View {
         let validatedErrors = SecurityHelpers.validateCount(errorsInt, min: 0, max: 100000)
         let validatedSelfCorrections = SecurityHelpers.validateCount(selfCorrectionsInt, min: 0, max: 100000)
 
-        let record = RunningRecord(
-            date: date,
-            textTitle: sanitizedTitle,
-            totalWords: validatedTotalWords,
-            errors: validatedErrors,
-            selfCorrections: validatedSelfCorrections,
-            notes: sanitizedNotes
-        )
+        let sanitizedBookLevel = SecurityHelpers.sanitizeBookLevel(bookLevel)
+
+        let record = existingRecord ?? RunningRecord()
+        let previousStudent = record.student
+
+        record.date = date
+        record.textTitle = sanitizedTitle
+        record.bookLevel = sanitizedBookLevel
+        record.totalWords = validatedTotalWords
+        record.errors = validatedErrors
+        record.selfCorrections = validatedSelfCorrections
+        record.notes = sanitizedNotes
+
+        if previousStudent?.id != student.id {
+            previousStudent?.runningRecords.removeAll { $0.id == record.id }
+        }
 
         record.student = student
-        student.runningRecords.append(record)
+        if !student.runningRecords.contains(where: { $0.id == record.id }) {
+            student.runningRecords.append(record)
+        }
 
-        context.insert(record)
+        if existingRecord == nil {
+            context.insert(record)
+        }
         try? context.save()
 
         dismiss()

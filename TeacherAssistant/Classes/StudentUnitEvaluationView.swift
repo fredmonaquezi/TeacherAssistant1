@@ -76,7 +76,7 @@ struct StudentUnitEvaluationView: View {
                         selectedResult = finalResult
                     } label: {
                         HStack {
-                            if let result, result.score > 0 {
+                            if let result, result.isScored {
                                 Text("\(Int(result.score))")
                                     .font(.title)
                                     .bold()

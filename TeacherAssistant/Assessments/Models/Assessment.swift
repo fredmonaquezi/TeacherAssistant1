@@ -42,12 +42,12 @@ class Assessment {
     }
 
     func normalizedScoreOutOfTen(_ score: Double) -> Double {
-        guard score > 0 else { return 0 }
+        guard score.isFinite else { return 0 }
         return (clampedScore(score) / safeMaxScore) * 10
     }
 
     func scorePercent(_ score: Double) -> Double {
-        guard score > 0 else { return 0 }
+        guard score.isFinite else { return 0 }
         return (clampedScore(score) / safeMaxScore) * 100
     }
 }

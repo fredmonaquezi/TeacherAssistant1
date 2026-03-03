@@ -117,16 +117,17 @@ enum StudentReportExporter {
             drawSectionTitle("Academic Progress", y: &y)
 
             let resultsForStudent = allResults.filter { $0.student?.id == student.id }
+            let scoredResultsForStudent = resultsForStudent.filter(\.isScored)
 
             let subjects: [Subject] = unique(
-                resultsForStudent.compactMap { $0.assessment?.unit?.subject }
+                scoredResultsForStudent.compactMap { $0.assessment?.unit?.subject }
             )
 
             for subject in subjects.sorted(by: { $0.name < $1.name }) {
 
                 startNewPageIfNeeded(80)
 
-                let subjectResults = resultsForStudent.filter {
+                let subjectResults = scoredResultsForStudent.filter {
                     $0.assessment?.unit?.subject?.id == subject.id
                 }
 
@@ -155,7 +156,7 @@ enum StudentReportExporter {
 
                         startNewPageIfNeeded(80)
 
-                        let score = result.score == 0 ? "Not evaluated" : "\(Int(result.score))"
+                        let score = result.isScored ? "\(Int(result.score))" : "Not evaluated"
 
                         let line = "   - \(assessment.title): \(score)"
                         y = drawParagraph(line, y: y)
@@ -352,19 +353,20 @@ enum StudentReportExporter {
         
         // Academic Results
         let resultsForStudent = allResults.filter { $0.student?.id == student.id }
-        let average = resultsForStudent.averageScore
+        let scoredResultsForStudent = resultsForStudent.filter(\.isScored)
+        let average = scoredResultsForStudent.averageScore
         
         drawText("Academic Progress".localized, fontSize: 20, bold: true)
         drawText(String(format: "Overall Average: %.1f".localized, average), fontSize: 14)
-        drawText(String(format: "Total Assessments: %d".localized, resultsForStudent.count), fontSize: 14)
+        drawText(String(format: "Total Assessments: %d".localized, scoredResultsForStudent.count), fontSize: 14)
         
         y -= 10
         
         // Subject Breakdown
-        let subjects: [Subject] = unique(resultsForStudent.compactMap { $0.assessment?.unit?.subject })
+        let subjects: [Subject] = unique(scoredResultsForStudent.compactMap { $0.assessment?.unit?.subject })
         
         for subject in subjects.sorted(by: { $0.name < $1.name }).prefix(10) {
-            let subjectResults = resultsForStudent.filter {
+            let subjectResults = scoredResultsForStudent.filter {
                 $0.assessment?.unit?.subject?.id == subject.id
             }
             let subjectAvg = subjectResults.averageScore

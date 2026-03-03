@@ -293,6 +293,7 @@ struct RunningRecordDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var languageManager: LanguageManager
     @State private var showingDeleteAlert = false
+    @State private var showingEditSheet = false
     
     var body: some View {
         NavigationStack {
@@ -317,6 +318,13 @@ struct RunningRecordDetailView: View {
                         Text(record.date.appDateString)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+
+                        if let bookLevel = record.bookLevel, !bookLevel.isEmpty {
+                            Text("\(languageManager.localized("Book Level")): \(bookLevel)")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.green)
+                        }
                     }
                     .padding(.top, 20)
                     
@@ -407,6 +415,12 @@ struct RunningRecordDetailView: View {
                         dismiss()
                     }
                 }
+
+                ToolbarItem(placement: .automatic) {
+                    Button(languageManager.localized("Edit")) {
+                        showingEditSheet = true
+                    }
+                }
                 
                 ToolbarItem(placement: .primaryAction) {
                     Button(role: .destructive) {
@@ -426,6 +440,9 @@ struct RunningRecordDetailView: View {
                 }
             } message: {
                 Text(languageManager.localized("Are you sure you want to delete this running record? This action cannot be undone."))
+            }
+            .sheet(isPresented: $showingEditSheet) {
+                AddRunningRecordView(existingRecord: record)
             }
         }
     }

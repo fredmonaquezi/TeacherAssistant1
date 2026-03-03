@@ -40,6 +40,10 @@ struct ClassOverviewView: View {
     var classAverage: Double {
         filteredResults.averagePercent
     }
+
+    var scoredFilteredResults: [StudentResult] {
+        filteredResults.filter(\.isScored)
+    }
     
     var attendanceRate: Double {
         let allRecords = allAttendanceSessions
@@ -73,7 +77,7 @@ struct ClassOverviewView: View {
     
     var topPerformers: [(student: Student, average: Double)] {
         students.compactMap { student in
-            let studentResults = filteredResults.filter { $0.student?.id == student.id }
+            let studentResults = scoredFilteredResults.filter { $0.student?.id == student.id }
             guard !studentResults.isEmpty else { return nil }
             let avg = studentResults.averagePercent
             return (student, avg)
@@ -85,7 +89,7 @@ struct ClassOverviewView: View {
     
     var studentsNeedingAttention: [(student: Student, average: Double, flags: [String])] {
         students.compactMap { student in
-            let studentResults = filteredResults.filter { $0.student?.id == student.id }
+            let studentResults = scoredFilteredResults.filter { $0.student?.id == student.id }
             guard !studentResults.isEmpty else { return nil }
             let avg = studentResults.averagePercent
             
@@ -109,7 +113,7 @@ struct ClassOverviewView: View {
     
     var gradeDistribution: (excellent: Int, good: Int, needsWork: Int) {
         let studentAverages = students.compactMap { student -> Double? in
-            let studentResults = filteredResults.filter { $0.student?.id == student.id }
+            let studentResults = scoredFilteredResults.filter { $0.student?.id == student.id }
             guard !studentResults.isEmpty else { return nil }
             return studentResults.averagePercent
         }
@@ -465,8 +469,9 @@ struct ClassOverviewView: View {
         let subjectResults = allResults.filter { result in
             result.assessment?.unit?.subject?.id == subject.id &&
             schoolClass.students.contains(where: { $0.id == result.student?.id })
-        }
+        }.filter(\.isScored)
         let avg = subjectResults.averagePercent
+        let hasScores = !subjectResults.isEmpty
         
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -475,10 +480,10 @@ struct ClassOverviewView: View {
                 
                 Spacer()
                 
-                Text(String(format: "%.1f%%", avg))
+                Text(hasScores ? String(format: "%.1f%%", avg) : "—")
                     .font(.title3)
                     .fontWeight(.bold)
-                    .foregroundColor(averageColor(avg))
+                    .foregroundColor(hasScores ? averageColor(avg) : .secondary)
             }
             
             GeometryReader { geometry in
@@ -488,7 +493,7 @@ struct ClassOverviewView: View {
                         .frame(height: 8)
                     
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(averageColor(avg))
+                        .fill(hasScores ? averageColor(avg) : Color.gray.opacity(0.3))
                         .frame(width: geometry.size.width * (avg / 100.0), height: 8)
                 }
             }

@@ -93,14 +93,14 @@ struct AssessmentDetailView: View {
     
     var highestPercent: Double {
         assessment.results
-            .filter { $0.score > 0 }
+            .filter(\.isScored)
             .map { assessment.scorePercent($0.score) }
             .max() ?? 0
     }
     
     var lowestPercent: Double {
         let scores = assessment.results
-            .filter { $0.score > 0 }
+            .filter(\.isScored)
             .map { assessment.scorePercent($0.score) }
         return scores.min() ?? 0
     }
@@ -192,7 +192,7 @@ struct AssessmentDetailView: View {
                 
                 Spacer()
                 
-                let gradedCount = assessment.results.filter { $0.score > 0 }.count
+                let gradedCount = assessment.results.filter(\.isScored).count
                 let totalCount = assessment.results.count
                 
                 Text("\(gradedCount) / \(totalCount) " + "graded".localized)
@@ -307,7 +307,7 @@ struct StudentGradeCard: View {
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(scoreColor.opacity(0.3), lineWidth: result.score > 0 ? 2 : 1)
+                .stroke(scoreColor.opacity(0.3), lineWidth: result.isScored ? 2 : 1)
         )
     }
     
@@ -317,6 +317,7 @@ struct StudentGradeCard: View {
             get: { result.score },
             set: { newValue in
                 result.score = assessment.clampedScore(newValue)
+                result.hasScore = true
             }
         )
 
@@ -348,7 +349,7 @@ struct StudentGradeCard: View {
                 .foregroundColor(scoreColor)
             #endif
 
-            if result.score > 0 {
+            if result.isScored {
                 Text(String(format: "%.1f%%", assessment.scorePercent(result.score)))
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -357,7 +358,7 @@ struct StudentGradeCard: View {
     }
     
     var scoreColor: Color {
-        guard result.score > 0 else { return .gray }
+        guard result.isScored else { return .gray }
         return AssessmentPercentMetrics.color(for: assessment.scorePercent(result.score))
     }
     

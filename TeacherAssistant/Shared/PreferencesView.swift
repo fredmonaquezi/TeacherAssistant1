@@ -29,6 +29,17 @@ struct PreferencesView: View {
         )
     }
 
+    private var previewDate: Date {
+        let calendar = Calendar.current
+        var components = DateComponents()
+        components.year = 2026
+        components.month = 3
+        components.day = 3
+        components.hour = 15
+        components.minute = 45
+        return calendar.date(from: components) ?? Date()
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -83,6 +94,35 @@ struct PreferencesView: View {
                     .background(Color.gray.opacity(0.08))
                     .cornerRadius(16)
 
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label(
+                            languageManager.localized("Format Preview"),
+                            systemImage: "eye.fill"
+                        )
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+
+                        HStack {
+                            Text(languageManager.localized("Date"))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(AppDateTimeFormatter.formatDate(previewDate, systemStyle: .full))
+                                .fontWeight(.semibold)
+                        }
+
+                        HStack {
+                            Text(languageManager.localized("Time"))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(AppDateTimeFormatter.formatTime(previewDate, systemStyle: .short))
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color.green.opacity(0.08))
+                    .cornerRadius(16)
+
                     VStack(alignment: .leading, spacing: 8) {
                         Label(
                             languageManager.localized("Helpful Notes"),
@@ -91,10 +131,10 @@ struct PreferencesView: View {
                         .font(.subheadline)
                         .foregroundColor(.blue)
 
-                        Text(languageManager.localized("Date and time preferences are applied across screens that use app formatting helpers."))
+                        Text(languageManager.localized("Date and time changes refresh the app immediately and apply to screens that use the shared formatting helpers."))
                             .font(.footnote)
                             .foregroundColor(.secondary)
-                        Text(languageManager.localized("Default landing section is used the next time the app opens."))
+                        Text(languageManager.localized("Default landing section is used on next launch and is also re-applied after a restore."))
                             .font(.footnote)
                             .foregroundColor(.secondary)
                     }

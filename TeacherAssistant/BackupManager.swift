@@ -2,7 +2,7 @@ import SwiftData
 import Foundation
 
 /// Current backup schema version for compatibility checking
-private let currentBackupSchemaVersion = 3
+private let currentBackupSchemaVersion = 5
 
 extension Notification.Name {
     static let backupRestoreDidComplete = Notification.Name("BackupRestoreDidComplete")
@@ -28,6 +28,7 @@ struct VersionedBackupFile: Codable {
     var developmentScores: [BackupDevelopmentScore]
     var calendarEvents: [BackupCalendarEvent]
     var classDiaryEntries: [BackupClassDiaryEntry]
+    var usefulLinks: [BackupUsefulLink]
     var appSettings: BackupAppSettings?
 
     init(
@@ -37,6 +38,7 @@ struct VersionedBackupFile: Codable {
         developmentScores: [BackupDevelopmentScore],
         calendarEvents: [BackupCalendarEvent],
         classDiaryEntries: [BackupClassDiaryEntry],
+        usefulLinks: [BackupUsefulLink],
         appSettings: BackupAppSettings?
     ) {
         self.schemaVersion = currentBackupSchemaVersion
@@ -48,6 +50,7 @@ struct VersionedBackupFile: Codable {
         self.developmentScores = developmentScores
         self.calendarEvents = calendarEvents
         self.classDiaryEntries = classDiaryEntries
+        self.usefulLinks = usefulLinks
         self.appSettings = appSettings
     }
 
@@ -61,6 +64,7 @@ struct VersionedBackupFile: Codable {
         case developmentScores
         case calendarEvents
         case classDiaryEntries
+        case usefulLinks
         case appSettings
     }
 
@@ -75,6 +79,7 @@ struct VersionedBackupFile: Codable {
         developmentScores = try container.decodeIfPresent([BackupDevelopmentScore].self, forKey: .developmentScores) ?? []
         calendarEvents = try container.decodeIfPresent([BackupCalendarEvent].self, forKey: .calendarEvents) ?? []
         classDiaryEntries = try container.decodeIfPresent([BackupClassDiaryEntry].self, forKey: .classDiaryEntries) ?? []
+        usefulLinks = try container.decodeIfPresent([BackupUsefulLink].self, forKey: .usefulLinks) ?? []
         appSettings = try container.decodeIfPresent(BackupAppSettings.self, forKey: .appSettings)
     }
 }
@@ -120,6 +125,7 @@ final class BackupManager {
         let allRubricTemplates = try exportContext.fetch(FetchDescriptor<RubricTemplate>())
         let allCalendarEvents = try exportContext.fetch(FetchDescriptor<CalendarEvent>())
         let allDiaryEntries = try exportContext.fetch(FetchDescriptor<ClassDiaryEntry>())
+        let allUsefulLinks = try exportContext.fetch(FetchDescriptor<UsefulLink>())
 
         var studentsByClassID: [PersistentIdentifier: [Student]] = [:]
         for student in allStudents {
@@ -199,6 +205,7 @@ final class BackupManager {
                                         min: 0,
                                         max: assessment.safeMaxScore
                                     ),
+                                    hasScore: result.isScored,
                                     notes: SecurityHelpers.sanitizeNotes(result.notes)
                                 )
                             )
@@ -258,6 +265,7 @@ final class BackupManager {
                 studentUUID: student.uuid,
                 date: record.date,
                 textTitle: record.textTitle,
+                bookLevel: SecurityHelpers.sanitizeBookLevel(record.bookLevel),
                 totalWords: SecurityHelpers.validateCount(record.totalWords, min: 0, max: 1_000_000),
                 errors: SecurityHelpers.validateCount(record.errors, min: 0, max: 1_000_000),
                 selfCorrections: SecurityHelpers.validateCount(record.selfCorrections, min: 0, max: 1_000_000),
@@ -323,6 +331,25 @@ final class BackupManager {
                 unitID: entry.unit?.id
             )
         }
+
+        let backupUsefulLinks = allUsefulLinks
+            .sorted {
+                if $0.sortOrder != $1.sortOrder {
+                    return $0.sortOrder < $1.sortOrder
+                }
+                return $0.createdAt < $1.createdAt
+            }
+            .map { link in
+                BackupUsefulLink(
+                    id: link.id,
+                    title: link.title,
+                    url: link.url,
+                    description: SecurityHelpers.sanitizeNotes(link.linkDescription),
+                    sortOrder: SecurityHelpers.validateCount(link.sortOrder, min: 0, max: 10000),
+                    createdAt: link.createdAt,
+                    updatedAt: link.updatedAt
+                )
+            }
         
         SecureLogger.backupStep(3, "Built backup models")
         
@@ -345,6 +372,7 @@ final class BackupManager {
             developmentScores: backupDevelopmentScores,
             calendarEvents: backupCalendarEvents,
             classDiaryEntries: backupClassDiaryEntries,
+            usefulLinks: backupUsefulLinks,
             appSettings: backupAppSettings
         )
         
@@ -411,6 +439,7 @@ final class BackupManager {
         var backupDevelopmentScores: [BackupDevelopmentScore] = []
         var backupCalendarEvents: [BackupCalendarEvent] = []
         var backupClassDiaryEntries: [BackupClassDiaryEntry] = []
+        var backupUsefulLinks: [BackupUsefulLink] = []
         var backupAppSettings: BackupAppSettings?
         
         if let versionedBackup = try? decoder.decode(VersionedBackupFile.self, from: data) {
@@ -424,6 +453,7 @@ final class BackupManager {
             backupDevelopmentScores = versionedBackup.developmentScores
             backupCalendarEvents = versionedBackup.calendarEvents
             backupClassDiaryEntries = versionedBackup.classDiaryEntries
+            backupUsefulLinks = versionedBackup.usefulLinks
             backupAppSettings = versionedBackup.appSettings
             SecureLogger.info("Importing versioned backup (v\(versionedBackup.schemaVersion))")
         } else {
@@ -446,6 +476,7 @@ final class BackupManager {
         try deleteAll(DevelopmentScore.self, in: context)
         try deleteAll(RubricTemplate.self, in: context)
         try deleteAll(RunningRecord.self, in: context)
+        try deleteAll(UsefulLink.self, in: context)
         try deleteAll(SchoolClass.self, in: context)
         try context.save()
 
@@ -560,7 +591,8 @@ final class BackupManager {
                                         min: 0,
                                         max: assessment.safeMaxScore
                                     ),
-                                    notes: SecurityHelpers.sanitizeNotes(r.notes)
+                                    notes: SecurityHelpers.sanitizeNotes(r.notes),
+                                    hasScore: r.hasScore ?? (r.score > 0)
                                 )
                                 result.assessment = assessment
                                 context.insert(result)
@@ -597,6 +629,7 @@ final class BackupManager {
             let runningRecord = RunningRecord(
                 date: backupRecord.date,
                 textTitle: backupRecord.textTitle,
+                bookLevel: SecurityHelpers.sanitizeBookLevel(backupRecord.bookLevel),
                 totalWords: SecurityHelpers.validateCount(backupRecord.totalWords, min: 0, max: 1_000_000),
                 errors: SecurityHelpers.validateCount(backupRecord.errors, min: 0, max: 1_000_000),
                 selfCorrections: SecurityHelpers.validateCount(backupRecord.selfCorrections, min: 0, max: 1_000_000),
@@ -688,6 +721,24 @@ final class BackupManager {
                 unit: backupEntry.unitID.flatMap { unitByID[$0] }
             )
             context.insert(diaryEntry)
+        }
+
+        for backupLink in backupUsefulLinks {
+            guard let sanitizedTitle = SecurityHelpers.sanitizeName(backupLink.title),
+                  let sanitizedURL = sanitizeBackupURL(backupLink.url) else {
+                continue
+            }
+
+            let usefulLink = UsefulLink(
+                id: backupLink.id,
+                title: sanitizedTitle,
+                url: sanitizedURL,
+                linkDescription: SecurityHelpers.sanitizeNotes(backupLink.description),
+                sortOrder: SecurityHelpers.validateCount(backupLink.sortOrder, min: 0, max: 10000),
+                createdAt: backupLink.createdAt,
+                updatedAt: backupLink.updatedAt
+            )
+            context.insert(usefulLink)
         }
         
         try context.save()
@@ -807,6 +858,18 @@ final class BackupManager {
         for key in randomPickerSettingsKeys {
             defaults.set(valuesByKey[key] ?? "", forKey: key)
         }
+    }
+
+    private static func sanitizeBackupURL(_ rawValue: String) -> String? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.lowercased().hasPrefix("https://"),
+              let url = URL(string: trimmed),
+              url.scheme?.lowercased() == "https",
+              url.host?.isEmpty == false else {
+            return nil
+        }
+
+        return url.absoluteString
     }
 }
 

@@ -283,7 +283,10 @@ enum RunningRecordPDFExporter {
             y += 4
 
             for (index, record) in sorted.enumerated() {
-                let cardHeight: CGFloat = record.notes.isEmpty ? 160 : 190
+                let hasBookLevel = !(record.bookLevel ?? "").isEmpty
+                let cardHeight: CGFloat = record.notes.isEmpty
+                    ? (hasBookLevel ? 174 : 160)
+                    : (hasBookLevel ? 204 : 190)
                 startNewPageIfNeeded(cardHeight)
 
                 // Card background
@@ -307,6 +310,9 @@ enum RunningRecordPDFExporter {
                 // Book title
                 let sanitizedTitle = SecurityHelpers.sanitizeNotes(record.textTitle)
                 drawLeft(sanitizedTitle, fontSize: 15, bold: true, indent: inset)
+                if let bookLevel = record.bookLevel, !bookLevel.isEmpty {
+                    drawLeft("Book Level: \(bookLevel)", fontSize: 10, color: .darkGray, indent: inset)
+                }
                 y += 2
 
                 // Stats row: Words | Errors | Self-Corrections | SC Ratio
@@ -597,6 +603,13 @@ enum RunningRecordPDFExporter {
                 .foregroundColor: NSColor.black,
                 .paragraphStyle: bodyParagraph
             ])
+            if let bookLevel = record.bookLevel, !bookLevel.isEmpty {
+                append("Book Level: \(bookLevel)\n", attributes: [
+                    .font: NSFont.systemFont(ofSize: 18),
+                    .foregroundColor: NSColor.black,
+                    .paragraphStyle: bodyParagraph
+                ])
+            }
             append("Total words: \(record.totalWords)  Errors: \(record.errors)  Self-corrections: \(record.selfCorrections)\n", attributes: [
                 .font: NSFont.systemFont(ofSize: 18),
                 .foregroundColor: NSColor.black,

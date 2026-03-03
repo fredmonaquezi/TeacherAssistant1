@@ -26,6 +26,10 @@ struct StudentDetailView: View {
     var resultsForThisStudent: [StudentResult] {
         allResults.filter { $0.student?.id == student.id }
     }
+
+    var scoredResultsForThisStudent: [StudentResult] {
+        resultsForThisStudent.filter(\.isScored)
+    }
     
     var studentAverage: Double {
         resultsForThisStudent.averageScore
@@ -74,7 +78,7 @@ struct StudentDetailView: View {
                     
                     statCard(
                         title: "Total Assessments",
-                        value: "\(resultsForThisStudent.count)",
+                        value: "\(scoredResultsForThisStudent.count)",
                         icon: "list.bullet.clipboard",
                         color: .blue
                     )

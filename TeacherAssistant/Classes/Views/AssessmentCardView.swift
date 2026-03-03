@@ -64,7 +64,7 @@ struct AssessmentCardView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                     
-                    let gradedCount = assessment.results.filter { $0.score > 0 }.count
+                    let gradedCount = assessment.results.filter(\.isScored).count
                     let totalCount = assessment.results.count
                     
                     HStack(spacing: 4) {
@@ -82,7 +82,7 @@ struct AssessmentCardView: View {
             
             // Progress bar
             if !assessment.results.isEmpty {
-                let gradedCount = assessment.results.filter { $0.score > 0 }.count
+                let gradedCount = assessment.results.filter(\.isScored).count
                 let totalCount = assessment.results.count
                 let progress = totalCount > 0 ? Double(gradedCount) / Double(totalCount) : 0
                 

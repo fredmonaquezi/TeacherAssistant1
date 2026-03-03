@@ -456,18 +456,23 @@ struct AdvancedGroupGeneratorView: View {
         let studentsByStableID = Dictionary(uniqueKeysWithValues: classStudents.map { ($0.stableIDString, $0) })
         let stableIDByLegacyPersistentID = Dictionary(uniqueKeysWithValues: classStudents.map { (String(describing: $0.id), $0.stableIDString) })
         let knownStableIDs = Set(studentsByStableID.keys)
+        let abilityProfiles = GroupingAbilityProfileBuilder.buildProfiles(for: schoolClass)
 
         let engineStudents = classStudents.map { student in
             let resolvedSeparationIDs = student.separationTokens.compactMap { token -> String? in
                 if knownStableIDs.contains(token) { return token }
                 return stableIDByLegacyPersistentID[token]
             }
+            let profile = abilityProfiles[student.stableIDString]
+
             return GroupingEngineStudent(
                 id: student.stableIDString,
                 name: student.name,
                 gender: student.gender,
                 needsHelp: student.needsHelp,
-                isSupportPartner: student.isSupportPartnerCandidate,
+                abilityRank: profile?.abilityRank ?? 1,
+                averagePercent: profile?.averagePercent,
+                isSupportPartner: profile?.isSupportPartner ?? false,
                 separationIDs: Array(Set(resolvedSeparationIDs))
             )
         }

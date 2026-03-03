@@ -13,7 +13,7 @@ enum AssessmentPercentMetrics {
     static let satisfactoryThresholdPercent: Double = 50
 
     static func percent(score: Double, maxScore: Double) -> Double? {
-        guard score > 0 else { return nil }
+        guard score.isFinite else { return nil }
         let sanitizedMax = SecurityHelpers.validateScore(maxScore, min: 1, max: 1000)
         let sanitizedScore = SecurityHelpers.validateScore(score, min: 0, max: sanitizedMax)
         return (sanitizedScore / sanitizedMax) * 100
@@ -61,6 +61,7 @@ enum AssessmentPercentMetrics {
     }
 
     static func percent(for result: StudentResult) -> Double? {
+        guard result.isScored else { return nil }
         let maxScore = result.assessment?.safeMaxScore ?? Assessment.defaultMaxScore
         return percent(score: result.score, maxScore: maxScore)
     }

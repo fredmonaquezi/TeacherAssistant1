@@ -87,6 +87,10 @@ struct DashboardView: View {
                     selectedSection = .runningRecords
                 }
 
+                DashboardButton(title: "Useful Links".localized, systemImage: "link", color: .mint) {
+                    selectedSection = .usefulLinks
+                }
+
                 DashboardButton(title: "Preferences".localized, systemImage: "gearshape.fill", color: .indigo) {
                     showingPreferences = true
                 }

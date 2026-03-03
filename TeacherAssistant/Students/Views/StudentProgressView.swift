@@ -65,6 +65,10 @@ struct StudentProgressView: View {
     var resultsForStudent: [StudentResult] {
         allResults.filter { $0.student?.id == student.id }
     }
+
+    var scoredResultsForStudent: [StudentResult] {
+        resultsForStudent.filter(\.isScored)
+    }
     
     var attendanceRecordsForStudent: [AttendanceRecord] {
         allAttendanceSessions.flatMap { session in
@@ -303,7 +307,7 @@ struct StudentProgressView: View {
             
             let stats = [
                 "Academic Average: \(String(format: "%.1f", self.resultsForStudent.averageScore))",
-                "Total Assessments: \(self.resultsForStudent.count)",
+                "Total Assessments: \(self.scoredResultsForStudent.count)",
                 "Attendance Rate: \(String(format: "%.0f%%", self.attendancePercentage))",
                 "Running Records: \(self.student.runningRecords.count)",
                 "Development Areas: \(self.studentDevelopmentScores.count)"
@@ -362,7 +366,7 @@ struct StudentProgressView: View {
                 context.cgContext.strokePath()
                 currentY += 30
                 
-                let overallText = "Overall Average: \(String(format: "%.1f", self.resultsForStudent.averageScore)) (\(self.resultsForStudent.count) assessments)"
+                let overallText = "Overall Average: \(String(format: "%.1f", self.resultsForStudent.averageScore)) (\(self.scoredResultsForStudent.count) assessments)"
                 overallText.draw(at: CGPoint(x: 50, y: currentY), withAttributes: bodyAttrs)
                 currentY += 40
                 
@@ -577,7 +581,7 @@ struct StudentProgressView: View {
                 
                 let stats = [
                     "Academic Average: \(String(format: "%.1f", resultsForStudent.averageScore))",
-                    "Total Assessments: \(resultsForStudent.count)",
+                    "Total Assessments: \(scoredResultsForStudent.count)",
                     "Attendance Rate: \(String(format: "%.0f%%", attendancePercentage))",
                     "Running Records: \(student.runningRecords.count)",
                     "Development Areas: \(studentDevelopmentScores.count)"
@@ -716,7 +720,7 @@ struct StudentProgressView: View {
         
         let stats = [
             "Academic Average: \(String(format: "%.1f", resultsForStudent.averageScore))",
-            "Total Assessments: \(resultsForStudent.count)",
+            "Total Assessments: \(scoredResultsForStudent.count)",
             "Attendance Rate: \(String(format: "%.0f%%", attendancePercentage))",
             "Running Records: \(student.runningRecords.count)",
             "Development Areas: \(studentDevelopmentScores.count)"
@@ -771,7 +775,7 @@ struct StudentProgressView: View {
         )
         currentY += 30
         
-        let overallText = "Overall Average: \(String(format: "%.1f", resultsForStudent.averageScore)) (\(resultsForStudent.count) total assessments)"
+        let overallText = "Overall Average: \(String(format: "%.1f", resultsForStudent.averageScore)) (\(scoredResultsForStudent.count) total assessments)"
         (overallText as NSString).draw(
             at: CGPoint(x: margin + 20, y: currentY),
             withAttributes: [.font: bodyFont, .foregroundColor: UIColor.black]
@@ -1059,7 +1063,7 @@ struct StudentProgressView: View {
         case "overview":
             let stats = [
                 "Academic Average: \(String(format: "%.1f", resultsForStudent.averageScore))",
-                "Total Assessments: \(resultsForStudent.count)",
+                "Total Assessments: \(scoredResultsForStudent.count)",
                 "Attendance Rate: \(String(format: "%.0f%%", attendancePercentage))",
                 "Running Records: \(student.runningRecords.count)",
                 "Development Areas: \(studentDevelopmentScores.count)"
@@ -1275,7 +1279,7 @@ struct StudentProgressView: View {
         
         let stats = [
             "Academic Average: \(String(format: "%.1f", resultsForStudent.averageScore))",
-            "Total Assessments: \(resultsForStudent.count)",
+            "Total Assessments: \(scoredResultsForStudent.count)",
             "Attendance Rate: \(String(format: "%.0f%%", attendancePercentage))",
             "Running Records: \(student.runningRecords.count)",
             "Development Areas: \(studentDevelopmentScores.count)"
@@ -1331,7 +1335,7 @@ struct StudentProgressView: View {
             .draw(at: CGPoint(x: margin, y: currentY))
         currentY += 30
         
-        let overallText = "Overall Average: \(String(format: "%.1f", resultsForStudent.averageScore)) (\(resultsForStudent.count) total assessments)"
+        let overallText = "Overall Average: \(String(format: "%.1f", resultsForStudent.averageScore)) (\(scoredResultsForStudent.count) total assessments)"
         NSAttributedString(string: overallText, attributes: bodyAttributes)
             .draw(at: CGPoint(x: margin + 20, y: currentY))
         currentY += 40
@@ -1550,7 +1554,7 @@ struct StudentProgressView: View {
                     .frame(height: 40)
                 
                 quickStat(
-                    value: "\(resultsForStudent.count)",
+                    value: "\(scoredResultsForStudent.count)",
                     label: "Assessments".localized,
                     color: .blue
                 )
@@ -1804,7 +1808,7 @@ struct StudentProgressView: View {
                 
                 statCard(
                     title: "Total Assessments",
-                    value: "\(resultsForStudent.count)",
+                    value: "\(scoredResultsForStudent.count)",
                     icon: "list.bullet.clipboard",
                     color: .blue
                 )

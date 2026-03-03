@@ -67,6 +67,24 @@ enum SecurityHelpers {
         
         return String(String.UnicodeScalarView(sanitized))
     }
+
+    /// Validates and normalizes a running-record book level (A-Z)
+    /// - Parameter input: Raw input string
+    /// - Returns: Uppercased single-letter level or nil if empty/invalid
+    static func sanitizeBookLevel(_ input: String?) -> String? {
+        guard let input else { return nil }
+
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard trimmed.count == 1, let scalar = trimmed.unicodeScalars.first else {
+            return nil
+        }
+
+        guard scalar.value >= 65, scalar.value <= 90 else {
+            return nil
+        }
+
+        return trimmed
+    }
     
     /// Generates a secure filename that's safe for the filesystem
     /// - Parameters:

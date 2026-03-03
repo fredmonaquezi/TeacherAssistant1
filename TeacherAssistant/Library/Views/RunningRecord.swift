@@ -93,6 +93,7 @@ enum ReadingLevel: String, Codable, CaseIterable {
 class RunningRecord {
     var date: Date
     var textTitle: String
+    var bookLevel: String?
     var totalWords: Int
     var errors: Int
     var selfCorrections: Int
@@ -148,6 +149,7 @@ class RunningRecord {
             studentDisplayName,
             classDisplayName,
             textTitle,
+            bookLevel ?? "",
             notes,
             readingLevel.rawValue
         ].joined(separator: " ").lowercased()
@@ -156,6 +158,7 @@ class RunningRecord {
     init(
         date: Date = Date(),
         textTitle: String = "",
+        bookLevel: String? = nil,
         totalWords: Int = 0,
         errors: Int = 0,
         selfCorrections: Int = 0,
@@ -163,6 +166,7 @@ class RunningRecord {
     ) {
         self.date = date
         self.textTitle = textTitle
+        self.bookLevel = bookLevel
         self.totalWords = totalWords
         self.errors = errors
         self.selfCorrections = selfCorrections

@@ -11,16 +11,19 @@ struct ScoreEntrySheet: View {
     init(studentResult: StudentResult, maxScore: Double) {
         self.studentResult = studentResult
         self.maxScore = Swift.min(Swift.max(maxScore, 1), 1000)
-        if studentResult.score > 0 {
+        if studentResult.isScored {
             _scoreText = State(initialValue: Self.formatScore(studentResult.score))
         } else {
             _scoreText = State(initialValue: "")
         }
     }
 
+    var trimmedScoreText: String {
+        scoreText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var parsedScore: Double? {
-        let cleaned = scoreText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = trimmedScoreText
             .replacingOccurrences(of: ",", with: ".")
         if cleaned.isEmpty { return 0 }
         guard let value = Double(cleaned), value.isFinite, value >= 0 else {
@@ -93,6 +96,7 @@ struct ScoreEntrySheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save".localized) {
                         studentResult.score = parsedScore ?? 0
+                        studentResult.hasScore = !trimmedScoreText.isEmpty
                         dismiss()
                     }
                     .disabled(parsedScore == nil)

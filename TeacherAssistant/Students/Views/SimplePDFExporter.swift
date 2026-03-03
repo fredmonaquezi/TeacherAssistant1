@@ -117,12 +117,13 @@ struct SimplePDFExporter {
         // Academic Results
         text += "\n◆ ◆ ◆\n\n"
         let results = allResults.filter { $0.student?.id == student.id }
-        let average = results.averageScore
+        let scoredResults = results.filter(\.isScored)
+        let average = scoredResults.averageScore
         
         text += "ACADEMIC PERFORMANCE\n"
         text += "───────────────────────────────────────────────────────────\n"
         text += "Overall Average: \(String(format: "%.1f", average))/10\n"
-        text += "Total Assessments: \(results.count)\n"
+        text += "Total Assessments: \(scoredResults.count)\n"
         
         // Grade interpretation
         let interpretation: String
@@ -143,7 +144,7 @@ struct SimplePDFExporter {
         // Subject Breakdown
         let subjects: [Subject] = {
             var unique: [Subject] = []
-            for result in results {
+            for result in scoredResults {
                 if let subject = result.assessment?.unit?.subject,
                    !unique.contains(where: { $0.id == subject.id }) {
                     unique.append(subject)
@@ -157,7 +158,7 @@ struct SimplePDFExporter {
             text += "───────────────────────────────────────────────────────────\n"
             
             for subject in subjects {
-                let subjectResults = results.filter {
+                let subjectResults = scoredResults.filter {
                     $0.assessment?.unit?.subject?.id == subject.id
                 }
                 let subjectAvg = subjectResults.averageScore

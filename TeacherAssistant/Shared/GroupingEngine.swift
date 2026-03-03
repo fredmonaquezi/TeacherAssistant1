@@ -5,6 +5,8 @@ struct GroupingEngineStudent: Hashable, Identifiable {
     let name: String
     let gender: String
     let needsHelp: Bool
+    let abilityRank: Int
+    let averagePercent: Double?
     let isSupportPartner: Bool
     let separationIDs: [String]
 }
@@ -190,7 +192,7 @@ private func buildCandidate(
     var unassigned: [GroupingEngineStudent] = []
 
     let genderRatios = genderTargetRatios(for: students)
-    let needsHelpTarget = needsHelpTargetRatio(for: students)
+    let abilityTargetRank = targetAbilityRank(for: students)
     let orderedStudents = orderedStudentsForGrouping(
         students: students,
         constraints: constraints,
@@ -204,7 +206,7 @@ private func buildCandidate(
             constraints: constraints,
             options: options,
             genderRatios: genderRatios,
-            needsHelpTargetRatio: needsHelpTarget,
+            abilityTargetRank: abilityTargetRank,
             allowSeparationConflicts: allowSeparationConflicts,
             allowOverfill: false
         ) {
@@ -232,7 +234,11 @@ private func buildCandidate(
         separationConflicts: conflicts,
         supportPartnerPenalty: supportPartnerPenalty(in: finalGroups, enabled: options.pairSupportPartners),
         genderPenalty: genderBalancePenalty(in: finalGroups, targetRatios: genderRatios, enabled: options.balanceGender),
-        abilityPenalty: abilityBalancePenalty(in: finalGroups, targetRatio: needsHelpTarget, enabled: options.balanceAbility)
+        abilityPenalty: abilityBalancePenalty(
+            in: finalGroups,
+            targetRank: abilityTargetRank,
+            enabled: options.balanceAbility
+        )
     )
 }
 
@@ -282,7 +288,17 @@ private func orderedStudentsForGrouping(
             return lhsDegree > rhsDegree
         }
 
-        if (options.balanceAbility || options.pairSupportPartners), lhs.needsHelp != rhs.needsHelp {
+        if options.balanceAbility, lhs.abilityRank != rhs.abilityRank {
+            return lhs.abilityRank < rhs.abilityRank
+        }
+
+        let lhsAverage = lhs.averagePercent ?? -1
+        let rhsAverage = rhs.averagePercent ?? -1
+        if options.balanceAbility, lhsAverage != rhsAverage {
+            return lhsAverage < rhsAverage
+        }
+
+        if options.pairSupportPartners, lhs.needsHelp != rhs.needsHelp {
             return lhs.needsHelp && !rhs.needsHelp
         }
 
@@ -309,7 +325,7 @@ private func bestGroupIndex(
     constraints: Set<ConstraintPair>,
     options: GroupingEngineOptions,
     genderRatios: [String: Double],
-    needsHelpTargetRatio: Double,
+    abilityTargetRank: Double,
     allowSeparationConflicts: Bool,
     allowOverfill: Bool
 ) -> Int? {
@@ -335,11 +351,18 @@ private func bestGroupIndex(
         score += Double(conflictCount) * 1000
 
         if options.balanceAbility {
-            let currentNeedsHelpCount = group.students.filter(\.needsHelp).count
-            let projectedNeedsHelpCount = currentNeedsHelpCount + (student.needsHelp ? 1 : 0)
-            let projectedSize = group.students.count + 1
-            let projectedRatio = Double(projectedNeedsHelpCount) / Double(max(projectedSize, 1))
-            score += abs(projectedRatio - needsHelpTargetRatio) * 100
+            let sameRankCount = group.students.filter { $0.abilityRank == student.abilityRank }.count
+            score += Double(sameRankCount) * 90
+
+            let projectedGroup = group.students + [student]
+            let projectedAverageRank = averageAbilityRank(in: projectedGroup)
+            score += abs(projectedAverageRank - abilityTargetRank) * 45
+
+            let currentDistinctRanks = Set(group.students.map(\.abilityRank)).count
+            let projectedDistinctRanks = Set(projectedGroup.map(\.abilityRank)).count
+            if !group.students.isEmpty && projectedDistinctRanks <= currentDistinctRanks {
+                score += 25
+            }
         }
 
         if options.balanceGender {
@@ -441,23 +464,34 @@ private func genderBalancePenalty(
 
 private func abilityBalancePenalty(
     in groups: [[GroupingEngineStudent]],
-    targetRatio: Double,
+    targetRank: Double,
     enabled: Bool
 ) -> Double {
     guard enabled else { return 0 }
 
     var penalty = 0.0
     for group in groups where !group.isEmpty {
-        let actualRatio = Double(group.filter(\.needsHelp).count) / Double(group.count)
-        penalty += abs(actualRatio - targetRatio)
+        let countsByRank = Dictionary(grouping: group, by: \.abilityRank).mapValues(\.count)
+        penalty += Double(countsByRank.values.reduce(0) { partialResult, count in
+            partialResult + max(0, count - 1)
+        })
+        penalty += abs(averageAbilityRank(in: group) - targetRank)
     }
 
     return penalty
 }
 
-private func needsHelpTargetRatio(for students: [GroupingEngineStudent]) -> Double {
+private func targetAbilityRank(for students: [GroupingEngineStudent]) -> Double {
     guard !students.isEmpty else { return 0 }
-    return Double(students.filter(\.needsHelp).count) / Double(students.count)
+    return averageAbilityRank(in: students)
+}
+
+private func averageAbilityRank(in students: [GroupingEngineStudent]) -> Double {
+    guard !students.isEmpty else { return 0 }
+    let rankSum = students.reduce(0) { partialResult, student in
+        partialResult + student.abilityRank
+    }
+    return Double(rankSum) / Double(students.count)
 }
 
 private func genderTargetRatios(for students: [GroupingEngineStudent]) -> [String: Double] {

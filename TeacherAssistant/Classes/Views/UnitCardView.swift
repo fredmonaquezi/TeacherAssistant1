@@ -74,7 +74,7 @@ struct UnitCardView: View {
                         
                         Spacer()
                         
-                        let completedCount = unit.assessments.flatMap { $0.results }.filter { $0.score > 0 }.count
+                        let completedCount = unit.assessments.flatMap { $0.results }.filter(\.isScored).count
                         let totalCount = unit.assessments.flatMap { $0.results }.count
                         
                         if totalCount > 0 {
@@ -85,7 +85,7 @@ struct UnitCardView: View {
                     }
                     
                     GeometryReader { geometry in
-                        let completedCount = unit.assessments.flatMap { $0.results }.filter { $0.score > 0 }.count
+                        let completedCount = unit.assessments.flatMap { $0.results }.filter(\.isScored).count
                         let totalCount = unit.assessments.flatMap { $0.results }.count
                         let progress = totalCount > 0 ? Double(completedCount) / Double(totalCount) : 0
                         
