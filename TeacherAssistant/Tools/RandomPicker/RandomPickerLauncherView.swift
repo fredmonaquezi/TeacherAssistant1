@@ -14,6 +14,9 @@ struct RandomPickerLauncherView: View {
     @State private var categoryToDelete: String?
     @State private var showingDeleteCategoryAlert = false
     @State private var customCategories: [String] = []
+    @State private var pickedStudents: [Student] = []
+    @State private var selectedCandidateIDs: Set<String> = []
+    @State private var quickPickCount: Int = 3
     @AppStorage("helperRotation") private var helperRotationData = ""
     @AppStorage("guardianRotation") private var guardianRotationData = ""
     @AppStorage("lineLeaderRotation") private var lineLeaderRotationData = ""
@@ -81,13 +84,25 @@ struct RandomPickerLauncherView: View {
     var usedStudentIDs: Set<String> {
         Set(currentRotationData.split(separator: ",").map { String($0) })
     }
+
+    var quickPickCandidates: [Student] {
+        let sortedStudents = schoolClass.students.sorted(by: { $0.sortOrder < $1.sortOrder })
+        guard !selectedCandidateIDs.isEmpty else {
+            return sortedStudents
+        }
+        return sortedStudents.filter { selectedCandidateIDs.contains($0.stableIDString) }
+    }
     
     var availableStudents: [Student] {
-        schoolClass.students.filter { !usedStudentIDs.contains($0.stableIDString) }
+        schoolClass.students
+            .sorted(by: { $0.sortOrder < $1.sortOrder })
+            .filter { !usedStudentIDs.contains($0.stableIDString) }
     }
     
     var usedStudents: [Student] {
-        schoolClass.students.filter { usedStudentIDs.contains($0.stableIDString) }
+        schoolClass.students
+            .sorted(by: { $0.sortOrder < $1.sortOrder })
+            .filter { usedStudentIDs.contains($0.stableIDString) }
     }
     
     var categoryColor: Color {
@@ -154,6 +169,20 @@ struct RandomPickerLauncherView: View {
                 }
             }
         }
+        .sheet(
+            isPresented: Binding(
+                get: { !pickedStudents.isEmpty },
+                set: { if !$0 { pickedStudents = [] } }
+            )
+        ) {
+            MultiQuickResultView(
+                students: pickedStudents,
+                onPickAgain: {
+                    pickedStudents = []
+                    pickMultiple(count: quickPickCount)
+                }
+            )
+        }
         .alert("Delete Custom Role?".localized, isPresented: $showingDeleteCategoryAlert) {
             Button("Cancel".localized, role: .cancel) {
                 categoryToDelete = nil
@@ -173,11 +202,7 @@ struct RandomPickerLauncherView: View {
     var content: some View {
         ScrollView {
             VStack(spacing: 24) {
-                
-                // Quick Pick Header (clickable)
-                quickPickHeader
-                
-                Divider().padding(.horizontal)
+                quickDrawSection
                 
                 // Category Selector
                 categorySelector
@@ -195,50 +220,144 @@ struct RandomPickerLauncherView: View {
     
     // MARK: - Quick Pick Header
     
-    var quickPickHeader: some View {
-        Button {
-            isRotationMode = false
-            pickRandom()
-        } label: {
-            VStack(spacing: 12) {
-                Image(systemName: "shuffle.circle.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.orange)
-                
-                Text("Quick Random Pick".localized)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                HStack(spacing: 6) {
-                    Image(systemName: "hand.point.up.left.fill")
-                    Text("Tap here for instant random pick".localized)
+    var quickDrawSection: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "sparkles.rectangle.stack.fill")
+                            .font(.title3)
+                            .foregroundColor(.orange)
+                        Text("Quick Draws".localized)
+                            .font(.title3)
+                            .fontWeight(.bold)
+                    }
+
+                    Text("Fast random picks from the full class or a filtered quick-draw pool.".localized)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-                .font(.subheadline)
-                .foregroundColor(.orange)
-                .fontWeight(.semibold)
-                
-                Text("(any student, no rotation tracking)".localized)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                Spacer()
+
+                Text(selectedCandidateIDs.isEmpty ? "Full Class".localized : "Custom Pool".localized)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.12))
+                    .cornerRadius(999)
+            }
+
+            Button {
+                isRotationMode = false
+                pickRandom()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "shuffle.circle.fill")
+                        .font(.title2)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Quick Random Pick".localized)
+                            .font(.headline)
+                        Text("One instant draw, no rotation tracking".localized)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.title3)
+                }
+                .foregroundColor(.white)
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(
+                    LinearGradient(
+                        colors: [Color.orange, Color.orange.opacity(0.82)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(16)
+                .shadow(color: Color.orange.opacity(0.18), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+            .disabled(quickPickCandidates.isEmpty)
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Multi-Winner Draw".localized)
+                            .font(.headline)
+                        Text(String(format: languageManager.localized("Pick up to %d unique students"), min(quickPickCount, quickPickCandidates.count)))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text("\(quickPickCount)")
+                        .font(.title3.monospacedDigit())
+                        .fontWeight(.bold)
+                        .foregroundColor(.orange)
+                        .frame(minWidth: 44)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(12)
+                }
+
+                Stepper(
+                    value: $quickPickCount,
+                    in: 2...max(2, min(10, schoolClass.students.count))
+                ) {
+                    Text(String(format: languageManager.localized("Draw %d winners"), quickPickCount))
+                        .font(.subheadline)
+                }
+                .disabled(schoolClass.students.count < 2)
+
+                Button {
+                    isRotationMode = false
+                    pickMultiple(count: quickPickCount)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "person.3.sequence.fill")
+                        Text(String(format: languageManager.localized("Pick %d Winners"), quickPickCount))
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text(String(format: languageManager.localized("Up to %d"), min(quickPickCount, quickPickCandidates.count)))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .font(.subheadline)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white.opacity(0.72))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.orange.opacity(0.2), lineWidth: 1.5)
+                    )
+                    .cornerRadius(14)
+                }
+                .buttonStyle(.plain)
+                .disabled(quickPickCandidates.count < 2)
             }
             .padding()
-            .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(
-                    colors: [Color.orange.opacity(0.15), Color.yellow.opacity(0.1)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .cornerRadius(16)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.orange.opacity(0.4), lineWidth: 2)
-            )
-            .padding(.horizontal)
+            .background(Color.white.opacity(0.42))
+            .cornerRadius(18)
+
+            quickDrawPoolSection
         }
-        .buttonStyle(.plain)
-        .disabled(schoolClass.students.isEmpty)
+        .padding()
+        .background(
+            LinearGradient(
+                colors: [Color.orange.opacity(0.1), Color.yellow.opacity(0.05)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.orange.opacity(0.18), lineWidth: 1.5)
+        )
+        .cornerRadius(20)
+        .padding(.horizontal)
     }
     
     // MARK: - Category Selector
@@ -324,6 +443,51 @@ struct RandomPickerLauncherView: View {
     }
     
     // MARK: - Rotation Section
+
+    var quickDrawPoolSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.crop.circle.badge.checkmark")
+                            .foregroundColor(.blue)
+                        Text("Quick Draw Pool".localized)
+                            .font(.headline)
+                    }
+                    Text(poolSummaryText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                if !selectedCandidateIDs.isEmpty {
+                    Button {
+                        selectedCandidateIDs.removeAll()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark.circle.fill")
+                            Text("Clear Filter".localized)
+                        }
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            WrappingHStack(spacing: 8) {
+                ForEach(schoolClass.students.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { student in
+                    candidateChip(for: student)
+                }
+            }
+            .padding(14)
+            .background(Color.blue.opacity(0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.blue.opacity(0.12), lineWidth: 1)
+            )
+            .cornerRadius(16)
+        }
+    }
     
     var rotationSection: some View {
         VStack(spacing: 20) {
@@ -467,6 +631,37 @@ struct RandomPickerLauncherView: View {
         .cornerRadius(16)
         .padding(.horizontal)
     }
+
+    func candidateChip(for student: Student) -> some View {
+        let studentID = student.stableIDString
+        let isSelected = selectedCandidateIDs.contains(studentID)
+
+        return Button {
+            if isSelected {
+                selectedCandidateIDs.remove(studentID)
+            } else {
+                selectedCandidateIDs.insert(studentID)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.caption)
+                Text(student.name)
+                    .font(.caption)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(isSelected ? Color.blue.opacity(0.14) : Color.white.opacity(0.72))
+            .foregroundColor(isSelected ? .blue : .primary)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.blue.opacity(0.45) : Color.black.opacity(0.04), lineWidth: 1.2)
+            )
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+    }
     
     func statBox(title: String, count: Int, icon: String, color: Color) -> some View {
         VStack(spacing: 6) {
@@ -504,16 +699,29 @@ struct RandomPickerLauncherView: View {
     // MARK: - Logic
     
     func pickRandom() {
-        guard !schoolClass.students.isEmpty else { return }
+        guard !quickPickCandidates.isEmpty else { return }
+        pickedStudents = []
         isSpinning = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             isSpinning = false
-            pickedStudent = schoolClass.students.randomElement()
+            pickedStudent = quickPickCandidates.randomElement()
+        }
+    }
+    
+    func pickMultiple(count: Int) {
+        guard !quickPickCandidates.isEmpty else { return }
+        pickedStudent = nil
+        isSpinning = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            isSpinning = false
+            let winners = Array(quickPickCandidates.shuffled().prefix(max(1, min(count, quickPickCandidates.count))))
+            pickedStudents = winners
         }
     }
     
     func pickRotation() {
         guard !availableStudents.isEmpty else { return }
+        pickedStudents = []
         isSpinning = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             isSpinning = false
@@ -559,6 +767,22 @@ struct RandomPickerLauncherView: View {
             }
             seen.insert(id)
         }
+    }
+
+    var poolSummaryText: String {
+        if schoolClass.students.isEmpty {
+            return "No students in this class yet.".localized
+        }
+
+        if selectedCandidateIDs.isEmpty {
+            return languageManager.localized("Tap names below to limit quick draws to a smaller group. Role rotations still use the full class.")
+        }
+
+        return String(
+            format: languageManager.localized("%d selected for quick draws from %d students"),
+            quickPickCandidates.count,
+            schoolClass.students.count
+        )
     }
 }
 
@@ -670,6 +894,100 @@ struct QuickResultView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.orange.opacity(0.05))
+    }
+}
+
+struct MultiQuickResultView: View {
+    let students: [Student]
+    let onPickAgain: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 28) {
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Image(systemName: "person.3.sequence.fill")
+                        .font(.system(size: 88))
+                        .foregroundColor(.orange)
+
+                    Text("Selected Winners".localized)
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    Text(String(format: "%d students selected".localized, students.count))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(spacing: 12) {
+                    ForEach(Array(students.enumerated()), id: \.element.id) { index, student in
+                        HStack(spacing: 14) {
+                            Text("\(index + 1)")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                                .frame(width: 28, height: 28)
+                                .background(Color.orange.opacity(0.12))
+                                .clipShape(Circle())
+
+                            Text(student.name)
+                                .font(.title3)
+                                .fontWeight(.semibold)
+
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.08))
+                        .cornerRadius(14)
+                    }
+                }
+                .padding(.horizontal)
+
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Button {
+                        dismiss()
+                        onPickAgain()
+                    } label: {
+                        HStack {
+                            Image(systemName: "shuffle")
+                            Text("Pick Again".localized)
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.orange)
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done".localized)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 40)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.orange.opacity(0.05))
+            .navigationTitle("")
+        }
+        #if os(macOS)
+        .frame(minWidth: 520, minHeight: 620)
+        #endif
     }
 }
 // MARK: - Rotation Result View
