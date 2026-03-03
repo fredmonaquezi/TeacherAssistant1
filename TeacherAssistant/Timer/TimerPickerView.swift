@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct TimerPickerView: View {
+    @AppStorage("ta_timer_custom_minutes") private var storedCustomMinutes: Int = 5
+    @AppStorage("ta_timer_custom_seconds") private var storedCustomSeconds: Int = 0
+    @AppStorage("ta_timer_custom_checklist_text") private var storedChecklistText: String = ""
 
     @ObservedObject var timer: ClassroomTimerManager
-
-    @State private var customMinutes: Int = 5
-    @State private var customSeconds: Int = 0
 
     let presets = [
         (minutes: 1, label: "1 min", color: Color.blue, icon: "hare.fill"),
@@ -123,11 +123,11 @@ struct TimerPickerView: View {
             VStack(spacing: 16) {
                 // Time display
                 HStack(spacing: 8) {
-                    timeDisplay(value: customMinutes, unit: "min")
+                    timeDisplay(value: storedCustomMinutes, unit: "min")
                     Text(":")
                         .font(.system(size: 48, weight: .bold))
                         .foregroundColor(.secondary)
-                    timeDisplay(value: customSeconds, unit: "sec")
+                    timeDisplay(value: storedCustomSeconds, unit: "sec")
                 }
                 
                 // Pickers
@@ -137,7 +137,7 @@ struct TimerPickerView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        Picker("Minutes".localized, selection: $customMinutes) {
+                        Picker("Minutes".localized, selection: $storedCustomMinutes) {
                             ForEach(0..<181, id: \.self) { minute in
                                 Text("\(minute)").tag(minute)
                             }
@@ -147,7 +147,7 @@ struct TimerPickerView: View {
                         #endif
                         .frame(width: 100, height: 120)
                         .clipped()
-                        .onChange(of: customMinutes) { _, _ in
+                        .onChange(of: storedCustomMinutes) { _, _ in
                             playHaptic()
                         }
                     }
@@ -157,7 +157,7 @@ struct TimerPickerView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        Picker("Seconds".localized, selection: $customSeconds) {
+                        Picker("Seconds".localized, selection: $storedCustomSeconds) {
                             ForEach(0..<60, id: \.self) { second in
                                 Text("\(second)").tag(second)
                             }
@@ -167,18 +167,41 @@ struct TimerPickerView: View {
                         #endif
                         .frame(width: 100, height: 120)
                         .clipped()
-                        .onChange(of: customSeconds) { _, _ in
+                        .onChange(of: storedCustomSeconds) { _, _ in
                             playHaptic()
                         }
                     }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Timer To-Do List".localized)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+
+                    TextEditor(text: $storedChecklistText)
+                        .frame(minHeight: 120)
+                        .padding(8)
+                        .background(Color.white.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.gray.opacity(0.25), lineWidth: 1)
+                        )
+                        .cornerRadius(10)
+
+                    Text("Add one task per line. Bullets and numbered lists are cleaned automatically when the timer starts.".localized)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 
                 // Start button
                 Button {
                     playHaptic()
-                    let totalSeconds = customMinutes * 60 + customSeconds
+                    let totalSeconds = storedCustomMinutes * 60 + storedCustomSeconds
                     guard totalSeconds > 0 else { return }
-                    timer.start(seconds: totalSeconds)
+                    timer.start(
+                        seconds: totalSeconds,
+                        checklist: parseChecklist(from: storedChecklistText)
+                    )
                 } label: {
                     HStack {
                         Image(systemName: "play.fill")
@@ -198,7 +221,7 @@ struct TimerPickerView: View {
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
-                .disabled(customMinutes == 0 && customSeconds == 0)
+                .disabled(storedCustomMinutes == 0 && storedCustomSeconds == 0)
             }
             .padding()
             .background(Color.gray.opacity(0.1))
@@ -228,5 +251,21 @@ struct TimerPickerView: View {
         generator.prepare()
         generator.selectionChanged()
         #endif
+    }
+
+    func parseChecklist(from rawChecklist: String) -> [String] {
+        rawChecklist
+            .split(whereSeparator: \.isNewline)
+            .map { line in
+                line.replacingOccurrences(
+                    of: #"^\s*(?:[-*]\s*|\d+\s*[-.):]\s*)"#,
+                    with: "",
+                    options: .regularExpression
+                )
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }
+            .prefix(15)
+            .map { String($0) }
     }
 }

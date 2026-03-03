@@ -3,6 +3,8 @@ import SwiftData
 
 @main
 struct TeacherAssistantApp: App {
+    private static let primaryStoreName = "TeacherAssistant-V5-WithGroups"
+    private static let recoveryStoreName = "TeacherAssistant-V6-RecoveredStore"
     
     @StateObject private var languageManager = LanguageManager()
     
@@ -29,28 +31,52 @@ struct TeacherAssistantApp: App {
             ClassDiaryEntry.self,
             UsefulLink.self,
         ])
+        
+        func makeConfiguration(named storeName: String) -> ModelConfiguration {
+            ModelConfiguration(
+                storeName,
+                schema: schema,
+                isStoredInMemoryOnly: false
+            )
+        }
 
-        let modelConfiguration = ModelConfiguration(
-            "TeacherAssistant-V5-WithGroups",    // ← Current version
-            schema: schema,
-            isStoredInMemoryOnly: false
-        )
+        func createContainer(using configuration: ModelConfiguration) throws -> ModelContainer {
+            try ModelContainer(
+                for: schema,
+                configurations: [configuration]
+            )
+        }
 
         do {
-            return try ModelContainer(
-                for: schema,
-                configurations: [modelConfiguration]
+            return try createContainer(
+                using: makeConfiguration(named: TeacherAssistantApp.primaryStoreName)
             )
         } catch {
             #if DEBUG
-            print("❌ FATAL ERROR creating ModelContainer:")
+            print("❌ Failed to open primary ModelContainer:")
             print("Error: \(error)")
             print("Error description: \(error.localizedDescription)")
-            if let decodingError = error as? DecodingError {
-                print("Decoding error details: \(decodingError)")
-            }
             #endif
-            fatalError("Could not create ModelContainer: \(error)")
+
+            do {
+                let fallbackContainer = try createContainer(
+                    using: makeConfiguration(named: TeacherAssistantApp.recoveryStoreName)
+                )
+                #if DEBUG
+                print("⚠️ Opened recovery ModelContainer: \(TeacherAssistantApp.recoveryStoreName)")
+                #endif
+                return fallbackContainer
+            } catch {
+                #if DEBUG
+                print("❌ FATAL ERROR creating recovery ModelContainer:")
+                print("Error: \(error)")
+                print("Error description: \(error.localizedDescription)")
+                if let decodingError = error as? DecodingError {
+                    print("Decoding error details: \(decodingError)")
+                }
+                #endif
+                fatalError("Could not create ModelContainer: \(error)")
+            }
         }
     }()
 

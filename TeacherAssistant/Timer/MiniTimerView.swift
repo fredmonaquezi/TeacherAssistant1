@@ -32,6 +32,12 @@ struct MiniTimerView: View {
                 Text(timer.formattedTime)
                     .font(.headline)
                     .monospacedDigit()
+
+                if !timer.checklist.isEmpty {
+                    Text("\(timer.checklist.count) tasks queued".localized)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Spacer()
