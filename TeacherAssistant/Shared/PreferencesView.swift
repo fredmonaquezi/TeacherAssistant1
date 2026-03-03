@@ -24,7 +24,7 @@ struct PreferencesView: View {
 
     private var landingSectionBinding: Binding<AppSection> {
         Binding(
-            get: { AppSection(rawValue: defaultLandingSectionRawValue) ?? .dashboard },
+            get: { AppSection.availableSection(from: defaultLandingSectionRawValue) },
             set: { defaultLandingSectionRawValue = $0.rawValue }
         )
     }

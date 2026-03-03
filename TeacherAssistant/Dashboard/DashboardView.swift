@@ -79,10 +79,6 @@ struct DashboardView: View {
                     selectedSection = .timer
                 }
 
-                DashboardButton(title: "Library".localized, systemImage: "books.vertical", color: .brown) {
-                    selectedSection = .library
-                }
-                
                 DashboardButton(title: "Running Records".localized, systemImage: "doc.text.magnifyingglass", color: .cyan) {
                     selectedSection = .runningRecords
                 }

@@ -21,6 +21,29 @@ enum AppSection: String, CaseIterable, Identifiable {
     case calendar = "Calendar"
 
     var id: String { rawValue }
+
+    static var allCases: [AppSection] {
+        [
+            .dashboard,
+            .classes,
+            .attendance,
+            .gradebook,
+            .rubrics,
+            .groups,
+            .randomPicker,
+            .timer,
+            .runningRecords,
+            .usefulLinks,
+            .calendar,
+        ]
+    }
+
+    static func availableSection(from rawValue: String?) -> AppSection {
+        guard let rawValue, let section = AppSection(rawValue: rawValue), allCases.contains(section) else {
+            return .dashboard
+        }
+        return section
+    }
 }
 
 struct ContentView: View {
@@ -41,7 +64,7 @@ struct ContentView: View {
 
     init() {
         let defaultSectionRawValue = UserDefaults.standard.string(forKey: AppPreferencesKeys.defaultLandingSection) ?? AppSection.dashboard.rawValue
-        _selectedSection = State(initialValue: AppSection(rawValue: defaultSectionRawValue) ?? .dashboard)
+        _selectedSection = State(initialValue: AppSection.availableSection(from: defaultSectionRawValue))
     }
 
     var body: some View {
@@ -76,7 +99,7 @@ struct ContentView: View {
         }
         .onChange(of: defaultLandingSectionRawValue) { _, newValue in
             if selectedSection == nil {
-                selectedSection = AppSection(rawValue: newValue) ?? .dashboard
+                selectedSection = AppSection.availableSection(from: newValue)
             }
         }
         .onChange(of: dateFormatRawValue) { _, _ in
@@ -201,14 +224,8 @@ struct ContentView: View {
                 .macNavigationRoot()
             
         case .library:
-            #if os(macOS)
-            LibraryRootView()
+            Text(languageManager.localized("Library is currently disabled."))
                 .macNavigationRoot()
-            #else
-            NavigationStack {
-                LibraryRootView()
-            }
-            #endif
 
         case .attendance:
             ClassPickerView(tool: .attendance)
@@ -280,7 +297,7 @@ struct ContentView: View {
     }
 
     private func handleBackupRestoreCompleted() {
-        selectedSection = AppSection(rawValue: defaultLandingSectionRawValue) ?? .dashboard
+        selectedSection = AppSection.availableSection(from: defaultLandingSectionRawValue)
         appViewResetID = UUID()
         navigationStackResetID = UUID()
         #if os(macOS)

@@ -79,12 +79,6 @@ struct NavigationHeaderView: View {
                         )
 
                         headerButton(
-                            title: languageManager.localized("Library"),
-                            icon: "books.vertical",
-                            section: .library
-                        )
-
-                        headerButton(
                             title: languageManager.localized("Group Generator"),
                             icon: "person.2.fill",
                             section: .groups
