@@ -201,7 +201,7 @@ struct RandomPickerLauncherView: View {
 
     var content: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: PlatformSpacing.sectionSpacing) {
                 quickDrawSection
                 
                 // Category Selector
@@ -216,6 +216,7 @@ struct RandomPickerLauncherView: View {
         #if !os(macOS)
         .navigationTitle("Student Picker".localized)
         #endif
+        .appSheetBackground(tint: .orange)
     }
     
     // MARK: - Quick Pick Header
@@ -229,8 +230,7 @@ struct RandomPickerLauncherView: View {
                             .font(.title3)
                             .foregroundColor(.orange)
                         Text("Quick Draws".localized)
-                            .font(.title3)
-                            .fontWeight(.bold)
+                            .font(AppTypography.sectionTitle)
                     }
 
                     Text("Fast random picks from the full class or a filtered quick-draw pool.".localized)
@@ -244,8 +244,10 @@ struct RandomPickerLauncherView: View {
                     .foregroundColor(.orange)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.orange.opacity(0.12))
-                    .cornerRadius(999)
+                    .background(
+                        Capsule()
+                            .fill(Color.orange.opacity(0.12))
+                    )
             }
 
             Button {
@@ -270,13 +272,19 @@ struct RandomPickerLauncherView: View {
                 .padding()
                 .frame(maxWidth: .infinity)
                 .background(
-                    LinearGradient(
-                        colors: [Color.orange, Color.orange.opacity(0.82)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.orange, Color.orange.opacity(0.82)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                 )
-                .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.orange.opacity(0.22), lineWidth: 1)
+                )
                 .shadow(color: Color.orange.opacity(0.18), radius: 8, x: 0, y: 4)
             }
             .buttonStyle(.plain)
@@ -286,7 +294,7 @@ struct RandomPickerLauncherView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Multi-Winner Draw".localized)
-                            .font(.headline)
+                            .font(AppTypography.cardTitle)
                         Text(String(format: languageManager.localized("Pick up to %d unique students"), min(quickPickCount, quickPickCandidates.count)))
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -299,8 +307,10 @@ struct RandomPickerLauncherView: View {
                         .frame(minWidth: 44)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.orange.opacity(0.1))
+                        )
                 }
 
                 Stepper(
@@ -328,35 +338,42 @@ struct RandomPickerLauncherView: View {
                     .font(.subheadline)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.white.opacity(0.72))
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(AppChrome.elevatedBackground)
+                    )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(Color.orange.opacity(0.2), lineWidth: 1.5)
                     )
-                    .cornerRadius(14)
                 }
                 .buttonStyle(.plain)
                 .disabled(quickPickCandidates.count < 2)
             }
             .padding()
-            .background(Color.white.opacity(0.42))
-            .cornerRadius(18)
+            .appCardStyle(
+                cornerRadius: 18,
+                borderColor: Color.orange.opacity(0.16),
+                tint: .orange
+            )
 
             quickDrawPoolSection
         }
         .padding()
         .background(
-            LinearGradient(
-                colors: [Color.orange.opacity(0.1), Color.yellow.opacity(0.05)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.orange.opacity(0.1), Color.yellow.opacity(0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(Color.orange.opacity(0.18), lineWidth: 1.5)
         )
-        .cornerRadius(20)
         .padding(.horizontal)
     }
     
@@ -366,7 +383,7 @@ struct RandomPickerLauncherView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Select Role".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 Spacer()
                 if isSelectedCategoryCustom {
                     Button {
@@ -405,6 +422,13 @@ struct RandomPickerLauncherView: View {
                 .padding(.horizontal)
             }
         }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.purple.opacity(0.12),
+            tint: .purple
+        )
+        .padding(.horizontal)
     }
     
     func categoryChip(_ category: String) -> some View {
@@ -432,12 +456,15 @@ struct RandomPickerLauncherView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .background(isSelected ? color.opacity(0.15) : Color.gray.opacity(0.08))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? color : Color.clear, lineWidth: 2)
+            .appCardStyle(
+                cornerRadius: 12,
+                borderColor: (isSelected ? color : AppChrome.separator).opacity(isSelected ? 0.8 : 1),
+                lineWidth: isSelected ? 2 : 1,
+                shadowOpacity: 0.03,
+                shadowRadius: 5,
+                shadowY: 2,
+                tint: isSelected ? color : nil
             )
-            .cornerRadius(12)
         }
         .buttonStyle(.plain)
     }
@@ -452,7 +479,7 @@ struct RandomPickerLauncherView: View {
                         Image(systemName: "person.crop.circle.badge.checkmark")
                             .foregroundColor(.blue)
                         Text("Quick Draw Pool".localized)
-                            .font(.headline)
+                            .font(AppTypography.cardTitle)
                     }
                     Text(poolSummaryText)
                         .font(.caption)
@@ -480,12 +507,14 @@ struct RandomPickerLauncherView: View {
                 }
             }
             .padding(14)
-            .background(Color.blue.opacity(0.05))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.blue.opacity(0.12), lineWidth: 1)
+            .appCardStyle(
+                cornerRadius: 16,
+                borderColor: Color.blue.opacity(0.12),
+                shadowOpacity: 0.02,
+                shadowRadius: 4,
+                shadowY: 1,
+                tint: .blue
             )
-            .cornerRadius(16)
         }
     }
     
@@ -496,7 +525,7 @@ struct RandomPickerLauncherView: View {
                 Image(systemName: categoryIcon)
                     .foregroundColor(categoryColor)
                 Text(String(format: languageManager.localized("%@ Rotation"), localizedSelectedCategory))
-                    .font(.headline)
+                    .font(AppTypography.sectionTitle)
                 Spacer()
             }
             .padding(.horizontal)
@@ -527,8 +556,10 @@ struct RandomPickerLauncherView: View {
                     .foregroundColor(.orange)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.orange.opacity(0.12))
-                    .cornerRadius(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.orange.opacity(0.12))
+                    )
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal)
@@ -579,8 +610,10 @@ struct RandomPickerLauncherView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(categoryColor)
-                        .cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(categoryColor)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -599,13 +632,19 @@ struct RandomPickerLauncherView: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(
-                        LinearGradient(
-                            colors: [categoryColor, categoryColor.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [categoryColor, categoryColor.opacity(0.8)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
                         )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(categoryColor.opacity(0.22), lineWidth: 1)
                     )
-                    .cornerRadius(12)
                     .shadow(color: categoryColor.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
@@ -627,8 +666,11 @@ struct RandomPickerLauncherView: View {
             }
         }
         .padding(.vertical)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: categoryColor.opacity(0.12),
+            tint: categoryColor
+        )
         .padding(.horizontal)
     }
 
@@ -652,10 +694,10 @@ struct RandomPickerLauncherView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(isSelected ? Color.blue.opacity(0.14) : Color.white.opacity(0.72))
+            .background(isSelected ? Color.blue.opacity(0.14) : AppChrome.elevatedBackground)
             .foregroundColor(isSelected ? .blue : .primary)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isSelected ? Color.blue.opacity(0.45) : Color.black.opacity(0.04), lineWidth: 1.2)
             )
             .cornerRadius(12)
@@ -666,13 +708,19 @@ struct RandomPickerLauncherView: View {
     func statBox(title: String, count: Int, icon: String, color: Color) -> some View {
         VStack(spacing: 6) {
             Image(systemName: icon).font(.title3).foregroundColor(color)
-            Text("\(count)").font(.system(size: 24, weight: .bold)).foregroundColor(color)
+            Text("\(count)").font(.system(size: 24, weight: .bold, design: .rounded)).foregroundColor(color)
             Text(title).font(.caption2).foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(color.opacity(0.1))
-        .cornerRadius(10)
+        .appCardStyle(
+            cornerRadius: 10,
+            borderColor: color.opacity(0.16),
+            shadowOpacity: 0.03,
+            shadowRadius: 4,
+            shadowY: 1,
+            tint: color
+        )
     }
     
     func studentList(title: String, students: [Student], color: Color) -> some View {
@@ -688,9 +736,11 @@ struct RandomPickerLauncherView: View {
                         .font(.caption)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(color.opacity(0.15))
+                        .background(
+                            Capsule()
+                                .fill(color.opacity(0.15))
+                        )
                         .foregroundColor(color == .gray ? .secondary : color)
-                        .cornerRadius(12)
                 }
             }
         }
@@ -795,15 +845,14 @@ struct AddCustomCategoryView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            VStack(spacing: PlatformSpacing.sectionSpacing) {
                 Image(systemName: "flag.fill")
                     .font(.system(size: 60))
                     .foregroundColor(.pink)
                     .padding(.top, 40)
                 
                 Text("Add Custom Role".localized)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(AppTypography.sectionTitle)
                 
                 Text("Create your own classroom role".localized)
                     .font(.subheadline)
@@ -819,9 +868,18 @@ struct AddCustomCategoryView: View {
                         .textFieldStyle(.plain)
                         .font(.body)
                         .padding()
-                        .background(Color.pink.opacity(0.1))
-                        .cornerRadius(10)
+                        .appFieldStyle(tint: .pink)
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+                .appCardStyle(
+                    cornerRadius: 14,
+                    borderColor: Color.pink.opacity(0.12),
+                    shadowOpacity: 0.03,
+                    shadowRadius: 5,
+                    shadowY: 2,
+                    tint: .pink
+                )
                 .padding(.horizontal)
                 
                 if !categoryName.isEmpty {
@@ -836,17 +894,24 @@ struct AddCustomCategoryView: View {
                                 .font(.title2)
                                 .foregroundColor(.pink)
                             Text(categoryName.localized)
-                                .font(.headline)
+                                .font(AppTypography.cardTitle)
                         }
                         .padding()
-                        .background(Color.pink.opacity(0.15))
-                        .cornerRadius(10)
+                        .appCardStyle(
+                            cornerRadius: 10,
+                            borderColor: Color.pink.opacity(0.14),
+                            shadowOpacity: 0.03,
+                            shadowRadius: 4,
+                            shadowY: 1,
+                            tint: .pink
+                        )
                     }
                     .padding(.horizontal)
                 }
                 
                 Spacer()
             }
+            .appSheetBackground(tint: .pink)
             .navigationTitle("New Role".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -876,24 +941,34 @@ struct QuickResultView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: PlatformSpacing.sectionSpacing) {
             Spacer()
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
                 Image(systemName: "shuffle.circle.fill")
                     .font(.system(size: 100))
                     .foregroundColor(.orange)
-                Text("Random Pick!".localized).font(.title2).foregroundColor(.secondary)
-                Text(student.name).font(.system(size: 42, weight: .bold)).multilineTextAlignment(.center).padding(.horizontal)
+                Text("Random Pick!".localized).font(AppTypography.sectionTitle).foregroundColor(.secondary)
+                Text(student.name).font(.system(size: 42, weight: .bold, design: .rounded)).multilineTextAlignment(.center).padding(.horizontal)
                 Text("🎉").font(.system(size: 60))
             }
+            .padding(24)
+            .appCardStyle(
+                cornerRadius: 20,
+                borderColor: Color.orange.opacity(0.16),
+                tint: .orange
+            )
+            .padding(.horizontal, 24)
             Spacer()
             Button { dismiss() } label: {
                 Text("Done".localized).font(.headline).foregroundColor(.white).frame(maxWidth: .infinity).padding()
-                    .background(Color.orange).cornerRadius(12)
-            }.buttonStyle(.plain).padding(.horizontal, 32).padding(.bottom, 40)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.orange)
+                    )
+            }.buttonStyle(.plain).padding(.horizontal, 24).padding(.bottom, 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.orange.opacity(0.05))
+        .appSheetBackground(tint: .orange)
     }
 }
 
@@ -905,7 +980,7 @@ struct MultiQuickResultView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 28) {
+            VStack(spacing: PlatformSpacing.sectionSpacing) {
                 Spacer()
 
                 VStack(spacing: 12) {
@@ -914,8 +989,7 @@ struct MultiQuickResultView: View {
                         .foregroundColor(.orange)
 
                     Text("Selected Winners".localized)
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(AppTypography.sectionTitle)
 
                     Text(String(format: "%d students selected".localized, students.count))
                         .font(.subheadline)
@@ -926,21 +1000,26 @@ struct MultiQuickResultView: View {
                     ForEach(Array(students.enumerated()), id: \.element.id) { index, student in
                         HStack(spacing: 14) {
                             Text("\(index + 1)")
-                                .font(.headline)
+                                .font(AppTypography.cardTitle)
                                 .foregroundColor(.orange)
                                 .frame(width: 28, height: 28)
                                 .background(Color.orange.opacity(0.12))
                                 .clipShape(Circle())
 
                             Text(student.name)
-                                .font(.title3)
-                                .fontWeight(.semibold)
+                                .font(AppTypography.cardTitle)
 
                             Spacer()
                         }
                         .padding()
-                        .background(Color.orange.opacity(0.08))
-                        .cornerRadius(14)
+                        .appCardStyle(
+                            cornerRadius: 14,
+                            borderColor: Color.orange.opacity(0.12),
+                            shadowOpacity: 0.03,
+                            shadowRadius: 5,
+                            shadowY: 2,
+                            tint: .orange
+                        )
                     }
                 }
                 .padding(.horizontal)
@@ -960,8 +1039,10 @@ struct MultiQuickResultView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.orange)
-                        .cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.orange)
+                        )
                     }
                     .buttonStyle(.plain)
 
@@ -973,16 +1054,21 @@ struct MultiQuickResultView: View {
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(12)
+                            .appCardStyle(
+                                cornerRadius: 12,
+                                borderColor: AppChrome.separator,
+                                shadowOpacity: 0.02,
+                                shadowRadius: 4,
+                                shadowY: 1
+                            )
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 40)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 36)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.orange.opacity(0.05))
+            .appSheetBackground(tint: .orange)
             .navigationTitle("")
         }
         #if os(macOS)
@@ -1002,14 +1088,21 @@ struct RotationPickResultView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: PlatformSpacing.sectionSpacing) {
             Spacer()
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
                 Image(systemName: "star.circle.fill").font(.system(size: 100)).foregroundColor(categoryColor)
-                Text(String(format: "Today's %@".localized, categoryName.localized)).font(.title3).foregroundColor(.secondary)
-                Text(student.name).font(.system(size: 42, weight: .bold)).multilineTextAlignment(.center).padding(.horizontal)
+                Text(String(format: "Today's %@".localized, categoryName.localized)).font(AppTypography.cardTitle).foregroundColor(.secondary)
+                Text(student.name).font(.system(size: 42, weight: .bold, design: .rounded)).multilineTextAlignment(.center).padding(.horizontal)
                 Text("🎉").font(.system(size: 60))
             }
+            .padding(24)
+            .appCardStyle(
+                cornerRadius: 20,
+                borderColor: categoryColor.opacity(0.18),
+                tint: categoryColor
+            )
+            .padding(.horizontal, 24)
             Spacer()
             VStack(spacing: 12) {
                 Button { 
@@ -1018,7 +1111,10 @@ struct RotationPickResultView: View {
                 } label: {
                     HStack { Image(systemName: "checkmark.circle.fill"); Text("Mark as Used".localized) }
                         .font(.headline).foregroundColor(.white).frame(maxWidth: .infinity).padding()
-                        .background(categoryColor).cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(categoryColor)
+                        )
                 }.buttonStyle(.plain)
                 Button { 
                     dismiss()
@@ -1029,12 +1125,19 @@ struct RotationPickResultView: View {
                 } label: {
                     HStack { Image(systemName: "xmark.circle"); Text("Skip (Student Absent)".localized) }
                         .font(.subheadline).foregroundColor(categoryColor).frame(maxWidth: .infinity).padding()
-                        .background(categoryColor.opacity(0.1)).cornerRadius(12)
+                        .appCardStyle(
+                            cornerRadius: 12,
+                            borderColor: categoryColor.opacity(0.14),
+                            shadowOpacity: 0.02,
+                            shadowRadius: 4,
+                            shadowY: 1,
+                            tint: categoryColor
+                        )
                 }.buttonStyle(.plain)
-            }.padding(.horizontal, 32).padding(.bottom, 40)
+            }.padding(.horizontal, 24).padding(.bottom, 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(categoryColor.opacity(0.05))
+        .appSheetBackground(tint: categoryColor)
     }
 }
 

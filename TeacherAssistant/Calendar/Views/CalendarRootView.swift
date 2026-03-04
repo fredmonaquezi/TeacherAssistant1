@@ -1,33 +1,5 @@
 import SwiftUI
-import SwiftUI
 import SwiftData
-
-// MARK: - Cross-Platform Color Helpers
-#if os(macOS)
-import AppKit
-private typealias PlatformColor = NSColor
-#else
-import UIKit
-private typealias PlatformColor = UIColor
-#endif
-
-extension Color {
-    static var platformWindowBackground: Color {
-        #if os(macOS)
-        return Color(NSColor.windowBackgroundColor)
-        #else
-        return Color(UIColor.systemBackground)
-        #endif
-    }
-    
-    static var platformTextBackground: Color {
-        #if os(macOS)
-        return Color(NSColor.textBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
-    }
-}
 
 struct CalendarRootView: View {
     @EnvironmentObject var languageManager: LanguageManager
@@ -73,7 +45,7 @@ struct CalendarRootView: View {
     
     var calendarContent: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: PlatformSpacing.sectionSpacing) {
                 headerBar
 
                 filterBar
@@ -110,6 +82,7 @@ struct CalendarRootView: View {
         #if !os(macOS)
         .navigationTitle("Calendar".localized)
         #endif
+        .appSheetBackground(tint: .blue)
         .id(languageManager.currentLanguage)
         .sheet(isPresented: $showingDayDetail) {
             DayDetailSheet(
@@ -138,7 +111,7 @@ struct CalendarRootView: View {
                     selectedDate = Calendar.current.date(byAdding: component, value: -1, to: selectedDate) ?? selectedDate
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(.plain)
 
@@ -155,7 +128,7 @@ struct CalendarRootView: View {
                     selectedDate = Calendar.current.date(byAdding: component, value: 1, to: selectedDate) ?? selectedDate
                 } label: {
                     Image(systemName: "chevron.right")
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(.plain)
             }
@@ -168,8 +141,11 @@ struct CalendarRootView: View {
             .pickerStyle(.segmented)
         }
         .padding()
-        .background(Color.platformWindowBackground.opacity(0.6))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.12),
+            tint: .blue
+        )
     }
 
     // MARK: - Filter
@@ -197,8 +173,14 @@ struct CalendarRootView: View {
                     .font(.caption)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.blue.opacity(0.12))
-                    .cornerRadius(10)
+                    .appCardStyle(
+                        cornerRadius: 10,
+                        borderColor: Color.blue.opacity(0.16),
+                        shadowOpacity: 0.02,
+                        shadowRadius: 4,
+                        shadowY: 1,
+                        tint: .blue
+                    )
             }
             .buttonStyle(.plain)
         }
@@ -215,7 +197,7 @@ struct CalendarRootView: View {
                 Image(systemName: "bell.badge.fill")
                     .foregroundColor(.orange)
                 Text("Upcoming Alerts".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 Spacer()
             }
 
@@ -240,8 +222,10 @@ struct CalendarRootView: View {
                                 .font(.caption2)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Color.orange.opacity(0.15))
-                                .cornerRadius(8)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.orange.opacity(0.15))
+                                )
                         }
                     }
                     .padding(.vertical, 6)
@@ -249,8 +233,11 @@ struct CalendarRootView: View {
             }
         }
         .padding()
-        .background(Color.orange.opacity(0.08))
-        .cornerRadius(14)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.orange.opacity(0.12),
+            tint: .orange
+        )
     }
 
     // MARK: - Filtering
@@ -315,11 +302,13 @@ struct MonthCalendarView: View {
             }
         }
         .padding()
-        .background(Color.platformTextBackground)
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.12),
+            shadowOpacity: 0.04,
+            shadowRadius: 6,
+            shadowY: 2,
+            tint: .blue
         )
     }
 
@@ -388,8 +377,14 @@ struct MonthCalendarView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 80, alignment: .topLeading)
             .padding(8)
-            .background(isSelected ? Color.blue.opacity(0.12) : Color.gray.opacity(0.04))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color.blue.opacity(0.12) : AppChrome.elevatedBackground.opacity(0.7))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isSelected ? Color.blue.opacity(0.28) : AppChrome.separator, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
@@ -427,11 +422,13 @@ struct WeekCalendarView: View {
             }
         }
         .padding()
-        .background(Color.platformTextBackground)
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.12),
+            shadowOpacity: 0.04,
+            shadowRadius: 6,
+            shadowY: 2,
+            tint: .blue
         )
     }
 
@@ -452,7 +449,7 @@ struct WeekCalendarView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 ForEach(previewEvents, id: \.id) { event in
                     Text(event.title)
                         .font(.caption2)
@@ -475,8 +472,14 @@ struct WeekCalendarView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 120, alignment: .topLeading)
             .padding(10)
-            .background(isSelected ? Color.blue.opacity(0.12) : Color.gray.opacity(0.04))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color.blue.opacity(0.12) : AppChrome.elevatedBackground.opacity(0.7))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isSelected ? Color.blue.opacity(0.28) : AppChrome.separator, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
@@ -522,7 +525,7 @@ struct DayDetailSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: PlatformSpacing.sectionSpacing) {
                     headerCard
 
                     diarySection
@@ -531,6 +534,7 @@ struct DayDetailSheet: View {
                 }
                 .padding()
             }
+            .appSheetBackground(tint: .blue)
             .navigationTitle(dayTitle(date))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -573,8 +577,7 @@ struct DayDetailSheet: View {
                 .foregroundColor(.blue)
             VStack(alignment: .leading, spacing: 4) {
                 Text(dayTitle(date))
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                    .font(AppTypography.sectionTitle)
                 Text(longDate(date))
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -582,15 +585,18 @@ struct DayDetailSheet: View {
             Spacer()
         }
         .padding()
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.blue.opacity(0.14),
+            tint: .blue
+        )
     }
 
     var diarySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Class Diary".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 Spacer()
                 Button {
                     showingNewEntry = true
@@ -611,6 +617,12 @@ struct DayDetailSheet: View {
                 }
             }
         }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.blue.opacity(0.10),
+            tint: .blue
+        )
         .sheet(isPresented: $showingNewEntry) {
             DiaryEntryEditor(
                 date: date,
@@ -625,7 +637,7 @@ struct DayDetailSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Events & Alerts".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 Spacer()
                 Button {
                     showingNewEvent = true
@@ -646,6 +658,12 @@ struct DayDetailSheet: View {
                 }
             }
         }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.orange.opacity(0.10),
+            tint: .orange
+        )
         .sheet(isPresented: $showingNewEvent) {
             EventEditor(
                 date: date,
@@ -661,8 +679,7 @@ struct DayDetailSheet: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.schoolClass?.name ?? "All Classes".localized)
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(AppTypography.cardTitle)
                     if let time = timeRangeText(start: entry.startTime, end: entry.endTime) {
                         Text(time)
                             .font(.caption)
@@ -684,6 +701,11 @@ struct DayDetailSheet: View {
                 } label: {
                     Image(systemName: "trash")
                         .foregroundColor(.red)
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill(Color.red.opacity(0.10))
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -702,11 +724,10 @@ struct DayDetailSheet: View {
             }
         }
         .padding(16)
-        .background(Color.platformTextBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.blue.opacity(0.15), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.blue.opacity(0.15),
+            tint: .blue
         )
     }
 
@@ -714,8 +735,7 @@ struct DayDetailSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(event.title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(AppTypography.cardTitle)
                 Spacer()
                 Button {
                     eventToDelete = event
@@ -723,6 +743,11 @@ struct DayDetailSheet: View {
                 } label: {
                     Image(systemName: "trash")
                         .foregroundColor(.red)
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill(Color.red.opacity(0.10))
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -748,11 +773,10 @@ struct DayDetailSheet: View {
             }
         }
         .padding(16)
-        .background(Color.platformTextBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.orange.opacity(0.18), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.orange.opacity(0.18),
+            tint: .orange
         )
     }
 
@@ -762,14 +786,16 @@ struct DayDetailSheet: View {
             .foregroundColor(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(color.opacity(0.12))
-            .cornerRadius(8)
+            .background(
+                Capsule()
+                    .fill(color.opacity(0.12))
+            )
     }
 
     func labeledBody(_ title: String, _ body: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.caption2)
+                .font(AppTypography.eyebrow)
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
             Text(body)
@@ -868,7 +894,7 @@ struct DiaryEntryEditor: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: PlatformSpacing.sectionSpacing) {
                     headerCard
 
                     infoCard
@@ -880,6 +906,7 @@ struct DiaryEntryEditor: View {
                 }
                 .padding()
             }
+            .appSheetBackground(tint: .blue)
             .navigationTitle("New Diary Entry".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -933,13 +960,18 @@ struct DiaryEntryEditor: View {
                 .font(.system(size: 30))
                 .foregroundColor(.blue)
                 .frame(width: 48, height: 48)
-                .background(Color.blue.opacity(0.12))
-                .cornerRadius(12)
+                .appCardStyle(
+                    cornerRadius: 12,
+                    borderColor: Color.blue.opacity(0.14),
+                    shadowOpacity: 0.02,
+                    shadowRadius: 4,
+                    shadowY: 1,
+                    tint: .blue
+                )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("New Diary Entry".localized)
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                    .font(AppTypography.sectionTitle)
                 Text(longDate(date))
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -947,11 +979,10 @@ struct DiaryEntryEditor: View {
             Spacer()
         }
         .padding()
-        .background(Color.platformTextBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.blue.opacity(0.12),
+            tint: .blue
         )
     }
 
@@ -961,7 +992,7 @@ struct DiaryEntryEditor: View {
                 Image(systemName: "building.2.fill")
                     .foregroundColor(.blue)
                 Text("Class & Unit".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 Spacer()
             }
 
@@ -1016,11 +1047,10 @@ struct DiaryEntryEditor: View {
             }
         }
         .padding()
-        .background(Color.platformTextBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.blue.opacity(0.12), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.blue.opacity(0.12),
+            tint: .blue
         )
     }
 
@@ -1040,22 +1070,27 @@ struct DiaryEntryEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(title)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 Spacer()
             }
 
             TextEditor(text: text)
                 .frame(minHeight: 100)
                 .padding(8)
-                .background(Color.gray.opacity(0.08))
-                .cornerRadius(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(AppChrome.elevatedBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(color.opacity(0.16), lineWidth: 1)
+                )
         }
         .padding()
-        .background(Color.platformTextBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(color.opacity(0.18), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: color.opacity(0.18),
+            tint: color
         )
     }
 
@@ -1099,13 +1134,14 @@ struct EventEditor: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: PlatformSpacing.sectionSpacing) {
                     eventHeaderCard
                     eventInfoCard
                     eventDetailsCard
                 }
                 .padding()
             }
+            .appSheetBackground(tint: .orange)
             .navigationTitle("New Event".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1143,13 +1179,18 @@ struct EventEditor: View {
                 .font(.system(size: 30))
                 .foregroundColor(.orange)
                 .frame(width: 48, height: 48)
-                .background(Color.orange.opacity(0.12))
-                .cornerRadius(12)
+                .appCardStyle(
+                    cornerRadius: 12,
+                    borderColor: Color.orange.opacity(0.14),
+                    shadowOpacity: 0.02,
+                    shadowRadius: 4,
+                    shadowY: 1,
+                    tint: .orange
+                )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("New Event".localized)
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                    .font(AppTypography.sectionTitle)
                 Text(longDate(date))
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -1157,11 +1198,10 @@ struct EventEditor: View {
             Spacer()
         }
         .padding()
-        .background(Color.platformTextBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.orange.opacity(0.18), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.orange.opacity(0.18),
+            tint: .orange
         )
     }
 
@@ -1171,7 +1211,7 @@ struct EventEditor: View {
                 Image(systemName: "calendar.badge.plus")
                     .foregroundColor(.orange)
                 Text("Event".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 Spacer()
             }
 
@@ -1184,8 +1224,7 @@ struct EventEditor: View {
                 TextField("Title".localized, text: $title)
                     .textFieldStyle(.plain)
                     .padding(10)
-                    .background(Color.gray.opacity(0.08))
-                    .cornerRadius(10)
+                    .appFieldStyle(tint: .orange)
             }
 
             Toggle("All Day".localized, isOn: $isAllDay)
@@ -1228,11 +1267,10 @@ struct EventEditor: View {
             }
         }
         .padding()
-        .background(Color.platformTextBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.orange.opacity(0.12), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.orange.opacity(0.12),
+            tint: .orange
         )
     }
 
@@ -1240,22 +1278,27 @@ struct EventEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Details".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                 Spacer()
             }
 
             TextEditor(text: $details)
                 .frame(minHeight: 100)
                 .padding(8)
-                .background(Color.gray.opacity(0.08))
-                .cornerRadius(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(AppChrome.elevatedBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.orange.opacity(0.16), lineWidth: 1)
+                )
         }
         .padding()
-        .background(Color.platformTextBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.orange.opacity(0.18), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.orange.opacity(0.18),
+            tint: .orange
         )
     }
 

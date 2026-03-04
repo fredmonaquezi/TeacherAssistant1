@@ -31,7 +31,7 @@ struct AttendanceListView: View {
 
     var content: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: PlatformSpacing.sectionSpacing) {
                 #if os(macOS)
                 attendanceActionsRow
                 #endif
@@ -46,6 +46,7 @@ struct AttendanceListView: View {
                 
             }
             .padding(.vertical, 20)
+            .padding(.horizontal, 2)
         }
         #if !os(macOS)
         .navigationTitle(languageManager.localized("Attendance"))
@@ -97,7 +98,7 @@ struct AttendanceListView: View {
     var statisticsCard: some View {
         VStack(spacing: 16) {
             Text(languageManager.localized("Attendance Overview"))
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             HStack(spacing: 16) {
@@ -124,8 +125,11 @@ struct AttendanceListView: View {
             }
         }
         .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.blue.opacity(0.10),
+            tint: .blue
+        )
         .padding(.horizontal)
     }
     
@@ -136,7 +140,7 @@ struct AttendanceListView: View {
                 .foregroundColor(color)
             
             Text(value)
-                .font(.system(size: 28, weight: .bold))
+                .font(AppTypography.statValue)
                 .foregroundColor(color)
             
             Text(title)
@@ -146,8 +150,14 @@ struct AttendanceListView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(10)
+        .appCardStyle(
+            cornerRadius: 10,
+            borderColor: color.opacity(0.15),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: color
+        )
     }
     
     var attendanceRate: Int {
@@ -172,8 +182,7 @@ struct AttendanceListView: View {
     var sessionsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(languageManager.localized("Attendance Sessions"))
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(AppTypography.sectionTitle)
                 .padding(.horizontal)
             
             if sortedSessions.isEmpty {
@@ -205,7 +214,7 @@ struct AttendanceListView: View {
                 .foregroundColor(.secondary)
             
             Text(languageManager.localized("No attendance sessions yet"))
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .foregroundColor(.secondary)
             
             Text(languageManager.localized("Create your first session to start tracking attendance"))
@@ -215,6 +224,14 @@ struct AttendanceListView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(40)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.blue.opacity(0.08),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .blue
+        )
     }
     
     
@@ -247,8 +264,14 @@ struct AttendanceListView: View {
                 )
                 .datePickerStyle(.graphical)
                 .padding(20)
-                .background(Color.gray.opacity(0.05))
-                .cornerRadius(12)
+                .appCardStyle(
+                    cornerRadius: 12,
+                    borderColor: Color.blue.opacity(0.10),
+                    shadowOpacity: 0.03,
+                    shadowRadius: 5,
+                    shadowY: 2,
+                    tint: .blue
+                )
                 .padding(.horizontal)
                 #if os(macOS)
                 .scaleEffect(1.3)
@@ -261,12 +284,18 @@ struct AttendanceListView: View {
                         .foregroundColor(.secondary)
                     
                     Text(selectedDate.appDateString)
-                        .font(.headline)
+                        .font(AppTypography.cardTitle)
                         .foregroundColor(.blue)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
+                        .appCardStyle(
+                            cornerRadius: 8,
+                            borderColor: Color.blue.opacity(0.14),
+                            shadowOpacity: 0.02,
+                            shadowRadius: 4,
+                            shadowY: 1,
+                            tint: .blue
+                        )
                 }
                 
                 Spacer()
@@ -285,8 +314,10 @@ struct AttendanceListView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
-                        .cornerRadius(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.blue)
+                        )
                     }
                     .buttonStyle(.plain)
                     
@@ -298,14 +329,20 @@ struct AttendanceListView: View {
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(10)
+                            .appCardStyle(
+                                cornerRadius: 10,
+                                borderColor: AppChrome.separator,
+                                shadowOpacity: 0.02,
+                                shadowRadius: 4,
+                                shadowY: 1
+                            )
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 20)
             }
+            .appSheetBackground(tint: .blue)
             .navigationTitle("")
         }
         #if os(macOS)

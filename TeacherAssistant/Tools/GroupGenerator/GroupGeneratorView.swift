@@ -13,7 +13,7 @@ struct GroupGeneratorView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: PlatformSpacing.sectionSpacing) {
                     
                     // Header Card
                     headerCard
@@ -30,7 +30,9 @@ struct GroupGeneratorView: View {
                     
                 }
                 .padding(.vertical, 20)
+                .padding(.horizontal, 2)
             }
+            .appSheetBackground(tint: .purple)
             #if !os(macOS)
             .navigationTitle("Group Generator")
             .toolbar {
@@ -57,8 +59,7 @@ struct GroupGeneratorView: View {
                 .foregroundColor(.purple)
             
             Text("Random Group Generator".localized)
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.title2.weight(.semibold))
             
             Text("Create random student groups for activities".localized)
                 .font(.subheadline)
@@ -74,8 +75,11 @@ struct GroupGeneratorView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .background(Color.purple.opacity(0.1))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.purple.opacity(0.12),
+            tint: .purple
+        )
         .padding(.horizontal)
     }
     
@@ -86,7 +90,7 @@ struct GroupGeneratorView: View {
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(value)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                     .foregroundColor(.purple)
                 
                 Text(label)
@@ -101,7 +105,7 @@ struct GroupGeneratorView: View {
     var controlsCard: some View {
         VStack(spacing: 16) {
             Text("Group Settings".localized)
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             // Group size control
@@ -178,14 +182,19 @@ struct GroupGeneratorView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.purple)
-                .cornerRadius(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.purple)
+                )
             }
             .buttonStyle(.plain)
         }
         .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.purple.opacity(0.10),
+            tint: .purple
+        )
         .padding(.horizontal)
     }
     
@@ -203,7 +212,7 @@ struct GroupGeneratorView: View {
                 .foregroundColor(.secondary)
             
             Text("No groups yet".localized)
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .foregroundColor(.secondary)
             
             Text("Click 'Generate Groups' to create random student groups".localized)
@@ -213,6 +222,15 @@ struct GroupGeneratorView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(40)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.purple.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .purple
+        )
+        .padding(.horizontal)
     }
     
     // MARK: - Results Section
@@ -220,8 +238,7 @@ struct GroupGeneratorView: View {
     var resultsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Generated Groups".localized)
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(AppTypography.sectionTitle)
                 .padding(.horizontal)
             
             LazyVGrid(columns: [

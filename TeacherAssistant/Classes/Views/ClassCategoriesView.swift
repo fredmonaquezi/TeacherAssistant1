@@ -31,6 +31,7 @@ struct ClassCategoriesView: View {
                 }
                 .padding()
             }
+            .appSheetBackground(tint: .blue)
             .navigationTitle("Assessment Categories")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -85,8 +86,11 @@ struct ClassCategoriesView: View {
                 .multilineTextAlignment(.center)
         }
         .padding()
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.12),
+            tint: .blue
+        )
     }
     
     // MARK: - Empty State
@@ -98,7 +102,7 @@ struct ClassCategoriesView: View {
                 .foregroundColor(.secondary)
             
             Text("No Categories Yet".localized)
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .foregroundColor(.secondary)
             
             Text("Add categories to organize your grades".localized)
@@ -108,8 +112,14 @@ struct ClassCategoriesView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(40)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.blue.opacity(0.08),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .blue
+        )
     }
     
     // MARK: - Categories Section
@@ -120,7 +130,7 @@ struct ClassCategoriesView: View {
                 Image(systemName: "list.bullet")
                     .foregroundColor(.blue)
                 Text("Current Categories".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
             }
             
             VStack(spacing: 8) {
@@ -130,8 +140,11 @@ struct ClassCategoriesView: View {
             }
         }
         .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.blue.opacity(0.10),
+            tint: .blue
+        )
     }
     
     func categoryRow(category: AssessmentCategory, index: Int) -> some View {
@@ -152,8 +165,14 @@ struct ClassCategoriesView: View {
                     .font(.body)
                     .padding(.vertical, 8)
                     .padding(.horizontal, 12)
-                    .background(Color.white)
-                    .cornerRadius(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(AppChrome.elevatedBackground)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(AppChrome.separator, lineWidth: 1)
+                    )
             }
             
             // Delete button
@@ -177,7 +196,7 @@ struct ClassCategoriesView: View {
                 Image(systemName: "plus.circle.fill")
                     .foregroundColor(.green)
                 Text("Add New Category".localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
             }
             
             VStack(spacing: 8) {
@@ -185,8 +204,7 @@ struct ClassCategoriesView: View {
                     .textFieldStyle(.plain)
                     .font(.body)
                     .padding()
-                    .background(Color.green.opacity(0.1))
-                    .cornerRadius(10)
+                    .appFieldStyle(tint: .green)
                 
                 Button {
                     addCategory()
@@ -198,9 +216,11 @@ struct ClassCategoriesView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(newCategoryName.isEmpty ? Color.gray.opacity(0.3) : Color.green)
                     .foregroundColor(.white)
-                    .cornerRadius(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(newCategoryName.isEmpty ? Color.gray.opacity(0.35) : Color.green)
+                    )
                 }
                 .buttonStyle(.plain)
                 .disabled(newCategoryName.isEmpty)
@@ -217,12 +237,21 @@ struct ClassCategoriesView: View {
                     .foregroundColor(.secondary)
             }
             .padding()
-            .background(Color.yellow.opacity(0.1))
-            .cornerRadius(8)
+            .appCardStyle(
+                cornerRadius: 8,
+                borderColor: Color.yellow.opacity(0.16),
+                shadowOpacity: 0.02,
+                shadowRadius: 4,
+                shadowY: 1,
+                tint: .yellow
+            )
         }
         .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.green.opacity(0.10),
+            tint: .green
+        )
     }
     
     // MARK: - Actions

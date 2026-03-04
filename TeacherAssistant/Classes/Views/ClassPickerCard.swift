@@ -35,13 +35,11 @@ struct ClassPickerCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackgroundColor)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(toolColor.opacity(0.3), lineWidth: 2)
+        .appCardStyle(
+            borderColor: toolColor.opacity(0.24),
+            lineWidth: 1.5,
+            tint: toolColor
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
     
     func statItem(icon: String, value: Int, label: String) -> some View {
@@ -59,13 +57,11 @@ struct ClassPickerCard: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-    }
-    
-    var cardBackgroundColor: Color {
-        #if os(macOS)
-        return Color(NSColor.controlBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(AppChrome.elevatedBackground)
+        )
     }
 }

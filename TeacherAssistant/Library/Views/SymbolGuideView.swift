@@ -100,7 +100,7 @@ struct SymbolGuideView: View {
                     
                     VStack(alignment: .leading, spacing: 16) {
                         Text(languageManager.localized("Error Analysis: The 3 Cueing Systems"))
-                            .font(.headline)
+                            .font(AppTypography.sectionTitle)
                             .padding(.horizontal)
                         
                         VStack(spacing: 12) {
@@ -134,7 +134,7 @@ struct SymbolGuideView: View {
                     
                     VStack(alignment: .leading, spacing: 16) {
                         Text(languageManager.localized("Reading Levels"))
-                            .font(.headline)
+                            .font(AppTypography.sectionTitle)
                             .padding(.horizontal)
                         
                         VStack(spacing: 12) {
@@ -168,6 +168,7 @@ struct SymbolGuideView: View {
                     .padding(.bottom, 40)
                 }
             }
+            .appSheetBackground(tint: .orange)
             .navigationTitle(languageManager.localized("Symbol Guide"))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -194,8 +195,14 @@ struct SymbolGuideView: View {
                     .foregroundColor(.blue)
                     .frame(width: 60, alignment: .center)
                     .padding(8)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(8)
+                    .appCardStyle(
+                        cornerRadius: 8,
+                        borderColor: Color.blue.opacity(0.14),
+                        shadowOpacity: 0.02,
+                        shadowRadius: 3,
+                        shadowY: 1,
+                        tint: .blue
+                    )
                 
                 // Details
                 VStack(alignment: .leading, spacing: 6) {
@@ -225,9 +232,14 @@ struct SymbolGuideView: View {
             }
         }
         .padding()
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.orange.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .orange
+        )
     }
     
     func cueingSystemCard(letter: String, title: String, description: String, color: Color) -> some View {
@@ -251,8 +263,14 @@ struct SymbolGuideView: View {
             Spacer()
         }
         .padding()
-        .background(color.opacity(0.1))
-        .cornerRadius(10)
+        .appCardStyle(
+            cornerRadius: 10,
+            borderColor: color.opacity(0.16),
+            shadowOpacity: 0.03,
+            shadowRadius: 4,
+            shadowY: 1,
+            tint: color
+        )
     }
     
     func levelCard(level: String, range: String, description: String, color: Color, icon: String) -> some View {
@@ -280,8 +298,14 @@ struct SymbolGuideView: View {
             Spacer()
         }
         .padding()
-        .background(color.opacity(0.1))
-        .cornerRadius(10)
+        .appCardStyle(
+            cornerRadius: 10,
+            borderColor: color.opacity(0.16),
+            shadowOpacity: 0.03,
+            shadowRadius: 4,
+            shadowY: 1,
+            tint: color
+        )
     }
 }
 
@@ -349,8 +373,11 @@ struct RunningRecordDetailView: View {
                                 .foregroundColor(levelColor(record.readingLevel))
                         }
                         .padding()
-                        .background(levelColor(record.readingLevel).opacity(0.1))
-                        .cornerRadius(12)
+                        .appCardStyle(
+                            cornerRadius: 12,
+                            borderColor: levelColor(record.readingLevel).opacity(0.18),
+                            tint: levelColor(record.readingLevel)
+                        )
                         
                         // Reading Level
                         HStack {
@@ -365,13 +392,24 @@ struct RunningRecordDetailView: View {
                                 .foregroundColor(levelColor(record.readingLevel))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(levelColor(record.readingLevel).opacity(0.15))
-                                .cornerRadius(8)
+                                .appCardStyle(
+                                    cornerRadius: 8,
+                                    borderColor: levelColor(record.readingLevel).opacity(0.16),
+                                    shadowOpacity: 0.02,
+                                    shadowRadius: 3,
+                                    shadowY: 1,
+                                    tint: levelColor(record.readingLevel)
+                                )
                         }
                         .padding()
-                        .background(Color.white)
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                        .appCardStyle(
+                            cornerRadius: 12,
+                            borderColor: levelColor(record.readingLevel).opacity(0.10),
+                            shadowOpacity: 0.03,
+                            shadowRadius: 5,
+                            shadowY: 2,
+                            tint: levelColor(record.readingLevel)
+                        )
                         
                         // Detailed Stats
                         LazyVGrid(columns: [
@@ -397,14 +435,20 @@ struct RunningRecordDetailView: View {
                                 .foregroundColor(.secondary)
                                 .padding()
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(10)
+                                .appCardStyle(
+                                    cornerRadius: 10,
+                                    borderColor: AppChrome.separator,
+                                    shadowOpacity: 0.02,
+                                    shadowRadius: 4,
+                                    shadowY: 1
+                                )
                         }
                         .padding(.horizontal)
                     }
                 }
                 .padding(.vertical)
             }
+            .appSheetBackground(tint: .blue)
             .navigationTitle(languageManager.localized("Running Record"))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -455,7 +499,7 @@ struct RunningRecordDetailView: View {
                 .foregroundColor(color)
             
             Text(value)
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundColor(color)
             
             Text(title)
@@ -465,8 +509,14 @@ struct RunningRecordDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(color.opacity(0.1))
-        .cornerRadius(10)
+        .appCardStyle(
+            cornerRadius: 10,
+            borderColor: color.opacity(0.16),
+            shadowOpacity: 0.03,
+            shadowRadius: 4,
+            shadowY: 1,
+            tint: color
+        )
     }
     
     func levelName(_ level: ReadingLevel) -> String {

@@ -23,7 +23,7 @@ struct TimerPickerView: View {
     
     var timerContent: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: PlatformSpacing.sectionSpacing) {
                 
                 // Header
                 headerCard
@@ -51,8 +51,7 @@ struct TimerPickerView: View {
                 .foregroundColor(.blue)
             
             Text("Classroom Timer".localized)
-                .font(.title)
-                .fontWeight(.bold)
+                .font(.title2.weight(.bold))
             
             Text("Choose a duration to start the countdown".localized)
                 .font(.subheadline)
@@ -61,8 +60,11 @@ struct TimerPickerView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.12),
+            tint: .blue
+        )
         .padding(.horizontal)
     }
     
@@ -71,7 +73,7 @@ struct TimerPickerView: View {
     var presetsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Quick Timers".localized)
-                .font(.headline)
+                .font(AppTypography.sectionTitle)
                 .padding(.horizontal)
             
             LazyVGrid(columns: [
@@ -96,16 +98,19 @@ struct TimerPickerView: View {
                     .foregroundColor(preset.color)
                 
                 Text(preset.label.localized)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                     .foregroundColor(.primary)
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(preset.color.opacity(0.15))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(preset.color.opacity(0.3), lineWidth: 2)
+            .appCardStyle(
+                cornerRadius: 12,
+                borderColor: preset.color.opacity(0.22),
+                lineWidth: 1.6,
+                shadowOpacity: 0.04,
+                shadowRadius: 6,
+                shadowY: 2,
+                tint: preset.color
             )
         }
         .buttonStyle(.plain)
@@ -116,7 +121,7 @@ struct TimerPickerView: View {
     var customTimerSection: some View {
         VStack(spacing: 20) {
             Text("Custom Timer".localized)
-                .font(.headline)
+                .font(AppTypography.sectionTitle)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)
             
@@ -181,12 +186,14 @@ struct TimerPickerView: View {
                     TextEditor(text: $storedChecklistText)
                         .frame(minHeight: 120)
                         .padding(8)
-                        .background(Color.white.opacity(0.7))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.gray.opacity(0.25), lineWidth: 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(AppChrome.elevatedBackground)
                         )
-                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(AppChrome.separator, lineWidth: 1)
+                        )
 
                     Text("Add one task per line. Bullets and numbered lists are cleaned automatically when the timer starts.".localized)
                         .font(.caption)
@@ -211,21 +218,32 @@ struct TimerPickerView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.blue, Color.blue.opacity(0.8)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .allowsHitTesting(false)
+                    }
                     .background(
-                        LinearGradient(
-                            colors: [Color.blue, Color.blue.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.blue)
                     )
-                    .cornerRadius(12)
+                    .opacity(storedCustomMinutes == 0 && storedCustomSeconds == 0 ? 0.45 : 1)
                 }
                 .buttonStyle(.plain)
                 .disabled(storedCustomMinutes == 0 && storedCustomSeconds == 0)
             }
             .padding()
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(16)
+            .appCardStyle(
+                cornerRadius: 16,
+                borderColor: Color.blue.opacity(0.10),
+                tint: .blue
+            )
             .padding(.horizontal)
         }
     }
@@ -241,6 +259,7 @@ struct TimerPickerView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+        .padding(.horizontal, 8)
     }
 
     // MARK: - Haptics (iOS only)

@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftUI
 import SwiftData
 
 struct ClassDetailView: View {
@@ -166,7 +165,7 @@ struct ClassDetailView: View {
     @ViewBuilder
     var macOSLayout: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
+            VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing + 8) {
                 // Class info header
                 classInfoHeader
                 
@@ -194,8 +193,14 @@ struct ClassDetailView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.blue)
                 .frame(width: 80, height: 80)
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(16)
+                .appCardStyle(
+                    cornerRadius: 16,
+                    borderColor: Color.blue.opacity(0.16),
+                    shadowOpacity: 0.03,
+                    shadowRadius: 5,
+                    shadowY: 2,
+                    tint: .blue
+                )
             
             // Class info
             VStack(alignment: .leading, spacing: 8) {
@@ -205,30 +210,35 @@ struct ClassDetailView: View {
                 
                 if let schoolYear = schoolClass.schoolYear, !schoolYear.isEmpty {
                     Text("\(schoolClass.grade) • \(schoolYear)")
-                        .font(.title3)
+                        .font(.title3.weight(.medium))
                         .foregroundColor(.secondary)
                 } else {
                     Text(schoolClass.grade)
-                        .font(.title3)
+                        .font(.title3.weight(.medium))
                         .foregroundColor(.secondary)
                 }
                 
                 HStack(spacing: 20) {
-                    Label("\(schoolClass.students.count) \(schoolClass.students.count == 1 ? "Student".localized : "Students".localized)", systemImage: "person.3.fill")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Label("\(schoolClass.subjects.count) \(schoolClass.subjects.count == 1 ? "Subject".localized : "Subjects".localized)", systemImage: "book.fill")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    classHeaderBadge(
+                        icon: "person.3.fill",
+                        text: "\(schoolClass.students.count) \(schoolClass.students.count == 1 ? "Student".localized : "Students".localized)"
+                    )
+
+                    classHeaderBadge(
+                        icon: "book.fill",
+                        text: "\(schoolClass.subjects.count) \(schoolClass.subjects.count == 1 ? "Subject".localized : "Subjects".localized)"
+                    )
                 }
             }
             
             Spacer()
         }
         .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.12),
+            tint: .blue
+        )
     }
     
     // MARK: - Quick Actions
@@ -236,7 +246,7 @@ struct ClassDetailView: View {
     var quickActionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(languageManager.localized("Quick Actions"))
-                .font(.headline)
+                .font(AppTypography.sectionTitle)
             
             HStack(spacing: 12) {
                 quickActionButton(
@@ -268,23 +278,36 @@ struct ClassDetailView: View {
             }
         }
         .id(languageManager.currentLanguage) // 🔄 Force this section to refresh
+        .padding()
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.orange.opacity(0.10),
+            tint: .orange
+        )
     }
     
     func quickActionButton(title: String, icon: String, color: Color, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.title2)
                     .foregroundColor(disabled ? .secondary : color)
                 
                 Text(title)
-                    .font(.caption)
+                    .font(.subheadline.weight(.medium))
                     .foregroundColor(disabled ? .secondary : .primary)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .padding()
-            .background(disabled ? Color.gray.opacity(0.1) : color.opacity(0.1))
-            .cornerRadius(12)
+            .padding(12)
+            .appCardStyle(
+                cornerRadius: 12,
+                borderColor: (disabled ? Color.gray : color).opacity(0.14),
+                shadowOpacity: 0.03,
+                shadowRadius: 5,
+                shadowY: 2,
+                tint: disabled ? nil : color
+            )
         }
         .buttonStyle(.plain)
         .disabled(disabled)
@@ -299,8 +322,7 @@ struct ClassDetailView: View {
                 Image(systemName: "book.fill")
                     .foregroundColor(.blue)
                 Text(languageManager.localized("Subjects"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(AppTypography.sectionTitle)
                 
                 Spacer()
                 
@@ -346,8 +368,11 @@ struct ClassDetailView: View {
         }
         .id(languageManager.currentLanguage) // 🔄 Force this section to refresh
         .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.10),
+            tint: .blue
+        )
     }
     
     // MARK: - Students Section
@@ -372,8 +397,11 @@ struct ClassDetailView: View {
         }
         .id(languageManager.currentLanguage) // 🔄 Force this section to refresh
         .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.green.opacity(0.10),
+            tint: .green
+        )
     }
     
     // MARK: - Empty State
@@ -385,7 +413,7 @@ struct ClassDetailView: View {
                 .foregroundColor(.secondary)
             
             Text(title)
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .foregroundColor(.secondary)
             
             Text(message)
@@ -398,16 +426,24 @@ struct ClassDetailView: View {
                     .fontWeight(.medium)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 10)
-                    .background(Color.blue)
                     .foregroundColor(.white)
-                    .cornerRadius(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.blue)
+                    )
             }
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
         .padding(40)
-        .background(Color.white)
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.blue.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .blue
+        )
     }
     
     // MARK: - iPad / iPhone Layout
@@ -415,7 +451,7 @@ struct ClassDetailView: View {
     @ViewBuilder
     var iPadLayout: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing) {
                 
                 // Class info header
                 classInfoHeader
@@ -445,8 +481,7 @@ struct ClassDetailView: View {
                 Image(systemName: "book.fill")
                     .foregroundColor(.blue)
                 Text(languageManager.localized("Subjects"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(AppTypography.sectionTitle)
                 
                 Spacer()
                 
@@ -500,8 +535,11 @@ struct ClassDetailView: View {
         }
         .id(languageManager.currentLanguage)
         .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.10),
+            tint: .blue
+        )
     }
     
     // MARK: - iOS Students Section
@@ -526,8 +564,11 @@ struct ClassDetailView: View {
         }
         .id(languageManager.currentLanguage)
         .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.green.opacity(0.10),
+            tint: .green
+        )
     }
 
     var studentsHeader: some View {
@@ -535,8 +576,7 @@ struct ClassDetailView: View {
             Image(systemName: "person.3.fill")
                 .foregroundColor(.green)
             Text(languageManager.localized("Students"))
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(AppTypography.sectionTitle)
             
             Spacer()
             
@@ -624,5 +664,17 @@ struct ClassDetailView: View {
         guard !schoolClass.students.isEmpty else { return }
         let sorted = schoolClass.students.sorted { $0.sortOrder < $1.sortOrder }
         pickedStudent = sorted.randomElement()
+    }
+
+    func classHeaderBadge(icon: String, text: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                Capsule()
+                    .fill(AppChrome.elevatedBackground)
+            )
     }
 }

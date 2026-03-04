@@ -52,7 +52,7 @@ struct PDFTagSheet: View {
                 }
                 .padding(24)
             }
-            .background(Color.gray.opacity(0.05))
+            .appSheetBackground(tint: .blue)
             .navigationTitle("Tag PDF")
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -130,9 +130,16 @@ struct PDFTagSheet: View {
                 .font(.body)
                 .fontWeight(.medium)
                 .padding()
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(10)
+                .appFieldStyle(tint: .blue)
         }
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.blue.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .blue
+        )
     }
     
     
@@ -159,9 +166,10 @@ struct PDFTagSheet: View {
             }
             .pickerStyle(.menu)
             .padding()
-            .background(Color.white)
-            .cornerRadius(10)
-            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(AppChrome.elevatedBackground)
+            )
             .onChange(of: selectedSubject) { _, _ in
                 selectedUnit = nil // Reset unit when subject changes
             }
@@ -178,9 +186,10 @@ struct PDFTagSheet: View {
             }
         }
         .padding()
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+        .appCardStyle(
+            borderColor: Color.blue.opacity(0.12),
+            tint: .blue
+        )
     }
             
             // MARK: - Unit Picker Card
@@ -219,9 +228,10 @@ struct PDFTagSheet: View {
                         }
                         .pickerStyle(.menu)
                         .padding()
-                        .background(Color.white)
-                        .cornerRadius(10)
-                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(AppChrome.elevatedBackground)
+                        )
                         
                         HStack(spacing: 8) {
                             Image(systemName: "info.circle")
@@ -234,9 +244,10 @@ struct PDFTagSheet: View {
                     }
                 }
                 .padding()
-                .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
+                .appCardStyle(
+                    borderColor: Color.orange.opacity(0.12),
+                    tint: .orange
+                )
                 .transition(.scale.combined(with: .opacity))
             }
             
@@ -323,6 +334,6 @@ struct PDFTagSheet: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.green.opacity(0.3), lineWidth: 1)
                 )
+                .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
             }
         }
-

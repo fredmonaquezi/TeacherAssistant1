@@ -20,8 +20,13 @@ struct StudentCardView: View {
                 if let onDelete {
                     Button(action: onDelete) {
                         Image(systemName: "trash")
-                            .font(.subheadline)
+                            .font(.caption.weight(.semibold))
                             .foregroundColor(.red)
+                            .padding(7)
+                            .background(
+                                Circle()
+                                    .fill(Color.red.opacity(0.10))
+                            )
                     }
                     .buttonStyle(.plain)
                     .help("Delete Student?".localized)
@@ -66,18 +71,22 @@ struct StudentCardView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(2)
                 }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(AppChrome.elevatedBackground)
+                )
             }
         }
         .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackgroundColor)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(borderColor, lineWidth: borderWidth)
+        .appCardStyle(
+            borderColor: borderColor,
+            lineWidth: borderWidth,
+            tint: cardTint
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
     }
     
     func statusBadge(icon: String, text: String, color: Color) -> some View {
@@ -97,15 +106,7 @@ struct StudentCardView: View {
     }
     
     // MARK: - Styling
-    
-    var cardBackgroundColor: Color {
-        #if os(macOS)
-        return Color(NSColor.controlBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
-    }
-    
+
     var borderColor: Color {
         if student.needsHelp {
             return .orange.opacity(0.5)
@@ -123,6 +124,18 @@ struct StudentCardView: View {
             return 2
         } else {
             return 1
+        }
+    }
+
+    var cardTint: Color? {
+        if student.needsHelp {
+            return .orange
+        } else if student.missingHomework {
+            return .red
+        } else if student.isParticipatingWell {
+            return .green
+        } else {
+            return nil
         }
     }
 }

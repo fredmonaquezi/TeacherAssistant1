@@ -29,8 +29,13 @@ struct AssessmentCardView: View {
                 // Delete button
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                         .foregroundColor(.red)
+                        .padding(7)
+                        .background(
+                            Circle()
+                                .fill(Color.red.opacity(0.10))
+                        )
                 }
                 .buttonStyle(.plain)
                 .help(languageManager.localized("Delete assessment"))
@@ -40,12 +45,11 @@ struct AssessmentCardView: View {
             
             // Statistics
             HStack(spacing: 16) {
-                // Average
-                VStack(alignment: .leading, spacing: 4) {
+                statsCard(stackAlignment: .leading, frameAlignment: .leading) {
                     Text("Average")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    
+
                     Text(String(format: "%.1f", assessmentAverage))
                         .font(.title3)
                         .fontWeight(.bold)
@@ -55,24 +59,21 @@ struct AssessmentCardView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
-                
-                Spacer()
-                
-                // Grades count
-                VStack(alignment: .trailing, spacing: 4) {
+
+                let gradedCount = assessment.results.filter(\.isScored).count
+                let totalCount = assessment.results.count
+
+                statsCard(stackAlignment: .trailing, frameAlignment: .trailing) {
                     Text("Grades")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    
-                    let gradedCount = assessment.results.filter(\.isScored).count
-                    let totalCount = assessment.results.count
-                    
+
                     HStack(spacing: 4) {
                         Text("\(gradedCount)")
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundColor(gradedCount == totalCount ? .green : .orange)
-                        
+
                         Text("/ \(totalCount)")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -89,7 +90,7 @@ struct AssessmentCardView: View {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.2))
+                            .fill(AppChrome.elevatedBackground)
                             .frame(height: 6)
                         
                         RoundedRectangle(cornerRadius: 4)
@@ -102,13 +103,10 @@ struct AssessmentCardView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackgroundColor)
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        .appCardStyle(
+            borderColor: averageColor(assessmentAverage).opacity(0.16),
+            tint: averageColor(assessmentAverage)
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 2)
     }
     
     // MARK: - Helpers
@@ -133,12 +131,18 @@ struct AssessmentCardView: View {
         if progress >= 0.4 { return .orange }
         return .red
     }
-    
-    var cardBackgroundColor: Color {
-        #if os(macOS)
-        return Color(NSColor.controlBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
+
+    func statsCard<Content: View>(
+        stackAlignment: HorizontalAlignment,
+        frameAlignment: Alignment,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: stackAlignment, spacing: 4, content: content)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: frameAlignment)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(AppChrome.elevatedBackground)
+            )
     }
 }

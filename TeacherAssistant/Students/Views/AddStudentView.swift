@@ -77,14 +77,7 @@ struct AddStudentView: View {
                                 .textFieldStyle(.plain)
                                 .font(.body)
                                 .padding()
-                                .background(
-                                    validationMessage != nil ? Color.red.opacity(0.1) : Color.green.opacity(0.1)
-                                )
-                                .cornerRadius(10)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(validationMessage != nil ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
-                                )
+                                .appFieldStyle(tint: .green, isInvalid: validationMessage != nil)
                             
                             // Validation feedback
                             if let message = validationMessage {
@@ -125,6 +118,14 @@ struct AddStudentView: View {
                         }
                     }
                     .padding()
+                    .appCardStyle(
+                        cornerRadius: 18,
+                        borderColor: Color.green.opacity(0.10),
+                        shadowRadius: 10,
+                        shadowY: 4,
+                        tint: .green
+                    )
+                    .padding(.horizontal)
                     
                     // Preview
                     if !name.isEmpty {
@@ -150,8 +151,14 @@ struct AddStudentView: View {
                                 Spacer()
                             }
                             .padding()
-                            .background(Color.green.opacity(0.05))
-                            .cornerRadius(10)
+                            .appCardStyle(
+                                cornerRadius: 10,
+                                borderColor: Color.green.opacity(0.12),
+                                shadowOpacity: 0.04,
+                                shadowRadius: 6,
+                                shadowY: 2,
+                                tint: .green
+                            )
                         }
                         .padding(.horizontal)
                     }
@@ -166,12 +173,19 @@ struct AddStudentView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding()
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(10)
+                    .appCardStyle(
+                        cornerRadius: 10,
+                        borderColor: Color.blue.opacity(0.16),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 4,
+                        shadowY: 1,
+                        tint: .blue
+                    )
                     .padding(.horizontal)
                     
                 }
             }
+            .appSheetBackground(tint: .green)
             .navigationTitle("New Student")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

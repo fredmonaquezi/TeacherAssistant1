@@ -60,14 +60,7 @@ struct AddSubjectView: View {
                             .textFieldStyle(.plain)
                             .font(.body)
                             .padding()
-                            .background(
-                                validationMessage != nil ? Color.red.opacity(0.1) : Color.blue.opacity(0.1)
-                            )
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(validationMessage != nil ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
-                            )
+                            .appFieldStyle(tint: .blue, isInvalid: validationMessage != nil)
                         
                         // Validation feedback
                         if let message = validationMessage {
@@ -88,6 +81,14 @@ struct AddSubjectView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .padding()
+                    .appCardStyle(
+                        cornerRadius: 18,
+                        borderColor: Color.blue.opacity(0.10),
+                        shadowRadius: 10,
+                        shadowY: 4,
+                        tint: .blue
+                    )
+                    .padding(.horizontal)
                     
                     // Preview
                     if !name.isEmpty && isNameValid {
@@ -113,8 +114,14 @@ struct AddSubjectView: View {
                                 Spacer()
                             }
                             .padding()
-                            .background(Color.blue.opacity(0.05))
-                            .cornerRadius(10)
+                            .appCardStyle(
+                                cornerRadius: 10,
+                                borderColor: Color.blue.opacity(0.12),
+                                shadowOpacity: 0.04,
+                                shadowRadius: 6,
+                                shadowY: 2,
+                                tint: .blue
+                            )
                         }
                         .padding(.horizontal)
                     }
@@ -129,12 +136,19 @@ struct AddSubjectView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding()
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(10)
+                    .appCardStyle(
+                        cornerRadius: 10,
+                        borderColor: Color.orange.opacity(0.16),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 4,
+                        shadowY: 1,
+                        tint: .orange
+                    )
                     .padding(.horizontal)
                     
                 }
             }
+            .appSheetBackground(tint: .blue)
             .navigationTitle("New Subject".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

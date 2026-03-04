@@ -15,7 +15,7 @@ struct SubjectDetailView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing) {
                 // MARK: - Statistics Card
                 statisticsCard
                 
@@ -24,6 +24,7 @@ struct SubjectDetailView: View {
                 
             }
             .padding(.vertical, 20)
+            .padding(.horizontal, 2)
         }
         #if !os(macOS)
         .navigationTitle(subject.name)
@@ -93,6 +94,12 @@ struct SubjectDetailView: View {
                 )
             }
         }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.blue.opacity(0.10),
+            tint: .blue
+        )
         .padding(.horizontal)
     }
     
@@ -103,7 +110,7 @@ struct SubjectDetailView: View {
                 .foregroundColor(color)
             
             Text(value)
-                .font(.system(size: 32, weight: .bold))
+                .font(AppTypography.statValue)
                 .foregroundColor(color)
             
             Text(title)
@@ -113,8 +120,14 @@ struct SubjectDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: color.opacity(0.16),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: color
+        )
     }
     
     func averageColor(_ average: Double) -> Color {
@@ -128,8 +141,7 @@ struct SubjectDetailView: View {
     var unitsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(languageManager.localized("Units"))
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(AppTypography.sectionTitle)
                 .padding(.horizontal)
             
             if subject.units.isEmpty {
@@ -164,13 +176,20 @@ struct SubjectDetailView: View {
                 .font(.body)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.blue.opacity(0.1))
                 .foregroundColor(.blue)
-                .cornerRadius(10)
+                .appCardStyle(
+                    cornerRadius: 10,
+                    borderColor: Color.blue.opacity(0.16),
+                    shadowOpacity: 0.02,
+                    shadowRadius: 4,
+                    shadowY: 1,
+                    tint: .blue
+                )
             }
             .buttonStyle(.plain)
             .padding(.horizontal)
         }
+        .padding(.vertical, 2)
     }
     
     var emptyStateView: some View {
@@ -180,7 +199,7 @@ struct SubjectDetailView: View {
                 .foregroundColor(.secondary)
             
             Text(languageManager.localized("No units yet"))
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .foregroundColor(.secondary)
             
             Text(languageManager.localized("Create your first unit to start adding assessments"))
@@ -190,6 +209,15 @@ struct SubjectDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(40)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.blue.opacity(0.08),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .blue
+        )
+        .padding(.horizontal)
     }
     
     // MARK: - Actions
@@ -256,9 +284,18 @@ struct AddUnitDialog: View {
                         .textFieldStyle(.plain)
                         .font(.body)
                         .padding()
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(10)
+                        .appFieldStyle(tint: .blue)
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+                .appCardStyle(
+                    cornerRadius: 14,
+                    borderColor: Color.blue.opacity(0.10),
+                    shadowOpacity: 0.03,
+                    shadowRadius: 5,
+                    shadowY: 2,
+                    tint: .blue
+                )
                 .padding(.horizontal)
                 
                 if !unitName.isEmpty {
@@ -273,17 +310,24 @@ struct AddUnitDialog: View {
                                 .font(.title2)
                                 .foregroundColor(.blue)
                             Text(unitName)
-                                .font(.headline)
+                                .font(AppTypography.cardTitle)
                         }
                         .padding()
-                        .background(Color.blue.opacity(0.15))
-                        .cornerRadius(10)
+                        .appCardStyle(
+                            cornerRadius: 10,
+                            borderColor: Color.blue.opacity(0.14),
+                            shadowOpacity: 0.03,
+                            shadowRadius: 4,
+                            shadowY: 1,
+                            tint: .blue
+                        )
                     }
                     .padding(.horizontal)
                 }
                 
                 Spacer()
             }
+            .appSheetBackground(tint: .blue)
             .navigationTitle(languageManager.localized("New Unit"))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)

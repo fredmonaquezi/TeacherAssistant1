@@ -8,7 +8,6 @@ struct ClassCardView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Header
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(schoolClass.name)
@@ -29,11 +28,15 @@ struct ClassCardView: View {
                 
                 Spacer()
                 
-                // Delete button
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.title3)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(.red)
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill(Color.red.opacity(0.10))
+                        )
                 }
                 .buttonStyle(.plain)
                 .help("Delete Class?".localized)
@@ -43,34 +46,36 @@ struct ClassCardView: View {
             
             // Stats
             HStack(spacing: 24) {
-                Label("\(schoolClass.students.count) \(schoolClass.students.count == 1 ? "Student".localized : "Students".localized)", systemImage: "person.2.fill")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                Label("\(schoolClass.subjects.count) \(schoolClass.subjects.count == 1 ? "Subject".localized : "Subjects".localized)", systemImage: "book.fill")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                statBadge(
+                    icon: "person.2.fill",
+                    text: "\(schoolClass.students.count) \(schoolClass.students.count == 1 ? "Student".localized : "Students".localized)"
+                )
+
+                statBadge(
+                    icon: "book.fill",
+                    text: "\(schoolClass.subjects.count) \(schoolClass.subjects.count == 1 ? "Subject".localized : "Subjects".localized)"
+                )
             }
         }
         .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
         .padding(PlatformSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackgroundColor)
-        .cornerRadius(PlatformSpacing.cardCornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: PlatformSpacing.cardCornerRadius)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: PlatformSpacing.cardCornerRadius + 2,
+            borderColor: Color.blue.opacity(0.14),
+            tint: .blue
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
-    
-    // MARK: - Platform-specific colors
-    
-    var cardBackgroundColor: Color {
-        #if os(macOS)
-        return Color(NSColor.controlBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
+
+    func statBadge(icon: String, text: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(AppChrome.elevatedBackground)
+            )
     }
 }

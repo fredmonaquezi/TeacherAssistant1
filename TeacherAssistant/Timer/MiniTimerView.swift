@@ -47,6 +47,11 @@ struct MiniTimerView: View {
             } label: {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                     .font(.title3)
+                    .padding(8)
+                    .background(
+                        Circle()
+                            .fill(AppChrome.elevatedBackground)
+                    )
             }
             .buttonStyle(.plain)
 
@@ -56,13 +61,23 @@ struct MiniTimerView: View {
                 Image(systemName: "stop.fill")
                     .font(.title3)
                     .foregroundColor(.red)
+                    .padding(8)
+                    .background(
+                        Circle()
+                            .fill(Color.red.opacity(0.12))
+                    )
             }
             .buttonStyle(.plain)
         }
         .padding()
-        .background(.ultraThinMaterial)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: progressColor.opacity(0.18),
+            shadowOpacity: 0.12,
+            shadowRadius: 12,
+            shadowY: 5,
+            tint: progressColor
+        )
         .padding()
     }
     

@@ -18,8 +18,13 @@ struct SubjectCardView: View {
                 
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.body)
+                        .font(.caption.weight(.semibold))
                         .foregroundColor(.red)
+                        .padding(7)
+                        .background(
+                            Circle()
+                                .fill(Color.red.opacity(0.10))
+                        )
                 }
                 .buttonStyle(.plain)
                 .help("Delete Subject?".localized)
@@ -30,24 +35,19 @@ struct SubjectCardView: View {
             Label("\(subject.units.count) \(subject.units.count == 1 ? "unit".localized : "units".localized)", systemImage: "folder.fill")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(AppChrome.elevatedBackground)
+                )
         }
         .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackgroundColor)
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        .appCardStyle(
+            borderColor: Color.blue.opacity(0.14),
+            tint: .blue
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 3, x: 0, y: 1)
-    }
-    
-    var cardBackgroundColor: Color {
-        #if os(macOS)
-        return Color(NSColor.controlBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
     }
 }

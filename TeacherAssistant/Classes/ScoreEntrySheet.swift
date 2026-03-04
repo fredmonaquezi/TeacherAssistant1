@@ -55,6 +55,7 @@ struct ScoreEntrySheet: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 16)
+            .appSheetBackground(tint: .blue)
             .navigationTitle("Score Entry".localized)
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -110,8 +111,14 @@ struct ScoreEntrySheet: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.08))
-        .cornerRadius(14)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.blue.opacity(0.10),
+            shadowOpacity: 0.04,
+            shadowRadius: 6,
+            shadowY: 2,
+            tint: .blue
+        )
     }
 
     var scoreEditorCard: some View {
@@ -143,12 +150,7 @@ struct ScoreEntrySheet: View {
                 .frame(height: 22)
                 .padding(.horizontal, 14)
                 .frame(width: 120, height: 52)
-                .background(scoreTint.opacity(0.12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(scoreTint.opacity(0.25), lineWidth: 1)
-                )
-                .cornerRadius(12)
+                .appFieldStyle(tint: scoreTint, isInvalid: parsedScore == nil)
 
                 VStack(alignment: .leading, spacing: 4) {
                     if parsedScore == nil {
@@ -173,8 +175,14 @@ struct ScoreEntrySheet: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(14)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: scoreTint.opacity(0.14),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: scoreTint
+        )
     }
 
     var quickButtons: some View {
@@ -206,8 +214,10 @@ struct ScoreEntrySheet: View {
                             .font(.caption)
                             .fontWeight(.medium)
                             .frame(maxWidth: .infinity, minHeight: 34)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(9)
+                            .background(
+                                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    .fill(AppChrome.elevatedBackground)
+                            )
                     }
                     .buttonStyle(.plain)
                 }
@@ -215,8 +225,14 @@ struct ScoreEntrySheet: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(14)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.blue.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .blue
+        )
     }
 
     func infoPill(title: String, value: String) -> some View {
@@ -230,8 +246,10 @@ struct ScoreEntrySheet: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(Color.white.opacity(0.7))
-        .cornerRadius(10)
+        .background(
+            Capsule()
+                .fill(AppChrome.elevatedBackground)
+        )
     }
 
     func saveAndDismiss() {

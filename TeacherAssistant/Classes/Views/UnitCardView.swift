@@ -26,8 +26,13 @@ struct UnitCardView: View {
                 // Delete button
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.body)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(.red)
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill(Color.red.opacity(0.10))
+                        )
                 }
                 .buttonStyle(.plain)
                 .help(languageManager.localized("Delete unit"))
@@ -53,14 +58,10 @@ struct UnitCardView: View {
                 
                 // Quick stats
                 VStack(alignment: .trailing, spacing: 4) {
-                    Label("\(unit.assessments.count)", systemImage: "doc.text.fill")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
+                    statPill(icon: "doc.text.fill", value: "\(unit.assessments.count)")
+
                     let totalResults = unit.assessments.flatMap { $0.results }.count
-                    Label("\(totalResults)", systemImage: "person.fill")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    statPill(icon: "person.fill", value: "\(totalResults)")
                 }
             }
             
@@ -91,7 +92,7 @@ struct UnitCardView: View {
                         
                         ZStack(alignment: .leading) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.gray.opacity(0.2))
+                                .fill(AppChrome.elevatedBackground)
                                 .frame(height: 6)
                             
                             RoundedRectangle(cornerRadius: 4)
@@ -105,13 +106,10 @@ struct UnitCardView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackgroundColor)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        .appCardStyle(
+            borderColor: averageColor(unitAverage).opacity(0.16),
+            tint: averageColor(unitAverage)
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
     
     // MARK: - Helpers
@@ -134,11 +132,15 @@ struct UnitCardView: View {
         return .red
     }
     
-    var cardBackgroundColor: Color {
-        #if os(macOS)
-        return Color(NSColor.controlBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
+    func statPill(icon: String, value: String) -> some View {
+        Label(value, systemImage: icon)
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(AppChrome.elevatedBackground)
+            )
     }
 }

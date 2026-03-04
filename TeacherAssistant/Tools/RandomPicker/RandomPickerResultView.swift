@@ -22,7 +22,7 @@ struct RandomPickerResultView: View {
                 )
                 .ignoresSafeArea()
                 
-                VStack(spacing: 40) {
+                VStack(spacing: PlatformSpacing.sectionSpacing) {
                     
                     Spacer()
                     
@@ -42,13 +42,12 @@ struct RandomPickerResultView: View {
                     // "Selected Student" label
                     VStack(spacing: 8) {
                         Text("🎉 \(languageManager.localized("Selected Student")) 🎉")
-                            .font(.title2)
-                            .fontWeight(.semibold)
+                            .font(AppTypography.sectionTitle)
                             .foregroundColor(.secondary)
                         
                         // Student name - BIG
                         Text(student.name)
-                            .font(.system(size: 48, weight: .bold))
+                            .font(.system(size: 48, weight: .bold, design: .rounded))
                             .multilineTextAlignment(.center)
                             .foregroundColor(.primary)
                             .padding(.horizontal)
@@ -75,8 +74,10 @@ struct RandomPickerResultView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.orange)
-                            .cornerRadius(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.orange)
+                            )
                         }
                         .buttonStyle(.plain)
                         
@@ -88,13 +89,18 @@ struct RandomPickerResultView: View {
                                 .foregroundColor(.secondary)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(12)
+                                .appCardStyle(
+                                    cornerRadius: 12,
+                                    borderColor: AppChrome.separator,
+                                    shadowOpacity: 0.02,
+                                    shadowRadius: 4,
+                                    shadowY: 1
+                                )
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 20)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
                 }
                 
                 // Confetti effect
@@ -125,7 +131,7 @@ struct RandomPickerResultView: View {
     var studentInfoCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(languageManager.localized("Student Info"))
-                .font(.caption)
+                .font(AppTypography.eyebrow)
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
             
@@ -152,8 +158,11 @@ struct RandomPickerResultView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.orange.opacity(0.12),
+            tint: .orange
+        )
         .padding(.horizontal)
     }
     

@@ -30,8 +30,10 @@ struct TimerOverlayView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color.red)
-                        .cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.red)
+                        )
                     }
                     .buttonStyle(.plain)
 
@@ -46,8 +48,14 @@ struct TimerOverlayView: View {
                         .foregroundColor(.primary)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color.gray.opacity(0.2))
-                        .cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(AppChrome.elevatedBackground)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(AppChrome.separator, lineWidth: 1)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -56,6 +64,10 @@ struct TimerOverlayView: View {
             .background(
                 RoundedRectangle(cornerRadius: 24)
                     .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
             )
             .frame(maxWidth: timer.checklist.isEmpty ? 420 : 860)
             .padding(40)
@@ -126,8 +138,14 @@ struct TimerOverlayView: View {
         }
         .padding(24)
         .frame(width: 360, height: 320, alignment: .topLeading)
-        .background(Color.white.opacity(0.7))
-        .cornerRadius(18)
+        .appCardStyle(
+            cornerRadius: 18,
+            borderColor: Color.blue.opacity(0.12),
+            shadowOpacity: 0.10,
+            shadowRadius: 12,
+            shadowY: 5,
+            tint: .blue
+        )
     }
 
     var progressColors: [Color] {

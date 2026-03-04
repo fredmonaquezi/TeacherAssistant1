@@ -113,14 +113,7 @@ struct AddClassView: View {
                                 .font(.body)
                                 .focused($isInputFocused)
                                 .padding()
-                                .background(
-                                    nameValidationMessage != nil ? Color.red.opacity(0.1) : Color.blue.opacity(0.1)
-                                )
-                                .cornerRadius(10)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(nameValidationMessage != nil ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
-                                )
+                                .appFieldStyle(tint: .blue, isInvalid: nameValidationMessage != nil)
                             
                             if let message = nameValidationMessage {
                                 HStack(spacing: 4) {
@@ -146,14 +139,7 @@ struct AddClassView: View {
                                 .font(.body)
                                 .focused($isInputFocused)
                                 .padding()
-                                .background(
-                                    gradeValidationMessage != nil ? Color.red.opacity(0.1) : Color.green.opacity(0.1)
-                                )
-                                .cornerRadius(10)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(gradeValidationMessage != nil ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
-                                )
+                                .appFieldStyle(tint: .green, isInvalid: gradeValidationMessage != nil)
                             
                             if let message = gradeValidationMessage {
                                 HStack(spacing: 4) {
@@ -179,14 +165,7 @@ struct AddClassView: View {
                                 .font(.body)
                                 .focused($isInputFocused)
                                 .padding()
-                                .background(
-                                    schoolYearValidationMessage != nil ? Color.red.opacity(0.1) : Color.orange.opacity(0.1)
-                                )
-                                .cornerRadius(10)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(schoolYearValidationMessage != nil ? Color.red.opacity(0.5) : Color.clear, lineWidth: 1)
-                                )
+                                .appFieldStyle(tint: .orange, isInvalid: schoolYearValidationMessage != nil)
 
                             if let message = schoolYearValidationMessage {
                                 HStack(spacing: 4) {
@@ -229,8 +208,14 @@ struct AddClassView: View {
                                     Spacer()
                                 }
                                 .padding()
-                                .background(Color.blue.opacity(0.05))
-                                .cornerRadius(10)
+                                .appCardStyle(
+                                    cornerRadius: 10,
+                                    borderColor: Color.blue.opacity(0.12),
+                                    shadowOpacity: 0.04,
+                                    shadowRadius: 6,
+                                    shadowY: 2,
+                                    tint: .blue
+                                )
                             }
                         }
                         
@@ -244,13 +229,28 @@ struct AddClassView: View {
                                 .foregroundColor(.secondary)
                         }
                         .padding()
-                        .background(Color.yellow.opacity(0.1))
-                        .cornerRadius(10)
+                        .appCardStyle(
+                            cornerRadius: 10,
+                            borderColor: Color.yellow.opacity(0.18),
+                            shadowOpacity: 0.03,
+                            shadowRadius: 4,
+                            shadowY: 1,
+                            tint: .yellow
+                        )
                     }
                     .padding()
+                    .appCardStyle(
+                        cornerRadius: 18,
+                        borderColor: Color.blue.opacity(0.10),
+                        shadowRadius: 10,
+                        shadowY: 4,
+                        tint: .blue
+                    )
+                    .padding(.horizontal)
                     
                 }
             }
+            .appSheetBackground(tint: .blue)
             .navigationTitle(isEditing ? "Edit Class".localized : "New Class".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -28,6 +28,7 @@ struct CopyCriteriaSheet: View {
                 }
             }
         }
+        .appSheetBackground(tint: .orange)
     }
     
     // MARK: - Choose Subject View
@@ -51,6 +52,12 @@ struct CopyCriteriaSheet: View {
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
+                .padding(.horizontal)
+                .appCardStyle(
+                    cornerRadius: 16,
+                    borderColor: Color.orange.opacity(0.14),
+                    tint: .orange
+                )
                 
                 // Subjects Grid
                 let subjects = subjectsInCurrentClass()
@@ -71,6 +78,14 @@ struct CopyCriteriaSheet: View {
                             .multilineTextAlignment(.center)
                     }
                     .padding(40)
+                    .appCardStyle(
+                        cornerRadius: 12,
+                        borderColor: Color.orange.opacity(0.10),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2,
+                        tint: .orange
+                    )
                 } else {
                     LazyVGrid(columns: [
                         GridItem(.adaptive(minimum: 200), spacing: 16)
@@ -121,11 +136,11 @@ struct CopyCriteriaSheet: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+            .appCardStyle(
+                cornerRadius: 12,
+                borderColor: Color.blue.opacity(0.20),
+                lineWidth: 1.6,
+                tint: .blue
             )
         }
         .buttonStyle(.plain)
@@ -154,6 +169,12 @@ struct CopyCriteriaSheet: View {
                     }
                 }
                 .padding(.top, 40)
+                .padding(.horizontal)
+                .appCardStyle(
+                    cornerRadius: 16,
+                    borderColor: Color.green.opacity(0.14),
+                    tint: .green
+                )
                 
                 // Units List
                 if let subject = selectedSubject {
@@ -175,6 +196,14 @@ struct CopyCriteriaSheet: View {
                                 .multilineTextAlignment(.center)
                         }
                         .padding(40)
+                        .appCardStyle(
+                            cornerRadius: 12,
+                            borderColor: Color.green.opacity(0.10),
+                            shadowOpacity: 0.03,
+                            shadowRadius: 5,
+                            shadowY: 2,
+                            tint: .green
+                        )
                     } else {
                         VStack(spacing: 12) {
                             ForEach(units, id: \.id) { sourceUnit in
@@ -236,9 +265,11 @@ struct CopyCriteriaSheet: View {
                     .foregroundColor(.secondary)
             }
             .padding()
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+            .appCardStyle(
+                cornerRadius: 12,
+                borderColor: Color.green.opacity(0.12),
+                tint: .green
+            )
         }
         .buttonStyle(.plain)
     }
@@ -289,8 +320,14 @@ struct CopyCriteriaSheet: View {
                                 Spacer()
                             }
                             .padding()
-                            .background(Color.green.opacity(0.1))
-                            .cornerRadius(10)
+                            .appCardStyle(
+                                cornerRadius: 10,
+                                borderColor: Color.green.opacity(0.14),
+                                shadowOpacity: 0.03,
+                                shadowRadius: 4,
+                                shadowY: 1,
+                                tint: .green
+                            )
                         }
                         
                         // Arrow
@@ -324,14 +361,23 @@ struct CopyCriteriaSheet: View {
                                 Spacer()
                             }
                             .padding()
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(10)
+                            .appCardStyle(
+                                cornerRadius: 10,
+                                borderColor: Color.blue.opacity(0.14),
+                                shadowOpacity: 0.03,
+                                shadowRadius: 4,
+                                shadowY: 1,
+                                tint: .blue
+                            )
                         }
                     }
                 }
                 .padding()
-                .background(Color.gray.opacity(0.05))
-                .cornerRadius(16)
+                .appCardStyle(
+                    cornerRadius: 16,
+                    borderColor: Color.orange.opacity(0.10),
+                    tint: .orange
+                )
                 .padding(.horizontal)
                 
                 // Info message

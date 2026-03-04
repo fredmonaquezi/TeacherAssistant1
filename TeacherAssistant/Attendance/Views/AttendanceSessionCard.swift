@@ -29,8 +29,13 @@ struct AttendanceSessionCard: View {
                     showingDeleteAlert = true
                 }) {
                     Image(systemName: "trash")
-                        .font(.body)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(.red)
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill(Color.red.opacity(0.10))
+                        )
                 }
                 .buttonStyle(.plain)
                 .help(languageManager.localized("Delete session"))
@@ -87,7 +92,7 @@ struct AttendanceSessionCard: View {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.2))
+                            .fill(AppChrome.elevatedBackground)
                             .frame(height: 6)
                         
                         RoundedRectangle(cornerRadius: 4)
@@ -100,13 +105,10 @@ struct AttendanceSessionCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackgroundColor)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        .appCardStyle(
+            borderColor: rateColor.opacity(0.16),
+            tint: rateColor
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         .alert(languageManager.localized("Delete Session?"), isPresented: $showingDeleteAlert) {
             Button(languageManager.localized("Cancel"), role: .cancel) {}
             Button(languageManager.localized("Delete"), role: .destructive) {
@@ -134,6 +136,11 @@ struct AttendanceSessionCard: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(AppChrome.elevatedBackground)
+        )
     }
     
     var presentCount: Int {
@@ -181,11 +188,4 @@ struct AttendanceSessionCard: View {
         }
     }
     
-    var cardBackgroundColor: Color {
-        #if os(macOS)
-        return Color(NSColor.controlBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
-    }
 }

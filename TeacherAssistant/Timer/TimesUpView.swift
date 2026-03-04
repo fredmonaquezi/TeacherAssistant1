@@ -59,9 +59,14 @@ struct TimesUpView: View {
                     .foregroundColor(.red)
                     .padding(.horizontal, 40)
                     .padding(.vertical, 20)
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                    .appCardStyle(
+                        cornerRadius: 18,
+                        borderColor: Color.white.opacity(0.35),
+                        lineWidth: 1.2,
+                        shadowOpacity: 0.16,
+                        shadowRadius: 14,
+                        shadowY: 6
+                    )
                 }
                 .buttonStyle(.plain)
             }

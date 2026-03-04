@@ -1,12 +1,6 @@
 import SwiftUI
 import SwiftData
 
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
-
 struct DevelopmentTrackerSheet: View {
     let student: Student
     
@@ -51,6 +45,7 @@ struct DevelopmentTrackerSheet: View {
                 }
                 .padding()
             }
+            .appSheetBackground(tint: .purple)
             .navigationTitle("Development Tracking".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -106,8 +101,10 @@ struct DevelopmentTrackerSheet: View {
             Spacer()
         }
         .padding()
-        .background(Color.purple.opacity(0.1))
-        .cornerRadius(12)
+        .appCardStyle(
+            borderColor: Color.purple.opacity(0.14),
+            tint: .purple
+        )
     }
     
     // MARK: - Template Selector
@@ -126,9 +123,20 @@ struct DevelopmentTrackerSheet: View {
             }
             .pickerStyle(.menu)
             .padding()
-            .background(Color.white)
-            .cornerRadius(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(AppChrome.elevatedBackground)
+            )
         }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.purple.opacity(0.12),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .purple
+        )
     }
     
     func categorySection(_ category: RubricCategory) -> some View {
@@ -149,8 +157,11 @@ struct DevelopmentTrackerSheet: View {
             }
         }
         .padding(16)
-        .background(Color.purple.opacity(0.08))
-        .cornerRadius(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.purple.opacity(0.12),
+            tint: .purple
+        )
     }
     
     // MARK: - Criterion Card
@@ -232,11 +243,13 @@ struct DevelopmentTrackerSheet: View {
             }
         }
         .padding(16)
-        .background(cardBackground)  // ← Platform-appropriate background
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.purple.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .purple
         )
     }
     
@@ -357,12 +370,5 @@ struct DevelopmentTrackerSheet: View {
             }
         }
         return nil
-    }
-    var cardBackground: Color {
-        #if os(macOS)
-        return Color(NSColor.controlBackgroundColor)
-        #else
-        return Color(UIColor.secondarySystemBackground)
-        #endif
     }
 }

@@ -22,7 +22,7 @@ struct ClassPickerView: View {
     
     var classPickerContent: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: PlatformSpacing.sectionSpacing) {
                 
                 // Tool info card
                 toolInfoCard
@@ -46,12 +46,18 @@ struct ClassPickerView: View {
                 .font(.system(size: 40))
                 .foregroundColor(toolColor)
                 .frame(width: 60, height: 60)
-                .background(toolColor.opacity(0.15))
-                .cornerRadius(12)
+                .appCardStyle(
+                    cornerRadius: 12,
+                    borderColor: toolColor.opacity(0.16),
+                    shadowOpacity: 0.03,
+                    shadowRadius: 5,
+                    shadowY: 2,
+                    tint: toolColor
+                )
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(toolTitle)
-                    .font(.title2)
+                    .font(.title3.weight(.semibold))
                     .fontWeight(.semibold)
                 
                 Text(toolDescription)
@@ -62,8 +68,11 @@ struct ClassPickerView: View {
             Spacer()
         }
         .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(12)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: toolColor.opacity(0.12),
+            tint: toolColor
+        )
         .padding(.horizontal)
     }
     
@@ -72,7 +81,7 @@ struct ClassPickerView: View {
     var classesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Select a Class".localized)
-                .font(.headline)
+                .font(AppTypography.sectionTitle)
                 .padding(.horizontal)
             
             if classes.isEmpty {
@@ -102,7 +111,7 @@ struct ClassPickerView: View {
                 .foregroundColor(.secondary)
             
             Text("No classes yet".localized)
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .foregroundColor(.secondary)
             
             Text(String(format: "Create a class first to use %@".localized, toolTitle))
@@ -112,6 +121,15 @@ struct ClassPickerView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(40)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: toolColor.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: toolColor
+        )
+        .padding(.horizontal)
     }
     
     // MARK: - Tool Properties
