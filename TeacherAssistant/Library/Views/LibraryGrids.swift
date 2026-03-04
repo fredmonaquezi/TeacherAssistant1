@@ -314,14 +314,14 @@ struct FolderCardView: View {
         let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             folder.name = trimmed
-            try? context.save()
+            _ = SaveCoordinator.save(context: context, reason: "Rename library folder")
         }
         onEndRename()
     }
     
     func deleteFolder() {
         context.delete(folder)
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Delete library folder")
     }
     
     // MARK: - Drag and Drop
@@ -363,12 +363,12 @@ struct FolderCardView: View {
         guard !isDescendant(targetFolder, of: draggedFolder) else { return }
         
         draggedFolder.parentID = targetFolder.id
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Move library folder")
     }
     
     func moveFile(_ file: LibraryFile, into targetFolder: LibraryFolder) {
         file.parentFolderID = targetFolder.id
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Move library file")
     }
     
     func isDescendant(_ possibleChild: LibraryFolder, of parent: LibraryFolder) -> Bool {
@@ -393,7 +393,7 @@ struct FolderCardView: View {
             colorHex: folder.colorHex
         )
         context.insert(duplicate)
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Duplicate library folder")
     }
     
     func showInFinder() {
@@ -436,8 +436,9 @@ struct FolderCardView: View {
                     // Reset to default
                     Button {
                         folder.colorHex = nil
-                        try? context.save()
-                        showingColorPicker = false
+                        if SaveCoordinator.save(context: context, reason: "Reset library folder color") {
+                            showingColorPicker = false
+                        }
                     } label: {
                         HStack {
                             Image(systemName: "arrow.counterclockwise")
@@ -475,7 +476,7 @@ struct FolderCardView: View {
         
         return Button {
             folder.colorHex = colorOption.hex
-            try? context.save()
+            _ = SaveCoordinator.save(context: context, reason: "Update library folder color")
         } label: {
             VStack(spacing: 12) {
                 ZStack {
@@ -909,14 +910,14 @@ struct PDFCardView: View {
         let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             file.name = trimmed
-            try? context.save()
+            _ = SaveCoordinator.save(context: context, reason: "Rename library file")
         }
         onEndRename()
     }
     
     func deleteFile() {
         context.delete(file)
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Delete library file")
     }
     
     // MARK: - Thumbnail Generation

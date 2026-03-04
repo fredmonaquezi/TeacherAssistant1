@@ -1,0 +1,52 @@
+{
+  "classes": [
+    {
+      "name": "Legacy Room",
+      "grade": "3",
+      "school_year": "2023-2024",
+      "sort_order": 2,
+      "students": [
+        {
+          "name": "Legacy Student",
+          "sortOrder": 1,
+          "isParticipatingWell": true,
+          "needsHelp": false,
+          "missingHomework": true
+        }
+      ],
+      "categories": [
+        {
+          "title": "Writing"
+        }
+      ],
+      "subjects": [
+        {
+          "name": "Language Arts",
+          "sortOrder": 0,
+          "units": [
+            {
+              "name": "Narrative Unit",
+              "sortOrder": 0,
+              "assessments": [
+                {
+                  "title": "Personal Narrative",
+                  "details": "Draft submission",
+                  "date": "2024-01-15T12:00:00Z",
+                  "maxScore": 20,
+                  "sortOrder": 0,
+                  "results": [
+                    {
+                      "studentName": "Legacy Student",
+                      "score": 18,
+                      "notes": "Strong detail"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -531,7 +531,7 @@ struct StudentDetailView: View {
     }
 
     func getLatestDevelopmentScores() -> [DevelopmentScore]? {
-        let studentScores = allScores.filter { $0.student?.id == student.id }
+        let studentScores = allScores.filter { $0.matchesStudent(student) }
         
         guard !studentScores.isEmpty else { return nil }
         

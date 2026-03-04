@@ -2157,7 +2157,7 @@ struct StudentProgressView: View {
     // MARK: - Development Tab
     
     var studentDevelopmentScores: [DevelopmentScore] {
-        allDevelopmentScores.filter { $0.student?.id == student.id }
+        allDevelopmentScores.filter { $0.matchesStudent(student) }
     }
     
     var latestDevelopmentScores: [DevelopmentScore] {

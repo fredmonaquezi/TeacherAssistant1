@@ -1,0 +1,17 @@
+name: Durability Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  durability-tests:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run macOS durability tests
+        run: xcodebuild -project TeacherAssistant.xcodeproj -scheme TeacherAssistant -configuration Debug -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO

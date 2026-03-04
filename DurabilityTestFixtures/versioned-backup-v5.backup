@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 5,
+  "createdAt": "2025-02-10T15:30:00Z",
+  "appVersion": "5.4.0",
+  "classes": [
+    {
+      "name": "Versioned Room",
+      "grade": "5",
+      "schoolYear": "2024-2025",
+      "sortOrder": 1,
+      "students": [
+        {
+          "uuid": "6A7F1E5E-8E1D-4A87-8E51-6D4F2C1B2A31",
+          "name": "Versioned Student",
+          "sortOrder": 0,
+          "isParticipatingWell": true,
+          "needsHelp": false,
+          "missingHomework": false,
+          "assessmentScores": [
+            {
+              "value": 3
+            }
+          ]
+        }
+      ],
+      "categories": [
+        {
+          "title": "Science"
+        }
+      ],
+      "attendanceSessions": [],
+      "subjects": []
+    }
+  ],
+  "runningRecords": [
+    {
+      "studentUUID": "6A7F1E5E-8E1D-4A87-8E51-6D4F2C1B2A31",
+      "date": "2025-02-03T13:00:00Z",
+      "textTitle": "Volcanoes",
+      "bookLevel": "R",
+      "totalWords": 120,
+      "errors": 4,
+      "selfCorrections": 2,
+      "notes": "Needed help with two words"
+    }
+  ],
+  "rubricTemplates": [],
+  "developmentScores": [],
+  "calendarEvents": [],
+  "classDiaryEntries": [],
+  "appSettings": {
+    "appLanguage": "pt-BR",
+    "helperRotation": "Ada",
+    "guardianRotation": "",
+    "lineLeaderRotation": "",
+    "messengerRotation": "",
+    "customCategoriesData": "",
+    "customRotationData": ""
+  }
+}

@@ -523,7 +523,9 @@ struct AddRunningRecordView: View {
         if existingRecord == nil {
             context.insert(record)
         }
-        try? context.save()
+        guard SaveCoordinator.save(context: context, reason: "Save running record") else {
+            return
+        }
 
         dismiss()
     }

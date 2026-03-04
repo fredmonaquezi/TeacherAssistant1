@@ -435,8 +435,9 @@ struct RunningRecordDetailView: View {
                 
                 Button(languageManager.localized("Delete"), role: .destructive) {
                     context.delete(record)
-                    try? context.save()
-                    dismiss()
+                    if SaveCoordinator.save(context: context, reason: "Delete running record symbol guide") {
+                        dismiss()
+                    }
                 }
             } message: {
                 Text(languageManager.localized("Are you sure you want to delete this running record? This action cannot be undone."))

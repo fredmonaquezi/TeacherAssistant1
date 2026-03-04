@@ -216,7 +216,7 @@ struct SimplePDFExporter {
         }
         
         // Development Tracking
-        let developmentScores = allDevelopmentScores.filter { $0.student?.id == student.id }
+        let developmentScores = allDevelopmentScores.filter { $0.matchesStudent(student) }
         
         if !developmentScores.isEmpty {
             text += "\n◆ ◆ ◆\n\n"

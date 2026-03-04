@@ -30,7 +30,7 @@ func createDefaultRubrics(context: ModelContext) {
     // HIGH SCHOOL (Years 10-12)
     createHighSchoolTemplates(context: context)
     
-    try? context.save()
+    _ = SaveCoordinator.save(context: context, reason: "Create default rubric templates")
     SecureLogger.debug("Default rubric templates created successfully")
 }
 

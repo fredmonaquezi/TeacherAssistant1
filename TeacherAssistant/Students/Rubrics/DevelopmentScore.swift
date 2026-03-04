@@ -9,6 +9,8 @@ class DevelopmentScore {
     var rating: Int // 1-5
     var date: Date
     var notes: String
+    var studentUUIDValue: UUID?
+    var criterionIDValue: UUID?
     
     var student: Student?
     var criterion: RubricCriterion?
@@ -20,11 +22,50 @@ class DevelopmentScore {
         self.rating = rating
         self.notes = notes
         self.date = date
+        self.studentUUIDValue = student.uuid
+        self.criterionIDValue = criterion.id
     }
 }
 
 // Rating labels
 extension DevelopmentScore {
+    var storedStudentUUID: UUID? {
+        studentUUIDValue
+    }
+
+    var storedCriterionID: UUID? {
+        criterionIDValue
+    }
+
+    var hasStableReferenceCache: Bool {
+        studentUUIDValue != nil && criterionIDValue != nil
+    }
+
+    @discardableResult
+    func cacheStableReferences(student: Student? = nil, criterion: RubricCriterion? = nil) -> Bool {
+        var didChange = false
+
+        if let student, studentUUIDValue != student.uuid {
+            studentUUIDValue = student.uuid
+            didChange = true
+        }
+
+        if let criterion, criterionIDValue != criterion.id {
+            criterionIDValue = criterion.id
+            didChange = true
+        }
+
+        return didChange
+    }
+
+    func matchesStudent(_ student: Student) -> Bool {
+        if let storedStudentUUID {
+            return storedStudentUUID == student.uuid
+        }
+
+        return self.student?.id == student.id
+    }
+
     var ratingLabel: String {
         switch rating {
         case 1: return "Needs Significant Support".localized

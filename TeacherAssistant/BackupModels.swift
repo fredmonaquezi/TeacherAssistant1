@@ -109,6 +109,7 @@ struct BackupStudent: Codable {
     var needsHelp: Bool
     var missingHomework: Bool
     var separationList: String
+    var assessmentScores: [BackupAssessmentScore]
 
     init(
         uuid: UUID = UUID(),
@@ -121,7 +122,8 @@ struct BackupStudent: Codable {
         isParticipatingWell: Bool,
         needsHelp: Bool,
         missingHomework: Bool,
-        separationList: String = ""
+        separationList: String = "",
+        assessmentScores: [BackupAssessmentScore] = []
     ) {
         self.uuid = uuid
         self.name = name
@@ -134,6 +136,7 @@ struct BackupStudent: Codable {
         self.needsHelp = needsHelp
         self.missingHomework = missingHomework
         self.separationList = separationList
+        self.assessmentScores = assessmentScores
     }
 
     enum CodingKeys: String, CodingKey {
@@ -148,6 +151,7 @@ struct BackupStudent: Codable {
         case needsHelp
         case missingHomework
         case separationList
+        case assessmentScores
     }
 
     init(from decoder: Decoder) throws {
@@ -163,7 +167,12 @@ struct BackupStudent: Codable {
         needsHelp = try container.decodeIfPresent(Bool.self, forKey: .needsHelp) ?? false
         missingHomework = try container.decodeIfPresent(Bool.self, forKey: .missingHomework) ?? false
         separationList = try container.decodeIfPresent(String.self, forKey: .separationList) ?? ""
+        assessmentScores = try container.decodeIfPresent([BackupAssessmentScore].self, forKey: .assessmentScores) ?? []
     }
+}
+
+struct BackupAssessmentScore: Codable {
+    var value: Int
 }
 
 struct BackupSubject: Codable {
@@ -368,6 +377,23 @@ struct BackupClassDiaryEntry: Codable {
     var unitID: UUID?
 }
 
+struct BackupLibraryFolder: Codable {
+    var id: UUID
+    var name: String
+    var parentID: UUID?
+    var colorHex: String?
+}
+
+struct BackupLibraryFile: Codable {
+    var id: UUID
+    var name: String
+    var pdfData: Data
+    var parentFolderID: UUID
+    var drawingData: Data?
+    var linkedSubjectID: UUID?
+    var linkedUnitID: UUID?
+}
+
 struct BackupAppSettings: Codable {
     var appLanguage: String?
     var helperRotation: String
@@ -376,4 +402,73 @@ struct BackupAppSettings: Codable {
     var messengerRotation: String
     var customCategoriesData: String
     var customRotationData: String
+    var dateFormat: String
+    var timeFormat: String
+    var defaultLandingSection: String
+    var timerCustomMinutes: Int
+    var timerCustomSeconds: Int
+    var timerCustomChecklistText: String
+
+    init(
+        appLanguage: String?,
+        helperRotation: String,
+        guardianRotation: String,
+        lineLeaderRotation: String,
+        messengerRotation: String,
+        customCategoriesData: String,
+        customRotationData: String,
+        dateFormat: String,
+        timeFormat: String,
+        defaultLandingSection: String,
+        timerCustomMinutes: Int,
+        timerCustomSeconds: Int,
+        timerCustomChecklistText: String
+    ) {
+        self.appLanguage = appLanguage
+        self.helperRotation = helperRotation
+        self.guardianRotation = guardianRotation
+        self.lineLeaderRotation = lineLeaderRotation
+        self.messengerRotation = messengerRotation
+        self.customCategoriesData = customCategoriesData
+        self.customRotationData = customRotationData
+        self.dateFormat = dateFormat
+        self.timeFormat = timeFormat
+        self.defaultLandingSection = defaultLandingSection
+        self.timerCustomMinutes = timerCustomMinutes
+        self.timerCustomSeconds = timerCustomSeconds
+        self.timerCustomChecklistText = timerCustomChecklistText
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case appLanguage
+        case helperRotation
+        case guardianRotation
+        case lineLeaderRotation
+        case messengerRotation
+        case customCategoriesData
+        case customRotationData
+        case dateFormat
+        case timeFormat
+        case defaultLandingSection
+        case timerCustomMinutes
+        case timerCustomSeconds
+        case timerCustomChecklistText
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        appLanguage = try container.decodeIfPresent(String.self, forKey: .appLanguage)
+        helperRotation = try container.decodeIfPresent(String.self, forKey: .helperRotation) ?? ""
+        guardianRotation = try container.decodeIfPresent(String.self, forKey: .guardianRotation) ?? ""
+        lineLeaderRotation = try container.decodeIfPresent(String.self, forKey: .lineLeaderRotation) ?? ""
+        messengerRotation = try container.decodeIfPresent(String.self, forKey: .messengerRotation) ?? ""
+        customCategoriesData = try container.decodeIfPresent(String.self, forKey: .customCategoriesData) ?? ""
+        customRotationData = try container.decodeIfPresent(String.self, forKey: .customRotationData) ?? ""
+        dateFormat = try container.decodeIfPresent(String.self, forKey: .dateFormat) ?? AppDateFormatPreference.system.rawValue
+        timeFormat = try container.decodeIfPresent(String.self, forKey: .timeFormat) ?? AppTimeFormatPreference.system.rawValue
+        defaultLandingSection = try container.decodeIfPresent(String.self, forKey: .defaultLandingSection) ?? AppSection.dashboard.rawValue
+        timerCustomMinutes = try container.decodeIfPresent(Int.self, forKey: .timerCustomMinutes) ?? 5
+        timerCustomSeconds = try container.decodeIfPresent(Int.self, forKey: .timerCustomSeconds) ?? 0
+        timerCustomChecklistText = try container.decodeIfPresent(String.self, forKey: .timerCustomChecklistText) ?? ""
+    }
 }

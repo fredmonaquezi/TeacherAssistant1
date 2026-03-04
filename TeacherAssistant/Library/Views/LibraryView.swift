@@ -340,20 +340,21 @@ struct LibraryView: View {
     func createFolder() {
         let newFolder = LibraryFolder(name: "New Folder", parentID: folderID)
         context.insert(newFolder)
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Create library folder")
     }
 
     func renameFolder(to newName: String) {
         guard let folder = folder else { return }
         folder.name = newName
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Rename current library folder")
     }
 
     func deleteCurrentFolder() {
         guard let folder = folder, folder.parentID != nil else { return }
         deleteFolderRecursively(folder)
-        try? context.save()
-        dismiss()
+        if SaveCoordinator.save(context: context, reason: "Delete current library folder") {
+            dismiss()
+        }
     }
 
     func deleteSelection() {
@@ -369,8 +370,9 @@ struct LibraryView: View {
             }
         }
 
-        try? context.save()
-        exitSelectMode()
+        if SaveCoordinator.save(context: context, reason: "Delete library selection") {
+            exitSelectMode()
+        }
     }
 
     func deleteFolderRecursively(_ folder: LibraryFolder) {
@@ -437,7 +439,7 @@ struct LibraryView: View {
         newFile.linkedUnit = unit
 
         context.insert(newFile)
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Import PDF into library")
     }
     
     func moveSelection(to destination: LibraryFolder) {
@@ -467,8 +469,9 @@ struct LibraryView: View {
             }
         }
 
-        try? context.save()
-        exitSelectMode()
+        if SaveCoordinator.save(context: context, reason: "Move library selection") {
+            exitSelectMode()
+        }
     }
     
     func isDescendant(_ possibleChild: LibraryFolder, of parent: LibraryFolder) -> Bool {

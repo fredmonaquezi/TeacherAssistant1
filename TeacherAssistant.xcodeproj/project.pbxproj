@@ -6,9 +6,20 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		D801000A2F30000100AAA001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B663FA5B2F1EA65C00FEB0C1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B663FA622F1EA65C00FEB0C1;
+			remoteInfo = TeacherAssistant;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		B65443072F27F91000BDAE9A /* TeacherAssistantMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeacherAssistantMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B663FA632F1EA65C00FEB0C1 /* TeacherAssistant.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeacherAssistant.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D80100012F30000100AAA001 /* TeacherAssistantDurabilityTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TeacherAssistantDurabilityTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -40,6 +51,11 @@
 			path = TeacherAssistant;
 			sourceTree = "<group>";
 		};
+		D80100022F30000100AAA001 /* TeacherAssistant/DurabilityTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TeacherAssistant/DurabilityTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,12 +73,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D80100032F30000100AAA001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		B663FA5A2F1EA65C00FEB0C1 = {
 			isa = PBXGroup;
 			children = (
+				D80100022F30000100AAA001 /* TeacherAssistant/DurabilityTests */,
 				B663FA652F1EA65C00FEB0C1 /* TeacherAssistant */,
 				B65443082F27F91000BDAE9A /* TeacherAssistantMac */,
 				B663FA642F1EA65C00FEB0C1 /* Products */,
@@ -72,6 +96,7 @@
 		B663FA642F1EA65C00FEB0C1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				D80100012F30000100AAA001 /* TeacherAssistantDurabilityTests.xctest */,
 				B663FA632F1EA65C00FEB0C1 /* TeacherAssistant.app */,
 				B65443072F27F91000BDAE9A /* TeacherAssistantMac.app */,
 			);
@@ -126,6 +151,29 @@
 			productReference = B663FA632F1EA65C00FEB0C1 /* TeacherAssistant.app */;
 			productType = "com.apple.product-type.application";
 		};
+		D80100062F30000100AAA001 /* TeacherAssistantDurabilityTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D80100092F30000100AAA001 /* Build configuration list for PBXNativeTarget "TeacherAssistantDurabilityTests" */;
+			buildPhases = (
+				D80100042F30000100AAA001 /* Sources */,
+				D80100032F30000100AAA001 /* Frameworks */,
+				D80100052F30000100AAA001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D801000B2F30000100AAA001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D80100022F30000100AAA001 /* TeacherAssistant/DurabilityTests */,
+			);
+			name = TeacherAssistantDurabilityTests;
+			packageProductDependencies = (
+			);
+			productName = TeacherAssistantDurabilityTests;
+			productReference = D80100012F30000100AAA001 /* TeacherAssistantDurabilityTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -140,6 +188,9 @@
 						CreatedOnToolsVersion = 26.2;
 					};
 					B663FA622F1EA65C00FEB0C1 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					D80100062F30000100AAA001 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -159,6 +210,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				D80100062F30000100AAA001 /* TeacherAssistantDurabilityTests */,
 				B663FA622F1EA65C00FEB0C1 /* TeacherAssistant */,
 				B65443062F27F91000BDAE9A /* TeacherAssistantMac */,
 			);
@@ -174,6 +226,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B663FA612F1EA65C00FEB0C1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D80100052F30000100AAA001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -197,7 +256,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D80100042F30000100AAA001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D801000B2F30000100AAA001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B663FA622F1EA65C00FEB0C1 /* TeacherAssistant */;
+			targetProxy = D801000A2F30000100AAA001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		B65443122F27F91100BDAE9A /* Debug */ = {
@@ -545,6 +619,56 @@
 			};
 			name = Release;
 		};
+		D80100072F30000100AAA001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7PPY2E2NY4;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frederico.TeacherAssistantDurabilityTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG DURABILITY_TESTS $(inherited)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TeacherAssistant.app/Contents/MacOS/TeacherAssistant";
+				TEST_TARGET_NAME = TeacherAssistant;
+			};
+			name = Debug;
+		};
+		D80100082F30000100AAA001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7PPY2E2NY4;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frederico.TeacherAssistantDurabilityTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DURABILITY_TESTS $(inherited)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TeacherAssistant.app/Contents/MacOS/TeacherAssistant";
+				TEST_TARGET_NAME = TeacherAssistant;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -571,6 +695,15 @@
 			buildConfigurations = (
 				B663FA712F1EA65D00FEB0C1 /* Debug */,
 				B663FA722F1EA65D00FEB0C1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D80100092F30000100AAA001 /* Build configuration list for PBXNativeTarget "TeacherAssistantDurabilityTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D80100072F30000100AAA001 /* Debug */,
+				D80100082F30000100AAA001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

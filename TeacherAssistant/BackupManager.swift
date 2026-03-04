@@ -2,7 +2,7 @@ import SwiftData
 import Foundation
 
 /// Current backup schema version for compatibility checking
-private let currentBackupSchemaVersion = 5
+private let currentBackupSchemaVersion = 6
 
 extension Notification.Name {
     static let backupRestoreDidComplete = Notification.Name("BackupRestoreDidComplete")
@@ -17,6 +17,12 @@ private let randomPickerSettingsKeys: [String] = [
     "customRotationData"
 ]
 
+private enum TimerPreferenceKeys {
+    static let customMinutes = "ta_timer_custom_minutes"
+    static let customSeconds = "ta_timer_custom_seconds"
+    static let customChecklistText = "ta_timer_custom_checklist_text"
+}
+
 /// Extended backup file structure with versioning
 struct VersionedBackupFile: Codable {
     var schemaVersion: Int
@@ -28,6 +34,8 @@ struct VersionedBackupFile: Codable {
     var developmentScores: [BackupDevelopmentScore]
     var calendarEvents: [BackupCalendarEvent]
     var classDiaryEntries: [BackupClassDiaryEntry]
+    var libraryFolders: [BackupLibraryFolder]
+    var libraryFiles: [BackupLibraryFile]
     var usefulLinks: [BackupUsefulLink]
     var appSettings: BackupAppSettings?
 
@@ -38,6 +46,8 @@ struct VersionedBackupFile: Codable {
         developmentScores: [BackupDevelopmentScore],
         calendarEvents: [BackupCalendarEvent],
         classDiaryEntries: [BackupClassDiaryEntry],
+        libraryFolders: [BackupLibraryFolder],
+        libraryFiles: [BackupLibraryFile],
         usefulLinks: [BackupUsefulLink],
         appSettings: BackupAppSettings?
     ) {
@@ -50,6 +60,8 @@ struct VersionedBackupFile: Codable {
         self.developmentScores = developmentScores
         self.calendarEvents = calendarEvents
         self.classDiaryEntries = classDiaryEntries
+        self.libraryFolders = libraryFolders
+        self.libraryFiles = libraryFiles
         self.usefulLinks = usefulLinks
         self.appSettings = appSettings
     }
@@ -64,6 +76,8 @@ struct VersionedBackupFile: Codable {
         case developmentScores
         case calendarEvents
         case classDiaryEntries
+        case libraryFolders
+        case libraryFiles
         case usefulLinks
         case appSettings
     }
@@ -79,9 +93,24 @@ struct VersionedBackupFile: Codable {
         developmentScores = try container.decodeIfPresent([BackupDevelopmentScore].self, forKey: .developmentScores) ?? []
         calendarEvents = try container.decodeIfPresent([BackupCalendarEvent].self, forKey: .calendarEvents) ?? []
         classDiaryEntries = try container.decodeIfPresent([BackupClassDiaryEntry].self, forKey: .classDiaryEntries) ?? []
+        libraryFolders = try container.decodeIfPresent([BackupLibraryFolder].self, forKey: .libraryFolders) ?? []
+        libraryFiles = try container.decodeIfPresent([BackupLibraryFile].self, forKey: .libraryFiles) ?? []
         usefulLinks = try container.decodeIfPresent([BackupUsefulLink].self, forKey: .usefulLinks) ?? []
         appSettings = try container.decodeIfPresent(BackupAppSettings.self, forKey: .appSettings)
     }
+}
+
+private struct DecodedBackupPayload {
+    var classes: [BackupClass]
+    var runningRecords: [BackupRunningRecord]
+    var rubricTemplates: [BackupRubricTemplate]
+    var developmentScores: [BackupDevelopmentScore]
+    var calendarEvents: [BackupCalendarEvent]
+    var classDiaryEntries: [BackupClassDiaryEntry]
+    var libraryFolders: [BackupLibraryFolder]
+    var libraryFiles: [BackupLibraryFile]
+    var usefulLinks: [BackupUsefulLink]
+    var appSettings: BackupAppSettings?
 }
 
 @MainActor
@@ -112,6 +141,21 @@ final class BackupManager {
         
         SecureLogger.operationStart("Backup Export")
 
+        let data = try encodedBackupData(from: context)
+        let url = try writeBackupData(
+            data,
+            baseName: "TeacherAssistant",
+            directory: FileManager.default.temporaryDirectory,
+            scheduleCleanup: true
+        )
+        
+        SecureLogger.operationComplete("Backup Export")
+        
+        return url
+    }
+
+    private static func encodedBackupData(from context: ModelContext) throws -> Data {
+
         if context.hasChanges {
             try context.save()
         }
@@ -123,8 +167,11 @@ final class BackupManager {
         let allStudents = try exportContext.fetch(FetchDescriptor<Student>())
         let allRunningRecords = try exportContext.fetch(FetchDescriptor<RunningRecord>())
         let allRubricTemplates = try exportContext.fetch(FetchDescriptor<RubricTemplate>())
+        let allDevelopmentScores = try exportContext.fetch(FetchDescriptor<DevelopmentScore>())
         let allCalendarEvents = try exportContext.fetch(FetchDescriptor<CalendarEvent>())
         let allDiaryEntries = try exportContext.fetch(FetchDescriptor<ClassDiaryEntry>())
+        let allLibraryFolders = try exportContext.fetch(FetchDescriptor<LibraryFolder>())
+        let allLibraryFiles = try exportContext.fetch(FetchDescriptor<LibraryFile>())
         let allUsefulLinks = try exportContext.fetch(FetchDescriptor<UsefulLink>())
 
         var studentsByClassID: [PersistentIdentifier: [Student]] = [:]
@@ -157,7 +204,12 @@ final class BackupManager {
                         isParticipatingWell: s.isParticipatingWell,
                         needsHelp: s.needsHelp,
                         missingHomework: s.missingHomework,
-                        separationList: s.separationList
+                        separationList: s.separationList,
+                        assessmentScores: s.scores.map { score in
+                            BackupAssessmentScore(
+                                value: SecurityHelpers.validateCount(score.value, min: 0, max: 10)
+                            )
+                        }
                     )
                 )
             }
@@ -298,10 +350,28 @@ final class BackupManager {
             )
         }
 
-        // Some migrated databases contain stale DevelopmentScore->Student references.
-        // Accessing those can hard-fatal SwiftData, so we skip exporting development
-        // scores for now rather than crashing the entire backup flow.
-        let backupDevelopmentScores: [BackupDevelopmentScore] = []
+        let backupDevelopmentScores = allDevelopmentScores.compactMap { score -> BackupDevelopmentScore? in
+            guard let studentUUID = score.storedStudentUUID,
+                  let criterionID = score.storedCriterionID else {
+                return nil
+            }
+
+            return BackupDevelopmentScore(
+                id: score.id,
+                studentUUID: studentUUID,
+                criterionID: criterionID,
+                rating: SecurityHelpers.validateCount(score.rating, min: 1, max: 5),
+                date: score.date,
+                notes: SecurityHelpers.sanitizeNotes(score.notes)
+            )
+        }
+
+        let skippedDevelopmentScores = allDevelopmentScores.count - backupDevelopmentScores.count
+        if skippedDevelopmentScores > 0 {
+            SecureLogger.warning(
+                "Skipped \(skippedDevelopmentScores) development scores that still need reference recovery before backup"
+            )
+        }
 
         let backupCalendarEvents = allCalendarEvents.map { event in
             BackupCalendarEvent(
@@ -332,6 +402,39 @@ final class BackupManager {
             )
         }
 
+        let backupLibraryFolders = allLibraryFolders
+            .sorted { lhs, rhs in
+                if lhs.parentID == nil && rhs.parentID != nil {
+                    return true
+                }
+                if lhs.parentID != nil && rhs.parentID == nil {
+                    return false
+                }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+            .map { folder in
+                BackupLibraryFolder(
+                    id: folder.id,
+                    name: folder.name,
+                    parentID: folder.parentID,
+                    colorHex: folder.colorHex
+                )
+            }
+
+        let backupLibraryFiles = allLibraryFiles
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .map { file in
+                BackupLibraryFile(
+                    id: file.id,
+                    name: file.name,
+                    pdfData: file.pdfData,
+                    parentFolderID: file.parentFolderID,
+                    drawingData: file.drawingData,
+                    linkedSubjectID: file.linkedSubject?.id,
+                    linkedUnitID: file.linkedUnit?.id
+                )
+            }
+
         let backupUsefulLinks = allUsefulLinks
             .sorted {
                 if $0.sortOrder != $1.sortOrder {
@@ -361,7 +464,13 @@ final class BackupManager {
             lineLeaderRotation: defaults.string(forKey: "lineLeaderRotation") ?? "",
             messengerRotation: defaults.string(forKey: "messengerRotation") ?? "",
             customCategoriesData: defaults.string(forKey: "customCategoriesData") ?? "",
-            customRotationData: defaults.string(forKey: "customRotationData") ?? ""
+            customRotationData: defaults.string(forKey: "customRotationData") ?? "",
+            dateFormat: defaults.string(forKey: AppPreferencesKeys.dateFormat) ?? AppDateFormatPreference.system.rawValue,
+            timeFormat: defaults.string(forKey: AppPreferencesKeys.timeFormat) ?? AppTimeFormatPreference.system.rawValue,
+            defaultLandingSection: defaults.string(forKey: AppPreferencesKeys.defaultLandingSection) ?? AppSection.dashboard.rawValue,
+            timerCustomMinutes: defaults.object(forKey: TimerPreferenceKeys.customMinutes) as? Int ?? 5,
+            timerCustomSeconds: defaults.object(forKey: TimerPreferenceKeys.customSeconds) as? Int ?? 0,
+            timerCustomChecklistText: defaults.string(forKey: TimerPreferenceKeys.customChecklistText) ?? ""
         )
 
         // Create versioned backup
@@ -372,6 +481,8 @@ final class BackupManager {
             developmentScores: backupDevelopmentScores,
             calendarEvents: backupCalendarEvents,
             classDiaryEntries: backupClassDiaryEntries,
+            libraryFolders: backupLibraryFolders,
+            libraryFiles: backupLibraryFiles,
             usefulLinks: backupUsefulLinks,
             appSettings: backupAppSettings
         )
@@ -380,20 +491,73 @@ final class BackupManager {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         
-        let data = try encoder.encode(versionedBackup)
-        
-        // Use secure filename generation
-        let filename = SecurityHelpers.generateSecureFilename(baseName: "TeacherAssistant", extension: "backup")
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-        
+        return try encoder.encode(versionedBackup)
+    }
+
+    private static func writeBackupData(
+        _ data: Data,
+        baseName: String,
+        directory: URL,
+        scheduleCleanup: Bool
+    ) throws -> URL {
+        let filename = SecurityHelpers.generateSecureFilename(baseName: baseName, extension: "backup")
+        let url = directory.appendingPathComponent(filename)
+
         try data.write(to: url, options: [.atomic, .completeFileProtection])
-        
-        SecureLogger.operationComplete("Backup Export")
-        
-        // Schedule cleanup of temp file after 5 minutes
-        scheduleTemporaryFileCleanup(url: url, delay: 300)
-        
+
+        if scheduleCleanup {
+            self.scheduleTemporaryFileCleanup(url: url, delay: 300)
+        }
+
         return url
+    }
+
+    static func createPersistentSnapshot(
+        context: ModelContext,
+        baseName: String,
+        directory: URL
+    ) throws -> URL {
+        let data = try encodedBackupData(from: context)
+        return try writeBackupData(
+            data,
+            baseName: baseName,
+            directory: directory,
+            scheduleCleanup: false
+        )
+    }
+
+    static func latestLocalSnapshotURL() -> URL? {
+        let directories = [
+            try? applicationSupportSubdirectory(named: "AutomaticSnapshots", createIfMissing: false),
+            try? applicationSupportSubdirectory(named: "PreRestoreSnapshots", createIfMissing: false),
+        ]
+        .compactMap { $0 }
+
+        let resourceKeys: Set<URLResourceKey> = [.contentModificationDateKey, .creationDateKey]
+        var latestMatch: (url: URL, date: Date)?
+
+        for directory in directories {
+            guard let urls = try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: Array(resourceKeys),
+                options: [.skipsHiddenFiles]
+            ) else {
+                continue
+            }
+
+            for url in urls where url.pathExtension == "backup" {
+                guard let values = try? url.resourceValues(forKeys: resourceKeys),
+                      let snapshotDate = values.contentModificationDate ?? values.creationDate else {
+                    continue
+                }
+
+                if latestMatch == nil || snapshotDate > latestMatch!.date {
+                    latestMatch = (url, snapshotDate)
+                }
+            }
+        }
+
+        return latestMatch?.url
     }
     
     // MARK: - Import
@@ -428,70 +592,194 @@ final class BackupManager {
         guard validationResult.isValid else {
             throw BackupError.invalidData(validationResult.errorMessage ?? "Unknown validation error")
         }
+
+        let restoreOutcome: RestoreExecutionResult<DecodedBackupPayload>
+        do {
+            restoreOutcome = try RestoreExecutionCoordinator.prepareAndApply(
+                loadPayload: {
+                    let payload = try decodeBackupPayload(from: data)
+                    SecureLogger.backupStep(1, "Decoded backup with \(payload.classes.count) classes")
+                    try validateBackupContents(payload.classes)
+                    return payload
+                },
+                validatePayload: { payload in
+                    try validateRestorePayload(payload)
+                    SecureLogger.backupStep(2, "Validated restore in temporary container")
+                },
+                createSafetySnapshot: {
+                    let snapshotURL = try createPreRestoreSafetySnapshot(from: context)
+                    SecureLogger.info(
+                        "Created pre-restore safety snapshot: \(snapshotURL.lastPathComponent)"
+                    )
+                    return snapshotURL
+                },
+                applyPayload: { payload in
+                    let restoreContext = ModelContext(context.container)
+                    try applyBackupPayload(payload, to: restoreContext, clearExistingData: true)
+                }
+            )
+        } catch {
+            if case let RestoreExecutionError.applyFailed(preRestoreSnapshotURL, underlyingError) = error {
+                SecureLogger.error(
+                    "Restore failed after creating a safety snapshot at \(preRestoreSnapshotURL.path)",
+                    error: underlyingError
+                )
+                throw underlyingError
+            }
+            throw error
+        }
+
+        let backupPayload = restoreOutcome.payload
+        let preRestoreSnapshotURL = restoreOutcome.preRestoreSnapshotURL
+        SecureLogger.info("Restore applied using safety snapshot: \(preRestoreSnapshotURL.lastPathComponent)")
+
+        if let settings = backupPayload.appSettings {
+            restoreAppSettings(settings)
+        }
         
-        // Try to decode as versioned backup first
+        // Record successful backup
+        UserDefaults.standard.set(Date(), forKey: "lastBackupDate")
+        NotificationCenter.default.post(name: .backupRestoreDidComplete, object: nil)
+        
+        SecureLogger.operationComplete("Backup Import")
+    }
+
+    private static func decodeBackupPayload(from data: Data) throws -> DecodedBackupPayload {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        
-        var backupClasses: [BackupClass]
-        var backupRunningRecords: [BackupRunningRecord] = []
-        var backupRubricTemplates: [BackupRubricTemplate] = []
-        var backupDevelopmentScores: [BackupDevelopmentScore] = []
-        var backupCalendarEvents: [BackupCalendarEvent] = []
-        var backupClassDiaryEntries: [BackupClassDiaryEntry] = []
-        var backupUsefulLinks: [BackupUsefulLink] = []
-        var backupAppSettings: BackupAppSettings?
-        
+
         if let versionedBackup = try? decoder.decode(VersionedBackupFile.self, from: data) {
-            // Validate schema version
             guard versionedBackup.schemaVersion <= currentBackupSchemaVersion else {
                 throw BackupError.incompatibleVersion(versionedBackup.schemaVersion)
             }
-            backupClasses = versionedBackup.classes
-            backupRunningRecords = versionedBackup.runningRecords
-            backupRubricTemplates = versionedBackup.rubricTemplates
-            backupDevelopmentScores = versionedBackup.developmentScores
-            backupCalendarEvents = versionedBackup.calendarEvents
-            backupClassDiaryEntries = versionedBackup.classDiaryEntries
-            backupUsefulLinks = versionedBackup.usefulLinks
-            backupAppSettings = versionedBackup.appSettings
+
             SecureLogger.info("Importing versioned backup (v\(versionedBackup.schemaVersion))")
-        } else {
-            // Fallback to legacy format (BackupFile without versioning)
-            let legacyBackup = try decoder.decode(BackupFile.self, from: data)
-            backupClasses = legacyBackup.classes
-            SecureLogger.info("Importing legacy backup format")
+
+            return DecodedBackupPayload(
+                classes: versionedBackup.classes,
+                runningRecords: versionedBackup.runningRecords,
+                rubricTemplates: versionedBackup.rubricTemplates,
+                developmentScores: versionedBackup.developmentScores,
+                calendarEvents: versionedBackup.calendarEvents,
+                classDiaryEntries: versionedBackup.classDiaryEntries,
+                libraryFolders: versionedBackup.libraryFolders,
+                libraryFiles: versionedBackup.libraryFiles,
+                usefulLinks: versionedBackup.usefulLinks,
+                appSettings: versionedBackup.appSettings
+            )
         }
-        
-        SecureLogger.backupStep(1, "Decoded backup with \(backupClasses.count) classes")
-        
-        // Validate backup contents before wiping database
-        try validateBackupContents(backupClasses)
-        
-        // Now safe to wipe existing database.
-        // Use object-level deletes (instead of batch delete(model:)) to avoid
-        // relationship-constraint violations during restore on some stores.
-        try deleteAll(CalendarEvent.self, in: context)
-        try deleteAll(ClassDiaryEntry.self, in: context)
-        try deleteAll(DevelopmentScore.self, in: context)
-        try deleteAll(RubricTemplate.self, in: context)
-        try deleteAll(RunningRecord.self, in: context)
-        try deleteAll(UsefulLink.self, in: context)
-        try deleteAll(SchoolClass.self, in: context)
-        try context.save()
+
+        let legacyBackup = try decoder.decode(BackupFile.self, from: data)
+        SecureLogger.info("Importing legacy backup format")
+
+        return DecodedBackupPayload(
+            classes: legacyBackup.classes,
+            runningRecords: [],
+            rubricTemplates: [],
+            developmentScores: [],
+            calendarEvents: [],
+            classDiaryEntries: [],
+            libraryFolders: [],
+            libraryFiles: [],
+            usefulLinks: [],
+            appSettings: nil
+        )
+    }
+
+    private static func validateRestorePayload(_ payload: DecodedBackupPayload) throws {
+        let configuration = ModelConfiguration(
+            "BackupValidation",
+            schema: PersistenceSchema.schema,
+            isStoredInMemoryOnly: true
+        )
+        let validationContainer = try ModelContainer(
+            for: PersistenceSchema.schema,
+            configurations: [configuration]
+        )
+        let validationContext = ModelContext(validationContainer)
+
+        try applyBackupPayload(payload, to: validationContext, clearExistingData: false)
+    }
+
+    private static func createPreRestoreSafetySnapshot(from context: ModelContext) throws -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+
+        return try createPersistentSnapshot(
+            context: context,
+            baseName: "TeacherAssistant-PreRestore-\(formatter.string(from: Date()))",
+            directory: try preRestoreSnapshotDirectory()
+        )
+    }
+
+    private static func preRestoreSnapshotDirectory() throws -> URL {
+        try applicationSupportSubdirectory(
+            named: "PreRestoreSnapshots",
+            createIfMissing: true
+        )
+    }
+
+    private static func applicationSupportSubdirectory(
+        named name: String,
+        createIfMissing: Bool
+    ) throws -> URL {
+        let applicationSupportDirectory = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let bundleDirectory = applicationSupportDirectory.appendingPathComponent(
+            Bundle.main.bundleIdentifier ?? "TeacherAssistant",
+            isDirectory: true
+        )
+        let directory = bundleDirectory.appendingPathComponent(
+            name,
+            isDirectory: true
+        )
+
+        if createIfMissing && !FileManager.default.fileExists(atPath: directory.path) {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+        }
+
+        return directory
+    }
+
+    private static func applyBackupPayload(
+        _ payload: DecodedBackupPayload,
+        to context: ModelContext,
+        clearExistingData: Bool
+    ) throws {
+        if clearExistingData {
+            // Use object-level deletes (instead of batch delete(model:)) to avoid
+            // relationship-constraint violations during restore on some stores.
+            try deleteAll(CalendarEvent.self, in: context)
+            try deleteAll(ClassDiaryEntry.self, in: context)
+            try deleteAll(DevelopmentScore.self, in: context)
+            try deleteAll(LibraryFile.self, in: context)
+            try deleteAll(LibraryFolder.self, in: context)
+            try deleteAll(RubricTemplate.self, in: context)
+            try deleteAll(RunningRecord.self, in: context)
+            try deleteAll(UsefulLink.self, in: context)
+            try deleteAll(SchoolClass.self, in: context)
+        }
 
         var studentByUUID: [UUID: Student] = [:]
         var subjectByID: [UUID: Subject] = [:]
         var unitByID: [UUID: Unit] = [:]
         var classByKey: [String: SchoolClass] = [:]
 
-        for backupClass in backupClasses {
-            // Sanitize inputs
+        for backupClass in payload.classes {
             guard let sanitizedClassName = SecurityHelpers.sanitizeName(backupClass.name) else {
                 SecureLogger.warning("Skipping class with invalid name")
                 continue
             }
-            
+
             let newClass = SchoolClass(
                 name: sanitizedClassName,
                 grade: SecurityHelpers.sanitizeName(backupClass.grade) ?? "Unknown",
@@ -502,97 +790,115 @@ final class BackupManager {
             classByKey[classKey(name: newClass.name, grade: newClass.grade)] = newClass
 
             var seenStudentUUIDs: Set<UUID> = []
-            
-            // Students
-            for s in backupClass.students {
-                guard seenStudentUUIDs.insert(s.uuid).inserted else {
+
+            for studentBackup in backupClass.students {
+                guard seenStudentUUIDs.insert(studentBackup.uuid).inserted else {
                     SecureLogger.warning("Skipping duplicate student UUID in class backup payload")
                     continue
                 }
 
-                guard let sanitizedName = SecurityHelpers.sanitizeName(s.name) else {
+                guard let sanitizedName = SecurityHelpers.sanitizeName(studentBackup.name) else {
                     SecureLogger.warning("Skipping student with invalid name")
                     continue
                 }
-                
+
                 let student = Student(name: sanitizedName)
-                student.uuid = s.uuid
-                student.firstName = SecurityHelpers.sanitizeName(s.firstName ?? "")
-                student.lastName = SecurityHelpers.sanitizeName(s.lastName ?? "")
-                student.notes = SecurityHelpers.sanitizeNotes(s.notes)
-                student.gender = s.gender
-                student.isParticipatingWell = s.isParticipatingWell
-                student.sortOrder = SecurityHelpers.validateCount(s.sortOrder, min: 0, max: 10000)
-                student.needsHelp = s.needsHelp
-                student.missingHomework = s.missingHomework
-                student.separationList = s.separationList
+                student.uuid = studentBackup.uuid
+                student.firstName = SecurityHelpers.sanitizeName(studentBackup.firstName ?? "")
+                student.lastName = SecurityHelpers.sanitizeName(studentBackup.lastName ?? "")
+                student.notes = SecurityHelpers.sanitizeNotes(studentBackup.notes)
+                student.gender = studentBackup.gender
+                student.isParticipatingWell = studentBackup.isParticipatingWell
+                student.sortOrder = SecurityHelpers.validateCount(studentBackup.sortOrder, min: 0, max: 10000)
+                student.needsHelp = studentBackup.needsHelp
+                student.missingHomework = studentBackup.missingHomework
+                student.separationList = studentBackup.separationList
+                student.scores = studentBackup.assessmentScores.map { backupScore in
+                    AssessmentScore(
+                        value: SecurityHelpers.validateCount(backupScore.value, min: 0, max: 10)
+                    )
+                }
                 newClass.students.append(student)
                 studentByUUID[student.uuid] = student
             }
 
-            newClass.categories = backupClass.categories.map { BackupCategory in
-                AssessmentCategory(title: BackupCategory.title)
+            newClass.categories = backupClass.categories.map { backupCategory in
+                AssessmentCategory(title: backupCategory.title)
             }
-            
-            // Subjects
-            for sub in backupClass.subjects {
-                guard let sanitizedSubjectName = SecurityHelpers.sanitizeName(sub.name) else {
+
+            let expectedScoreCount = newClass.categories.count
+            for student in newClass.students {
+                if student.scores.count > expectedScoreCount {
+                    student.scores = Array(student.scores.prefix(expectedScoreCount))
+                } else if student.scores.count < expectedScoreCount {
+                    for _ in student.scores.count..<expectedScoreCount {
+                        student.scores.append(AssessmentScore(value: 0))
+                    }
+                }
+            }
+
+            for subjectBackup in backupClass.subjects {
+                guard let sanitizedSubjectName = SecurityHelpers.sanitizeName(subjectBackup.name) else {
                     SecureLogger.warning("Skipping subject with invalid name")
                     continue
                 }
-                
+
                 let subject = Subject(name: sanitizedSubjectName)
-                subject.id = sub.id
-                subject.sortOrder = SecurityHelpers.validateCount(sub.sortOrder, min: 0, max: 10000)
+                subject.id = subjectBackup.id
+                subject.sortOrder = SecurityHelpers.validateCount(subjectBackup.sortOrder, min: 0, max: 10000)
                 subject.schoolClass = newClass
                 newClass.subjects.append(subject)
                 subjectByID[subject.id] = subject
-                
-                for u in sub.units {
-                    guard let sanitizedUnitName = SecurityHelpers.sanitizeName(u.name) else {
+
+                for unitBackup in subjectBackup.units {
+                    guard let sanitizedUnitName = SecurityHelpers.sanitizeName(unitBackup.name) else {
                         SecureLogger.warning("Skipping unit with invalid name")
                         continue
                     }
-                    
+
                     let unit = Unit(name: sanitizedUnitName)
-                    unit.id = u.id
+                    unit.id = unitBackup.id
                     unit.subject = subject
-                    unit.sortOrder = SecurityHelpers.validateCount(u.sortOrder, min: 0, max: 10000)
+                    unit.sortOrder = SecurityHelpers.validateCount(unitBackup.sortOrder, min: 0, max: 10000)
                     subject.units.append(unit)
                     unitByID[unit.id] = unit
-                    
-                    for a in u.assessments {
-                        guard let sanitizedTitle = SecurityHelpers.sanitizeName(a.title) else {
+
+                    for assessmentBackup in unitBackup.assessments {
+                        guard let sanitizedTitle = SecurityHelpers.sanitizeName(assessmentBackup.title) else {
                             SecureLogger.warning("Skipping assessment with invalid title")
                             continue
                         }
-                        
+
                         let assessment = Assessment(title: sanitizedTitle)
-                        assessment.sortOrder = SecurityHelpers.validateCount(a.sortOrder, min: 0, max: 10000)
-                        assessment.details = SecurityHelpers.sanitizeNotes(a.details)
-                        assessment.date = a.date
-                        assessment.maxScore = a.maxScore.isFinite
-                            ? Swift.min(Swift.max(a.maxScore, 1), 1000)
+                        assessment.sortOrder = SecurityHelpers.validateCount(
+                            assessmentBackup.sortOrder,
+                            min: 0,
+                            max: 10000
+                        )
+                        assessment.details = SecurityHelpers.sanitizeNotes(assessmentBackup.details)
+                        assessment.date = assessmentBackup.date
+                        assessment.maxScore = assessmentBackup.maxScore.isFinite
+                            ? Swift.min(Swift.max(assessmentBackup.maxScore, 1), 1000)
                             : 10
                         assessment.unit = unit
                         unit.assessments.append(assessment)
-                        
-                        for r in a.results {
+
+                        for resultBackup in assessmentBackup.results {
                             if let student = resolveStudent(
-                                studentUUID: r.studentUUID,
-                                studentName: r.studentName,
+                                studentUUID: resultBackup.studentUUID,
+                                studentName: resultBackup.studentName,
                                 classStudents: newClass.students,
                                 studentByUUID: studentByUUID
                             ) {
                                 let result = StudentResult(
                                     student: student,
                                     score: SecurityHelpers.validateScore(
-                                        r.score,
+                                        resultBackup.score,
                                         min: 0,
                                         max: assessment.safeMaxScore
                                     ),
-                                    notes: SecurityHelpers.sanitizeNotes(r.notes),
-                                    hasScore: r.hasScore ?? (r.score > 0)
+                                    notes: SecurityHelpers.sanitizeNotes(resultBackup.notes),
+                                    hasScore: resultBackup.hasScore ?? (resultBackup.score > 0)
                                 )
                                 result.assessment = assessment
                                 context.insert(result)
@@ -602,7 +908,6 @@ final class BackupManager {
                 }
             }
 
-            // Attendance
             newClass.attendanceSessions = backupClass.attendanceSessions.map { backupSession in
                 let session = AttendanceSession(date: backupSession.date)
                 session.records = backupSession.records.compactMap { backupRecord in
@@ -614,6 +919,7 @@ final class BackupManager {
                     ) else {
                         return nil
                     }
+
                     return AttendanceRecord(
                         student: student,
                         status: AttendanceStatus(rawValue: backupRecord.statusRaw) ?? .present,
@@ -624,15 +930,20 @@ final class BackupManager {
             }
         }
 
-        for backupRecord in backupRunningRecords {
+        for backupRecord in payload.runningRecords {
             guard let student = studentByUUID[backupRecord.studentUUID] else { continue }
+
             let runningRecord = RunningRecord(
                 date: backupRecord.date,
                 textTitle: backupRecord.textTitle,
                 bookLevel: SecurityHelpers.sanitizeBookLevel(backupRecord.bookLevel),
                 totalWords: SecurityHelpers.validateCount(backupRecord.totalWords, min: 0, max: 1_000_000),
                 errors: SecurityHelpers.validateCount(backupRecord.errors, min: 0, max: 1_000_000),
-                selfCorrections: SecurityHelpers.validateCount(backupRecord.selfCorrections, min: 0, max: 1_000_000),
+                selfCorrections: SecurityHelpers.validateCount(
+                    backupRecord.selfCorrections,
+                    min: 0,
+                    max: 1_000_000
+                ),
                 notes: SecurityHelpers.sanitizeNotes(backupRecord.notes)
             )
             runningRecord.student = student
@@ -640,7 +951,7 @@ final class BackupManager {
         }
 
         var criterionByID: [UUID: RubricCriterion] = [:]
-        for backupTemplate in backupRubricTemplates {
+        for backupTemplate in payload.rubricTemplates {
             let template = RubricTemplate(
                 name: backupTemplate.name,
                 gradeLevel: backupTemplate.gradeLevel,
@@ -670,9 +981,12 @@ final class BackupManager {
             }
         }
 
-        for backupScore in backupDevelopmentScores {
+        for backupScore in payload.developmentScores {
             guard let student = studentByUUID[backupScore.studentUUID],
-                  let criterion = criterionByID[backupScore.criterionID] else { continue }
+                  let criterion = criterionByID[backupScore.criterionID] else {
+                continue
+            }
+
             let score = DevelopmentScore(
                 student: student,
                 criterion: criterion,
@@ -684,7 +998,51 @@ final class BackupManager {
             context.insert(score)
         }
 
-        for backupEvent in backupCalendarEvents {
+        var libraryFolderByID: [UUID: LibraryFolder] = [:]
+        for backupFolder in payload.libraryFolders {
+            guard let sanitizedName = SecurityHelpers.sanitizeName(backupFolder.name) else {
+                continue
+            }
+
+            let folder = LibraryFolder(
+                name: sanitizedName,
+                parentID: backupFolder.parentID,
+                colorHex: sanitizedColorHex(backupFolder.colorHex)
+            )
+            folder.id = backupFolder.id
+            context.insert(folder)
+            libraryFolderByID[folder.id] = folder
+        }
+
+        let rootFolder = LibraryFolder(name: "Library", parentID: nil)
+        context.insert(rootFolder)
+        let knownFolderIDs = Set(libraryFolderByID.keys).union([rootFolder.id])
+
+        for folder in libraryFolderByID.values {
+            guard folder.id != rootFolder.id else { continue }
+            if let parentID = folder.parentID, !knownFolderIDs.contains(parentID) {
+                folder.parentID = rootFolder.id
+            }
+        }
+
+        for backupFile in payload.libraryFiles {
+            let parentFolderID = knownFolderIDs.contains(backupFile.parentFolderID)
+                ? backupFile.parentFolderID
+                : rootFolder.id
+
+            let libraryFile = LibraryFile(
+                name: SecurityHelpers.sanitizeFilename(backupFile.name),
+                pdfData: backupFile.pdfData,
+                parentFolderID: parentFolderID
+            )
+            libraryFile.id = backupFile.id
+            libraryFile.drawingData = backupFile.drawingData
+            libraryFile.linkedSubject = backupFile.linkedSubjectID.flatMap { subjectByID[$0] }
+            libraryFile.linkedUnit = backupFile.linkedUnitID.flatMap { unitByID[$0] }
+            context.insert(libraryFile)
+        }
+
+        for backupEvent in payload.calendarEvents {
             let linkedClass = findClassByNameGrade(
                 name: backupEvent.className,
                 grade: backupEvent.classGrade,
@@ -702,7 +1060,7 @@ final class BackupManager {
             context.insert(event)
         }
 
-        for backupEntry in backupClassDiaryEntries {
+        for backupEntry in payload.classDiaryEntries {
             let linkedClass = findClassByNameGrade(
                 name: backupEntry.className,
                 grade: backupEntry.classGrade,
@@ -723,7 +1081,7 @@ final class BackupManager {
             context.insert(diaryEntry)
         }
 
-        for backupLink in backupUsefulLinks {
+        for backupLink in payload.usefulLinks {
             guard let sanitizedTitle = SecurityHelpers.sanitizeName(backupLink.title),
                   let sanitizedURL = sanitizeBackupURL(backupLink.url) else {
                 continue
@@ -740,18 +1098,8 @@ final class BackupManager {
             )
             context.insert(usefulLink)
         }
-        
-        try context.save()
 
-        if let settings = backupAppSettings {
-            restoreAppSettings(settings)
-        }
-        
-        // Record successful backup
-        UserDefaults.standard.set(Date(), forKey: "lastBackupDate")
-        NotificationCenter.default.post(name: .backupRestoreDidComplete, object: nil)
-        
-        SecureLogger.operationComplete("Backup Import")
+        try context.save()
     }
     
     // MARK: - Private Helpers
@@ -858,6 +1206,13 @@ final class BackupManager {
         for key in randomPickerSettingsKeys {
             defaults.set(valuesByKey[key] ?? "", forKey: key)
         }
+
+        defaults.set(settings.dateFormat, forKey: AppPreferencesKeys.dateFormat)
+        defaults.set(settings.timeFormat, forKey: AppPreferencesKeys.timeFormat)
+        defaults.set(settings.defaultLandingSection, forKey: AppPreferencesKeys.defaultLandingSection)
+        defaults.set(settings.timerCustomMinutes, forKey: TimerPreferenceKeys.customMinutes)
+        defaults.set(settings.timerCustomSeconds, forKey: TimerPreferenceKeys.customSeconds)
+        defaults.set(settings.timerCustomChecklistText, forKey: TimerPreferenceKeys.customChecklistText)
     }
 
     private static func sanitizeBackupURL(_ rawValue: String) -> String? {
@@ -870,6 +1225,17 @@ final class BackupManager {
         }
 
         return url.absoluteString
+    }
+
+    private static func sanitizedColorHex(_ rawValue: String?) -> String? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count == 7,
+              trimmed.first == "#",
+              trimmed.dropFirst().allSatisfy({ $0.isHexDigit }) else {
+            return nil
+        }
+        return trimmed.uppercased()
     }
 }
 

@@ -330,6 +330,7 @@ enum DuplicateStudentCleanupService {
         var reassigned = 0
         for score in allDevelopmentScores where score.student?.id == duplicate.id {
             score.student = canonical
+            _ = score.cacheStableReferences(student: canonical)
             reassigned += 1
         }
         return reassigned
@@ -411,7 +412,7 @@ enum DuplicateStudentCleanupService {
             attendanceRecordCount += session.records.filter { $0.student?.id == student.id }.count
         }
 
-        let developmentScoreCount = allDevelopmentScores.filter { $0.student?.id == student.id }.count
+        let developmentScoreCount = allDevelopmentScores.filter { $0.matchesStudent(student) }.count
 
         return StudentFootprint(
             runningRecordCount: student.runningRecords.count,

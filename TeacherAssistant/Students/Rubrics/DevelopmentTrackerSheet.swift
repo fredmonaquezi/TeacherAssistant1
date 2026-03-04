@@ -292,13 +292,16 @@ struct DevelopmentTrackerSheet: View {
     }
     
     func loadExistingRatings() {
-        let studentScores = allScores.filter { $0.student?.id == student.id }
+        let studentScores = allScores.filter { $0.matchesStudent(student) }
+        var didRepairStableReferences = false
         
         // Get most recent rating for each criterion
         var latestRatings: [UUID: DevelopmentScore] = [:]
         
         for score in studentScores {
-            guard let criterionID = score.criterion?.id else { continue }
+            guard let criterion = score.criterion else { continue }
+            let criterionID = criterion.id
+            didRepairStableReferences = score.cacheStableReferences(student: student, criterion: criterion) || didRepairStableReferences
             
             if let existing = latestRatings[criterionID] {
                 if score.date > existing.date {
@@ -315,6 +318,10 @@ struct DevelopmentTrackerSheet: View {
             if !score.notes.isEmpty {
                 notes[criterionID] = score.notes
             }
+        }
+
+        if didRepairStableReferences {
+            _ = SaveCoordinator.save(context: context, reason: "Repair development score references")
         }
     }
     
@@ -338,7 +345,7 @@ struct DevelopmentTrackerSheet: View {
             context.insert(score)
         }
         
-        try? context.save()
+        _ = SaveCoordinator.save(context: context, reason: "Save development ratings")
     }
     
     func findCriterion(by id: UUID) -> RubricCriterion? {

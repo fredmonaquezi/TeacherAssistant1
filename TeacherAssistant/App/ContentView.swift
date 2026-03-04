@@ -51,11 +51,14 @@ struct ContentView: View {
     @AppStorage(AppPreferencesKeys.dateFormat) private var dateFormatRawValue: String = AppDateFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.timeFormat) private var timeFormatRawValue: String = AppTimeFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.defaultLandingSection) private var defaultLandingSectionRawValue: String = AppSection.dashboard.rawValue
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedSection: AppSection?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var navigationStackResetID = UUID()
     @State private var appViewResetID = UUID()
     @StateObject private var macNavigationState = MacNavigationState()
+    @State private var saveFailureMessage: String?
     
     @StateObject var timerManager = ClassroomTimerManager()
     @StateObject var backupReminderManager = BackupReminderManager()
@@ -97,6 +100,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .backupRestoreDidComplete)) { _ in
             handleBackupRestoreCompleted()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceSaveFailed)) { notification in
+            handlePersistenceSaveFailed(notification)
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            handleScenePhaseChanged(newValue)
+        }
         .onChange(of: defaultLandingSectionRawValue) { _, newValue in
             if selectedSection == nil {
                 selectedSection = AppSection.availableSection(from: newValue)
@@ -107,6 +116,17 @@ struct ContentView: View {
         }
         .onChange(of: timeFormatRawValue) { _, _ in
             refreshForPreferenceChange()
+        }
+        .alert(
+            "Save Failed".localized,
+            isPresented: Binding(
+                get: { saveFailureMessage != nil },
+                set: { if !$0 { saveFailureMessage = nil } }
+            )
+        ) {
+            Button("OK".localized, role: .cancel) { }
+        } message: {
+            Text(saveFailureMessage ?? "")
         }
     }
     
@@ -311,6 +331,37 @@ struct ContentView: View {
         #if os(macOS)
         macNavigationState.reset()
         #endif
+    }
+
+    private func handlePersistenceSaveFailed(_ notification: Notification) {
+        let fallbackMessage = "Your latest changes could not be saved. Please try again.".localized
+        let message = (notification.userInfo?[SaveFailureNotificationKeys.message] as? String)?.localized ?? fallbackMessage
+        let errorDescription = notification.userInfo?[SaveFailureNotificationKeys.errorDescription] as? String
+
+        if let errorDescription, !errorDescription.isEmpty {
+            saveFailureMessage = "\(message)\n\n\(errorDescription)"
+        } else {
+            saveFailureMessage = message
+        }
+    }
+
+    private func handleScenePhaseChanged(_ newPhase: ScenePhase) {
+        switch newPhase {
+        case .inactive:
+            SnapshotManager.shared.captureLifecycleSnapshotIfNeeded(
+                context: modelContext,
+                trigger: "scene-inactive"
+            )
+        case .background:
+            SnapshotManager.shared.captureLifecycleSnapshotIfNeeded(
+                context: modelContext,
+                trigger: "scene-background"
+            )
+        case .active:
+            break
+        @unknown default:
+            break
+        }
     }
 }
 

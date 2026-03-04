@@ -21,6 +21,20 @@
                ReferencedContainer = "container:TeacherAssistant.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D80100062F30000100AAA001"
+               BuildableName = "TeacherAssistantDurabilityTests.xctest"
+               BlueprintName = "TeacherAssistantDurabilityTests"
+               ReferencedContainer = "container:TeacherAssistant.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -29,6 +43,34 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "B663FA622F1EA65C00FEB0C1"
+            BuildableName = "TeacherAssistant.app"
+            BlueprintName = "TeacherAssistant"
+            ReferencedContainer = "container:TeacherAssistant.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
+      <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D80100062F30000100AAA001"
+               BuildableName = "TeacherAssistantDurabilityTests.xctest"
+               BlueprintName = "TeacherAssistantDurabilityTests"
+               ReferencedContainer = "container:TeacherAssistant.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "TA_TEST_MODE"
+            value = "1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
