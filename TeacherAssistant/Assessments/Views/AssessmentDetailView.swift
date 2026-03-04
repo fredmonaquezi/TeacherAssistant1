@@ -297,16 +297,20 @@ struct StudentGradeCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Student name and score
-            HStack {
-                Text(result.student?.name ?? "Unknown")
-                    .font(.title3)  // ← Bigger student name
-                    .fontWeight(.semibold)
-                
-                Spacer()
-                
-                scoreField
+            // Student row is tappable for fast score entry
+            Button(action: onEditScore) {
+                HStack {
+                    Text(result.student?.name ?? "Unknown")
+                        .font(.title3)  // ← Bigger student name
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
+                    
+                    scoreField
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             
             // Notes field
             HStack(spacing: 10) {
@@ -339,22 +343,19 @@ struct StudentGradeCard: View {
                 .font(.body)  // ← Bigger label
                 .foregroundColor(.secondary)
 
-            Button(action: onEditScore) {
-                HStack(spacing: 6) {
-                    Text(result.isScored ? ScoreEntrySheet.formatScore(result.score) : "—")
-                        .frame(minWidth: 42, alignment: .trailing)
+            HStack(spacing: 6) {
+                Text(result.isScored ? ScoreEntrySheet.formatScore(result.score) : "—")
+                    .frame(minWidth: 42, alignment: .trailing)
 
-                    Image(systemName: "square.and.pencil")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(6)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(result.isScored ? scoreColor : .secondary)
+                Image(systemName: "square.and.pencil")
+                    .font(.caption)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(6)
+            .font(.system(size: 24, weight: .bold))
+            .foregroundColor(result.isScored ? scoreColor : .secondary)
 
             if result.isScored {
                 Text(String(format: "%.1f%%", assessment.scorePercent(result.score)))

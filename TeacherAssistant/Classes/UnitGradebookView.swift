@@ -81,13 +81,30 @@ struct UnitGradebookView: View {
                     ForEach(studentsInThisUnit, id: \.id) { student in
                         HStack(spacing: 0) {
                             // Student name cell
-                            Text(student.name)
-                                .font(.body)
-                                .fontWeight(.medium)
+                            Button {
+                                guard let quickAssessment = preferredAssessmentForQuickEntry(student: student) else { return }
+                                openScoreEntry(student: student, assessment: quickAssessment)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Text(student.name)
+                                        .font(.body)
+                                        .fontWeight(.medium)
+                                        .lineLimit(1)
+
+                                    Spacer()
+
+                                    Image(systemName: "square.and.pencil")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                                 .frame(width: studentColumnWidth, alignment: .leading)
                                 .padding(.horizontal, 16)
                                 .frame(height: cellHeight)
                                 .background(rowBackgroundColor.opacity(0.5))
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(assessments.isEmpty)
                             
                             // Grade cells
                             ForEach(assessments, id: \.id) { assessment in
@@ -195,8 +212,7 @@ struct UnitGradebookView: View {
         let hasScore = result?.isScored ?? false
         
         Button {
-            let finalResult = result ?? createResult(student: student, assessment: assessment)
-            selectedResult = finalResult
+            openScoreEntry(student: student, assessment: assessment)
         } label: {
             Text(displayText(for: result, assessment: assessment))
                 .font(.body)
@@ -241,6 +257,23 @@ struct UnitGradebookView: View {
         newResult.assessment = assessment
         context.insert(newResult)
         return newResult
+    }
+
+    func openScoreEntry(student: Student, assessment: Assessment) {
+        let result = findResult(student: student, assessment: assessment) ?? createResult(student: student, assessment: assessment)
+        selectedResult = result
+    }
+
+    func preferredAssessmentForQuickEntry(student: Student) -> Assessment? {
+        guard !assessments.isEmpty else { return nil }
+
+        if let firstPending = assessments.first(where: { assessment in
+            !(findResult(student: student, assessment: assessment)?.isScored ?? false)
+        }) {
+            return firstPending
+        }
+
+        return assessments.first
     }
     
     func displayText(for result: StudentResult?, assessment: Assessment) -> String {

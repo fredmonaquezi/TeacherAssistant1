@@ -22,71 +22,19 @@ struct UsefulLinksView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(languageManager.localized("Useful Links"))
-                        .font(.headline)
-                    Text(languageManager.localized("Store classroom links, open them quickly, and keep them in the order you need."))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 4)
+        ScrollView {
+            VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing) {
+                headerCard
+                addLinkCard
+                savedLinksSection
             }
-
-            Section(isEditing ? languageManager.localized("Edit Link") : languageManager.localized("Add Link")) {
-                TextField(languageManager.localized("Title"), text: $formTitle)
-#if os(iOS)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-#endif
-
-                TextField("https://example.com", text: $formURL)
-#if os(iOS)
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-#endif
-
-                TextField(languageManager.localized("Description (optional)"), text: $formDescription, axis: .vertical)
-                    .lineLimit(2...4)
-
-                HStack {
-                    Button(isEditing ? languageManager.localized("Save Changes") : languageManager.localized("Add Link")) {
-                        submitForm()
-                    }
-
-                    if isEditing {
-                        Button(languageManager.localized("Cancel"), role: .cancel) {
-                            resetForm()
-                        }
-                    }
-                }
-            }
-
-            Section(languageManager.localized("Saved Links")) {
-                if usefulLinks.isEmpty {
-                    Text(languageManager.localized("No useful links yet. Add one above to get started."))
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(usefulLinks.enumerated()), id: \.element.id) { index, link in
-                        UsefulLinkRow(
-                            link: link,
-                            index: index,
-                            totalCount: usefulLinks.count,
-                            openAction: { open(link) },
-                            editAction: { startEditing(link) },
-                            moveUpAction: { move(linkID: link.id, direction: -1) },
-                            moveDownAction: { move(linkID: link.id, direction: 1) },
-                            deleteAction: { confirmDelete(link) }
-                        )
-                    }
-                }
-            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 16)
         }
 #if !os(macOS)
         .navigationTitle(languageManager.localized("Useful Links"))
 #endif
+        .appSheetBackground(tint: .mint)
         .alert(languageManager.localized("Delete Link?"), isPresented: $showingDeleteConfirmation) {
             Button(languageManager.localized("Cancel"), role: .cancel) {
                 pendingDeleteLinkID = nil
@@ -102,6 +50,149 @@ struct UsefulLinksView: View {
         } message: {
             Text(errorMessage)
         }
+    }
+
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "link.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(.mint)
+                Text(languageManager.localized("Useful Links"))
+                    .font(AppTypography.sectionTitle)
+            }
+
+            Text(languageManager.localized("Store classroom links, open them quickly, and keep them in the order you need."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.mint.opacity(0.12),
+            tint: .mint
+        )
+    }
+
+    private var addLinkCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(isEditing ? languageManager.localized("Edit Link") : languageManager.localized("Add Link"))
+                .font(AppTypography.cardTitle)
+
+            TextField(languageManager.localized("Title"), text: $formTitle)
+#if os(iOS)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+#endif
+                .appFieldStyle(tint: .mint)
+
+            TextField("https://example.com", text: $formURL)
+#if os(iOS)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+#endif
+                .appFieldStyle(tint: .blue)
+
+            TextField(languageManager.localized("Description (optional)"), text: $formDescription, axis: .vertical)
+                .lineLimit(2...4)
+                .appFieldStyle(tint: .gray)
+
+            HStack(spacing: 10) {
+                Button(isEditing ? languageManager.localized("Save Changes") : languageManager.localized("Add Link")) {
+                    submitForm()
+                }
+                .buttonStyle(.plain)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.mint)
+                )
+
+                if isEditing {
+                    Button(languageManager.localized("Cancel"), role: .cancel) {
+                        resetForm()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .appCardStyle(
+                        cornerRadius: 12,
+                        borderColor: AppChrome.separator,
+                        shadowOpacity: 0.02,
+                        shadowRadius: 4,
+                        shadowY: 1
+                    )
+                }
+            }
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.mint.opacity(0.12),
+            tint: .mint
+        )
+    }
+
+    private var savedLinksSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(languageManager.localized("Saved Links"))
+                    .font(AppTypography.cardTitle)
+
+                Spacer()
+
+                Text("\(usefulLinks.count)")
+                    .font(AppTypography.eyebrow)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(AppChrome.elevatedBackground)
+                    )
+            }
+
+            if usefulLinks.isEmpty {
+                Text(languageManager.localized("No useful links yet. Add one above to get started."))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .appCardStyle(
+                        cornerRadius: 14,
+                        borderColor: AppChrome.separator,
+                        shadowOpacity: 0.02,
+                        shadowRadius: 4,
+                        shadowY: 1
+                    )
+            } else {
+                LazyVStack(spacing: 10) {
+                    ForEach(Array(usefulLinks.enumerated()), id: \.element.id) { index, link in
+                        UsefulLinkRow(
+                            link: link,
+                            index: index,
+                            totalCount: usefulLinks.count,
+                            openAction: { open(link) },
+                            editAction: { startEditing(link) },
+                            moveUpAction: { move(linkID: link.id, direction: -1) },
+                            moveDownAction: { move(linkID: link.id, direction: 1) },
+                            deleteAction: { confirmDelete(link) }
+                        )
+                    }
+                }
+            }
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.mint.opacity(0.10),
+            tint: .mint
+        )
     }
 
     private func submitForm() {
@@ -235,6 +326,8 @@ struct UsefulLinksView: View {
 }
 
 private struct UsefulLinkRow: View {
+    @EnvironmentObject private var languageManager: LanguageManager
+
     let link: UsefulLink
     let index: Int
     let totalCount: Int
@@ -245,18 +338,33 @@ private struct UsefulLinkRow: View {
     let deleteAction: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Button(action: openAction) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(link.title)
-                        .font(.headline)
-                        .multilineTextAlignment(.leading)
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(link.title)
+                            .font(AppTypography.cardTitle)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Image(systemName: "arrow.up.right.square")
+                            .foregroundStyle(.secondary)
+                    }
 
                     let domain = linkDomain(link.url)
                     if !domain.isEmpty {
-                        Text(domain)
+                        HStack(spacing: 6) {
+                            Image(systemName: "globe")
+                            Text(domain)
+                        }
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(AppChrome.elevatedBackground)
+                            )
                     }
 
                     if !link.linkDescription.isEmpty {
@@ -273,31 +381,45 @@ private struct UsefulLinkRow: View {
 
             HStack(spacing: 8) {
                 Button(action: editAction) {
-                    Image(systemName: "pencil")
+                    actionIcon("pencil")
                 }
                 .buttonStyle(.plain)
+                .help(languageManager.localized("Edit"))
 
                 Button(action: moveUpAction) {
-                    Image(systemName: "arrow.up")
+                    actionIcon("arrow.up")
                 }
                 .buttonStyle(.plain)
                 .disabled(index == 0)
+                .help(languageManager.localized("Move Up"))
 
                 Button(action: moveDownAction) {
-                    Image(systemName: "arrow.down")
+                    actionIcon("arrow.down")
                 }
                 .buttonStyle(.plain)
                 .disabled(index == totalCount - 1)
+                .help(languageManager.localized("Move Down"))
+
+                Spacer()
 
                 Button(role: .destructive, action: deleteAction) {
-                    Image(systemName: "trash")
+                    actionIcon("trash")
                 }
                 .buttonStyle(.plain)
+                .help(languageManager.localized("Delete"))
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .appCardStyle(
+            cornerRadius: 12,
+            borderColor: Color.mint.opacity(0.12),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .mint
+        )
     }
 
     private func linkDomain(_ rawValue: String) -> String {
@@ -307,6 +429,16 @@ private struct UsefulLinkRow: View {
         }
 
         return host.replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
+    }
+
+    private func actionIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 12, weight: .semibold))
+            .frame(width: 30, height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(AppChrome.elevatedBackground)
+            )
     }
 }
 
