@@ -4,6 +4,7 @@ import SwiftData
 struct AssessmentDetailView: View {
     @Bindable var assessment: Assessment
     @EnvironmentObject var languageManager: LanguageManager
+    @State private var selectedResult: StudentResult?
 
     var body: some View {
         ScrollView {
@@ -38,6 +39,19 @@ struct AssessmentDetailView: View {
         #endif
         .onAppear {
             ensureResultsExist()
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { selectedResult != nil },
+                set: { if !$0 { selectedResult = nil } }
+            )
+        ) {
+            if let result = selectedResult {
+                ScoreEntrySheet(
+                    studentResult: result,
+                    maxScore: assessment.safeMaxScore
+                )
+            }
         }
         .macNavigationDepth()
     }
@@ -211,7 +225,13 @@ struct AssessmentDetailView: View {
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(sortedResults) { result in
-                        StudentGradeCard(result: result, assessment: assessment)
+                        StudentGradeCard(
+                            result: result,
+                            assessment: assessment,
+                            onEditScore: {
+                                selectedResult = result
+                            }
+                        )
                     }
                 }
                 .padding(.horizontal)
@@ -273,6 +293,7 @@ struct AssessmentDetailView: View {
 struct StudentGradeCard: View {
     @Bindable var result: StudentResult
     let assessment: Assessment
+    let onEditScore: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -313,41 +334,27 @@ struct StudentGradeCard: View {
     
     @ViewBuilder
     var scoreField: some View {
-        let scoreBinding = Binding<Double>(
-            get: { result.score },
-            set: { newValue in
-                result.score = assessment.clampedScore(newValue)
-                result.hasScore = true
-            }
-        )
-
         HStack(spacing: 10) {
             Text("Score:".localized)
                 .font(.body)  // ← Bigger label
                 .foregroundColor(.secondary)
-            
-            #if os(iOS)
-            TextField("0", value: scoreBinding, format: .number)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 70)  // ← Wider field
+
+            Button(action: onEditScore) {
+                HStack(spacing: 6) {
+                    Text(result.isScored ? ScoreEntrySheet.formatScore(result.score) : "—")
+                        .frame(minWidth: 42, alignment: .trailing)
+
+                    Image(systemName: "square.and.pencil")
+                        .font(.caption)
+                }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .background(Color.gray.opacity(0.1))
                 .cornerRadius(6)
-                .font(.system(size: 24, weight: .bold))  // ← Much bigger score
-                .foregroundColor(scoreColor)
-            #else
-            TextField("0", value: scoreBinding, format: .number)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 70)  // ← Wider field
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(6)
-                .font(.system(size: 24, weight: .bold))  // ← Much bigger score
-                .foregroundColor(scoreColor)
-            #endif
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(result.isScored ? scoreColor : .secondary)
+            }
+            .buttonStyle(.plain)
 
             if result.isScored {
                 Text(String(format: "%.1f%%", assessment.scorePercent(result.score)))

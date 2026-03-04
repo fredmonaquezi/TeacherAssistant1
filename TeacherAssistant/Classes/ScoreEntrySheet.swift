@@ -1,6 +1,8 @@
 import SwiftUI
+import SwiftData
 
 struct ScoreEntrySheet: View {
+    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     let studentResult: StudentResult
@@ -58,20 +60,27 @@ struct ScoreEntrySheet: View {
                         .foregroundColor(.secondary)
                         .textCase(.uppercase)
 
-                    #if os(iOS)
-                    TextField("0", text: $scoreText)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(.plain)
-                        .padding()
-                        .background(parsedScore == nil ? Color.red.opacity(0.1) : Color.blue.opacity(0.1))
-                        .cornerRadius(10)
-                    #else
-                    TextField("0", text: $scoreText)
-                        .textFieldStyle(.plain)
-                        .padding()
-                        .background(parsedScore == nil ? Color.red.opacity(0.1) : Color.blue.opacity(0.1))
-                        .cornerRadius(10)
-                    #endif
+                    Group {
+                        #if os(iOS)
+                        SelectAllCommitTextField(
+                            placeholder: "0",
+                            text: $scoreText,
+                            keyboardType: .decimalPad,
+                            autoFocus: true,
+                            onCommit: saveAndDismiss
+                        )
+                        #else
+                        SelectAllCommitTextField(
+                            placeholder: "0",
+                            text: $scoreText,
+                            autoFocus: true,
+                            onCommit: saveAndDismiss
+                        )
+                        #endif
+                    }
+                    .padding()
+                    .background(parsedScore == nil ? Color.red.opacity(0.1) : Color.blue.opacity(0.1))
+                    .cornerRadius(10)
 
                     Text(String(format: "Valid range: 0 to %@".localized, Self.formatScore(maxScore)))
                         .font(.caption)
@@ -94,10 +103,8 @@ struct ScoreEntrySheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save".localized) {
-                        studentResult.score = parsedScore ?? 0
-                        studentResult.hasScore = !trimmedScoreText.isEmpty
-                        dismiss()
+                    Button("Confirm".localized) {
+                        saveAndDismiss()
                     }
                     .disabled(parsedScore == nil)
                     .buttonStyle(.borderedProminent)
@@ -140,6 +147,19 @@ struct ScoreEntrySheet: View {
                 }
             }
         }
+    }
+
+    func saveAndDismiss() {
+        guard parsedScore != nil else { return }
+
+        studentResult.score = parsedScore ?? 0
+        studentResult.hasScore = !trimmedScoreText.isEmpty
+
+        guard SaveCoordinator.save(context: context, reason: "Save score entry") else {
+            return
+        }
+
+        dismiss()
     }
 
     static func formatScore(_ score: Double) -> String {

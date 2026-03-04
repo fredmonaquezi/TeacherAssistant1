@@ -320,15 +320,24 @@ struct AddRunningRecordView: View {
                             Text(languageManager.localized("Total Words"))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
-                            
-                            TextField("0", text: $totalWords)
-                                #if !os(macOS)
-                                .keyboardType(.numberPad)
+
+                            Group {
+                                #if os(iOS)
+                                SelectAllCommitTextField(
+                                    placeholder: "0",
+                                    text: $totalWords,
+                                    keyboardType: .numberPad
+                                )
+                                #else
+                                SelectAllCommitTextField(
+                                    placeholder: "0",
+                                    text: $totalWords
+                                )
                                 #endif
-                                .textFieldStyle(.plain)
-                                .padding()
-                                .background(Color.purple.opacity(0.1))
-                                .cornerRadius(10)
+                            }
+                            .padding()
+                            .background(Color.purple.opacity(0.1))
+                            .cornerRadius(10)
                         }
                         .padding(.horizontal)
                         
@@ -337,15 +346,24 @@ struct AddRunningRecordView: View {
                             Text(languageManager.localized("Errors"))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
-                            
-                            TextField("0", text: $errors)
-                                #if !os(macOS)
-                                .keyboardType(.numberPad)
+
+                            Group {
+                                #if os(iOS)
+                                SelectAllCommitTextField(
+                                    placeholder: "0",
+                                    text: $errors,
+                                    keyboardType: .numberPad
+                                )
+                                #else
+                                SelectAllCommitTextField(
+                                    placeholder: "0",
+                                    text: $errors
+                                )
                                 #endif
-                                .textFieldStyle(.plain)
-                                .padding()
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(10)
+                            }
+                            .padding()
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(10)
                         }
                         .padding(.horizontal)
                         
@@ -354,15 +372,24 @@ struct AddRunningRecordView: View {
                             Text(languageManager.localized("Self-Corrections (SC)"))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
-                            
-                            TextField("0", text: $selfCorrections)
-                                #if !os(macOS)
-                                .keyboardType(.numberPad)
+
+                            Group {
+                                #if os(iOS)
+                                SelectAllCommitTextField(
+                                    placeholder: "0",
+                                    text: $selfCorrections,
+                                    keyboardType: .numberPad
+                                )
+                                #else
+                                SelectAllCommitTextField(
+                                    placeholder: "0",
+                                    text: $selfCorrections
+                                )
                                 #endif
-                                .textFieldStyle(.plain)
-                                .padding()
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(10)
+                            }
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(10)
                         }
                         .padding(.horizontal)
                     }
