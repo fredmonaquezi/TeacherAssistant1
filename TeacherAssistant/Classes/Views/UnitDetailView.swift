@@ -434,22 +434,24 @@ struct AddAssessmentDialog: View {
                         .foregroundColor(.secondary)
                         .textCase(.uppercase)
 
-                    #if os(iOS)
-                    TextField("e.g., 10".localized, text: $maxScoreText)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(.plain)
-                        .font(.body)
-                        .padding()
-                        .background(isMaxScoreValid ? Color.blue.opacity(0.1) : Color.red.opacity(0.1))
-                        .cornerRadius(10)
-                    #else
-                    TextField("e.g., 10".localized, text: $maxScoreText)
-                        .textFieldStyle(.plain)
-                        .font(.body)
-                        .padding()
-                        .background(isMaxScoreValid ? Color.blue.opacity(0.1) : Color.red.opacity(0.1))
-                        .cornerRadius(10)
-                    #endif
+                    Group {
+                        #if os(iOS)
+                        SelectAllCommitTextField(
+                            placeholder: "e.g., 10".localized,
+                            text: $maxScoreText,
+                            keyboardType: .decimalPad
+                        )
+                        #else
+                        SelectAllCommitTextField(
+                            placeholder: "e.g., 10".localized,
+                            text: $maxScoreText
+                        )
+                        #endif
+                    }
+                    .font(.body)
+                    .padding()
+                    .background(isMaxScoreValid ? Color.blue.opacity(0.1) : Color.red.opacity(0.1))
+                    .cornerRadius(10)
 
                     if !isMaxScoreValid {
                         Text("Enter a value between 1 and 1000".localized)

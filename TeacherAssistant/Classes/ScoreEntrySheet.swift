@@ -34,64 +34,27 @@ struct ScoreEntrySheet: View {
         return Swift.min(value, maxScore)
     }
 
+    var scoreTint: Color {
+        parsedScore == nil ? .red : .blue
+    }
+
+    var scorePercentText: String? {
+        guard let parsedScore, maxScore > 0 else { return nil }
+        let percent = (parsedScore / maxScore) * 100
+        return String(format: "%.0f%%", percent)
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Set Score".localized)
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    if let studentName = studentResult.student?.name {
-                        Text(studentName)
-                            .font(.headline)
-                    }
-
-                    if let assessmentTitle = studentResult.assessment?.title {
-                        Text(assessmentTitle)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Score".localized)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-
-                    Group {
-                        #if os(iOS)
-                        SelectAllCommitTextField(
-                            placeholder: "0",
-                            text: $scoreText,
-                            keyboardType: .decimalPad,
-                            autoFocus: true,
-                            onCommit: saveAndDismiss
-                        )
-                        #else
-                        SelectAllCommitTextField(
-                            placeholder: "0",
-                            text: $scoreText,
-                            autoFocus: true,
-                            onCommit: saveAndDismiss
-                        )
-                        #endif
-                    }
-                    .padding()
-                    .background(parsedScore == nil ? Color.red.opacity(0.1) : Color.blue.opacity(0.1))
-                    .cornerRadius(10)
-
-                    Text(String(format: "Valid range: 0 to %@".localized, Self.formatScore(maxScore)))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
+            VStack(alignment: .leading, spacing: 14) {
+                contextCard
+                scoreEditorCard
                 quickButtons
-
-                Spacer()
             }
-            .padding()
+            .frame(maxWidth: 460, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
             .navigationTitle("Score Entry".localized)
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -116,12 +79,116 @@ struct ScoreEntrySheet: View {
         #endif
     }
 
+    var contextCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let studentName = studentResult.student?.name {
+                Text(studentName)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+            }
+
+            if let assessmentTitle = studentResult.assessment?.title {
+                Text(assessmentTitle)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+
+            HStack(spacing: 8) {
+                infoPill(
+                    title: "Range".localized,
+                    value: "0-\(Self.formatScore(maxScore))"
+                )
+
+                if let scorePercentText {
+                    infoPill(
+                        title: "Percent".localized,
+                        value: scorePercentText
+                    )
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gray.opacity(0.08))
+        .cornerRadius(14)
+    }
+
+    var scoreEditorCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Score".localized)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+
+            HStack(spacing: 12) {
+                Group {
+                    #if os(iOS)
+                    SelectAllCommitTextField(
+                        placeholder: "0",
+                        text: $scoreText,
+                        keyboardType: .decimalPad,
+                        autoFocus: true,
+                        onCommit: saveAndDismiss
+                    )
+                    #else
+                    SelectAllCommitTextField(
+                        placeholder: "0",
+                        text: $scoreText,
+                        autoFocus: true,
+                        onCommit: saveAndDismiss
+                    )
+                    #endif
+                }
+                .frame(height: 22)
+                .padding(.horizontal, 14)
+                .frame(width: 120, height: 52)
+                .background(scoreTint.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(scoreTint.opacity(0.25), lineWidth: 1)
+                )
+                .cornerRadius(12)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    if parsedScore == nil {
+                        Text("Enter a valid number".localized)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                    } else {
+                        Text("Replaces the current value".localized)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+
+                    Text("Tap Confirm or press Return to save".localized)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(14)
+    }
+
     var quickButtons: some View {
         let values = [
             ("0%", 0.0),
             ("50%", maxScore * 0.5),
             ("70%", maxScore * 0.7),
             ("100%", maxScore)
+        ]
+        let columns = [
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8)
         ]
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -130,7 +197,7 @@ struct ScoreEntrySheet: View {
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
 
-            HStack(spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(values, id: \.0) { value in
                     Button {
                         scoreText = Self.formatScore(value.1)
@@ -138,15 +205,33 @@ struct ScoreEntrySheet: View {
                         Text(value.0.localized)
                             .font(.caption)
                             .fontWeight(.medium)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.gray.opacity(0.12))
-                            .cornerRadius(8)
+                            .frame(maxWidth: .infinity, minHeight: 34)
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(9)
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(14)
+    }
+
+    func infoPill(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.white.opacity(0.7))
+        .cornerRadius(10)
     }
 
     func saveAndDismiss() {
