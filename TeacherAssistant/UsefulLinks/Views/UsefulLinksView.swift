@@ -12,6 +12,7 @@ struct UsefulLinksView: View {
     @State private var formURL = ""
     @State private var formDescription = ""
     @State private var editingLinkID: UUID?
+    @State private var showingEditorSheet = false
     @State private var showingDeleteConfirmation = false
     @State private var pendingDeleteLinkID: UUID?
     @State private var errorMessage = ""
@@ -23,10 +24,23 @@ struct UsefulLinksView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing) {
-                headerCard
-                addLinkCard
-                savedLinksSection
+            LazyVStack(alignment: .leading, spacing: 10) {
+                if usefulLinks.isEmpty {
+                    emptyStateCard
+                } else {
+                    ForEach(Array(usefulLinks.enumerated()), id: \.element.id) { index, link in
+                        UsefulLinkRow(
+                            link: link,
+                            index: index,
+                            totalCount: usefulLinks.count,
+                            openAction: { open(link) },
+                            editAction: { startEditing(link) },
+                            moveUpAction: { move(linkID: link.id, direction: -1) },
+                            moveDownAction: { move(linkID: link.id, direction: 1) },
+                            deleteAction: { confirmDelete(link) }
+                        )
+                    }
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 16)
@@ -34,7 +48,19 @@ struct UsefulLinksView: View {
 #if !os(macOS)
         .navigationTitle(languageManager.localized("Useful Links"))
 #endif
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    startCreating()
+                } label: {
+                    Label(languageManager.localized("Add Link"), systemImage: "plus")
+                }
+            }
+        }
         .appSheetBackground(tint: .mint)
+        .sheet(isPresented: $showingEditorSheet) {
+            linkEditorSheet
+        }
         .alert(languageManager.localized("Delete Link?"), isPresented: $showingDeleteConfirmation) {
             Button(languageManager.localized("Cancel"), role: .cancel) {
                 pendingDeleteLinkID = nil
@@ -52,82 +78,112 @@ struct UsefulLinksView: View {
         }
     }
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Image(systemName: "link.circle.fill")
-                    .font(.title3)
-                    .foregroundColor(.mint)
-                Text(languageManager.localized("Useful Links"))
-                    .font(AppTypography.sectionTitle)
-            }
-
-            Text(languageManager.localized("Store classroom links, open them quickly, and keep them in the order you need."))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .appCardStyle(
-            cornerRadius: 16,
-            borderColor: Color.mint.opacity(0.12),
-            tint: .mint
-        )
-    }
-
-    private var addLinkCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(isEditing ? languageManager.localized("Edit Link") : languageManager.localized("Add Link"))
-                .font(AppTypography.cardTitle)
-
-            TextField(languageManager.localized("Title"), text: $formTitle)
-#if os(iOS)
-                .textInputAutocapitalization(.words)
-                .autocorrectionDisabled()
-#endif
-                .appFieldStyle(tint: .mint)
-
-            TextField("https://example.com", text: $formURL)
-#if os(iOS)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-#endif
-                .appFieldStyle(tint: .blue)
-
-            TextField(languageManager.localized("Description (optional)"), text: $formDescription, axis: .vertical)
-                .lineLimit(2...4)
-                .appFieldStyle(tint: .gray)
-
-            HStack(spacing: 10) {
-                Button(isEditing ? languageManager.localized("Save Changes") : languageManager.localized("Add Link")) {
-                    submitForm()
+    private var linkEditorSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing) {
+                    editorHeaderCard
+                    editorFieldsCard
+                    if !formTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !formURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !formDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        editorPreviewCard
+                    }
                 }
-                .buttonStyle(.plain)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.mint)
-                )
-
-                if isEditing {
+                .padding(.horizontal, 12)
+                .padding(.vertical, 16)
+            }
+            .appSheetBackground(tint: .mint)
+            .navigationTitle(isEditing ? languageManager.localized("Edit Link") : languageManager.localized("Add Link"))
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
                     Button(languageManager.localized("Cancel"), role: .cancel) {
+                        showingEditorSheet = false
                         resetForm()
                     }
-                    .buttonStyle(.plain)
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .appCardStyle(
-                        cornerRadius: 12,
-                        borderColor: AppChrome.separator,
-                        shadowOpacity: 0.02,
-                        shadowRadius: 4,
-                        shadowY: 1
-                    )
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isEditing ? languageManager.localized("Save Changes") : languageManager.localized("Add Link")) {
+                        submitForm()
+                    }
+                }
+            }
+        }
+#if os(macOS)
+        .frame(minWidth: 520, minHeight: 480)
+#endif
+    }
+
+    private var editorHeaderCard: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: isEditing ? "square.and.pencil.circle.fill" : "plus.circle.fill")
+                .font(.title2)
+                .foregroundColor(.mint)
+                .frame(width: 42, height: 42)
+                .appCardStyle(
+                    cornerRadius: 12,
+                    borderColor: Color.mint.opacity(0.16),
+                    shadowOpacity: 0.02,
+                    shadowRadius: 4,
+                    shadowY: 1,
+                    tint: .mint
+                )
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(isEditing ? languageManager.localized("Update Link Details") : languageManager.localized("Create a New Link"))
+                    .font(AppTypography.sectionTitle)
+
+                Text(languageManager.localized("Add a clear title, valid URL, and optional note to keep your resources organized."))
+                    .font(.subheadline)
+                    .lineSpacing(2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.mint.opacity(0.12),
+            tint: .mint
+        )
+    }
+
+    private var editorFieldsCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            fieldSection(title: languageManager.localized("Title")) {
+                TextField(languageManager.localized("e.g. Reading Portal"), text: $formTitle)
+#if os(iOS)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+#endif
+                    .font(.body)
+                    .appFieldStyle(tint: .mint)
+            }
+
+            fieldSection(title: languageManager.localized("URL")) {
+                TextField("https://example.com", text: $formURL)
+#if os(iOS)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+#endif
+                    .font(.body)
+                    .appFieldStyle(tint: .blue)
+            }
+
+            fieldSection(title: languageManager.localized("Description (optional)")) {
+                TextEditor(text: $formDescription)
+                    .frame(minHeight: 96)
+                    .padding(8)
+                    .font(.body)
+                    .lineSpacing(2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(AppChrome.elevatedBackground)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.gray.opacity(0.18), lineWidth: 1)
+                    )
             }
         }
         .padding()
@@ -138,18 +194,23 @@ struct UsefulLinksView: View {
         )
     }
 
-    private var savedLinksSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(languageManager.localized("Saved Links"))
-                    .font(AppTypography.cardTitle)
+    private var editorPreviewCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(languageManager.localized("Preview"))
+                .font(AppTypography.eyebrow)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
 
-                Spacer()
+            Text(formTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? languageManager.localized("Untitled Link") : formTitle)
+                .font(AppTypography.cardTitle)
+                .lineSpacing(1)
 
-                Text("\(usefulLinks.count)")
-                    .font(AppTypography.eyebrow)
+            let domain = editorLinkDomain(formURL)
+            if !domain.isEmpty {
+                Text(domain)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
                         Capsule()
@@ -157,34 +218,55 @@ struct UsefulLinksView: View {
                     )
             }
 
-            if usefulLinks.isEmpty {
-                Text(languageManager.localized("No useful links yet. Add one above to get started."))
+            if !formDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(formDescription)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .appCardStyle(
-                        cornerRadius: 14,
-                        borderColor: AppChrome.separator,
-                        shadowOpacity: 0.02,
-                        shadowRadius: 4,
-                        shadowY: 1
+                    .lineSpacing(2)
+                    .lineLimit(4)
+            }
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: Color.mint.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .mint
+        )
+    }
+
+    private func fieldSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            content()
+        }
+    }
+
+    private var emptyStateCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(languageManager.localized("No useful links yet."))
+                .font(AppTypography.cardTitle)
+            Text(languageManager.localized("Tap Add Link to create your first website card."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Button {
+                startCreating()
+            } label: {
+                Label(languageManager.localized("Add Link"), systemImage: "plus.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.mint)
                     )
-            } else {
-                LazyVStack(spacing: 10) {
-                    ForEach(Array(usefulLinks.enumerated()), id: \.element.id) { index, link in
-                        UsefulLinkRow(
-                            link: link,
-                            index: index,
-                            totalCount: usefulLinks.count,
-                            openAction: { open(link) },
-                            editAction: { startEditing(link) },
-                            moveUpAction: { move(linkID: link.id, direction: -1) },
-                            moveDownAction: { move(linkID: link.id, direction: 1) },
-                            deleteAction: { confirmDelete(link) }
-                        )
-                    }
-                }
             }
         }
         .padding()
@@ -228,8 +310,14 @@ struct UsefulLinksView: View {
             context.insert(newLink)
         }
 
-        saveContext()
+        guard saveContext() else { return }
+        showingEditorSheet = false
         resetForm()
+    }
+
+    private func startCreating() {
+        resetForm()
+        showingEditorSheet = true
     }
 
     private func startEditing(_ link: UsefulLink) {
@@ -237,6 +325,7 @@ struct UsefulLinksView: View {
         formTitle = link.title
         formURL = link.url
         formDescription = link.linkDescription
+        showingEditorSheet = true
     }
 
     private func confirmDelete(_ link: UsefulLink) {
@@ -254,9 +343,10 @@ struct UsefulLinksView: View {
         let remainingLinks = usefulLinks.filter { $0.id != link.id }
         context.delete(link)
         resequence(remainingLinks)
-        saveContext()
+        _ = saveContext()
 
         if editingLinkID == pendingDeleteLinkID {
+            showingEditorSheet = false
             resetForm()
         }
 
@@ -272,7 +362,7 @@ struct UsefulLinksView: View {
         var reorderedLinks = usefulLinks
         reorderedLinks.swapAt(currentIndex, targetIndex)
         resequence(reorderedLinks)
-        saveContext()
+        _ = saveContext()
     }
 
     private func resequence(_ links: [UsefulLink]) {
@@ -299,11 +389,13 @@ struct UsefulLinksView: View {
         formDescription = ""
     }
 
-    private func saveContext() {
+    private func saveContext() -> Bool {
         do {
             try context.save()
+            return true
         } catch {
             presentError(error.localizedDescription)
+            return false
         }
     }
 
@@ -322,6 +414,14 @@ struct UsefulLinksView: View {
         }
 
         return url.absoluteString
+    }
+
+    private func editorLinkDomain(_ rawValue: String) -> String {
+        guard let url = URL(string: rawValue),
+              let host = url.host else {
+            return ""
+        }
+        return host.replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
     }
 }
 
