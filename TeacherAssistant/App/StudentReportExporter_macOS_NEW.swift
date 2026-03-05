@@ -13,19 +13,9 @@ enum StudentReportExporterMac {
         allResults: [StudentResult],
         allAttendanceSessions: [AttendanceSession]
     ) -> URL {
-
-        let safeFilename = SecurityHelpers.generateSecureFilename(baseName: "StudentReport", extension: "pdf")
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(safeFilename)
         
         let pageWidth: CGFloat = 595.2   // A4
         let pageHeight: CGFloat = 841.8
-        
-        // Create an NSView to draw into
-        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: pageWidth, height: pageHeight))
-        
-        // Create PDF data
-        let pdfData = contentView.dataWithPDF(inside: contentView.bounds)
         
         // OR use a simpler text-based approach
         let textContent = generateTextContent(

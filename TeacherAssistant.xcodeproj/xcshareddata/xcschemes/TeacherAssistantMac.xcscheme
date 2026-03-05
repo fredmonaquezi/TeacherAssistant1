@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B663FA622F1EA65C00FEB0C1"
-               BuildableName = "TeacherAssistant.app"
-               BlueprintName = "TeacherAssistant"
+               BlueprintIdentifier = "B65443062F27F91000BDAE9A"
+               BuildableName = "TeacherAssistantMac.app"
+               BlueprintName = "TeacherAssistantMac"
                ReferencedContainer = "container:TeacherAssistant.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -44,9 +44,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B663FA622F1EA65C00FEB0C1"
-            BuildableName = "TeacherAssistant.app"
-            BlueprintName = "TeacherAssistant"
+            BlueprintIdentifier = "B65443062F27F91000BDAE9A"
+            BuildableName = "TeacherAssistantMac.app"
+            BlueprintName = "TeacherAssistantMac"
             ReferencedContainer = "container:TeacherAssistant.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,9 +61,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "B663FA622F1EA65C00FEB0C1"
-            BuildableName = "TeacherAssistant.app"
-            BlueprintName = "TeacherAssistant"
+            BlueprintIdentifier = "B65443062F27F91000BDAE9A"
+            BuildableName = "TeacherAssistantMac.app"
+            BlueprintName = "TeacherAssistantMac"
             ReferencedContainer = "container:TeacherAssistant.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

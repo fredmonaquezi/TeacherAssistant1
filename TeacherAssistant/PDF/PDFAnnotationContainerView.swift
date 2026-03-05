@@ -10,6 +10,7 @@ final class PDFAnnotationContainerView: UIView {
 
     let pdfView = PDFView()
     let canvasView = PKCanvasView()
+    private let toolPicker = PKToolPicker()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -107,15 +108,14 @@ extension PDFAnnotationContainerView {
     }
 
     func forceHideToolPicker() {
-        if let window = self.window,
-           let toolPicker = PKToolPicker.shared(for: window) {
+        if window != nil {
             toolPicker.setVisible(false, forFirstResponder: canvasView)
+            toolPicker.removeObserver(canvasView)
         }
     }
 
     func showToolPicker() {
-        if let window = self.window,
-           let toolPicker = PKToolPicker.shared(for: window) {
+        if window != nil {
             toolPicker.setVisible(true, forFirstResponder: canvasView)
             toolPicker.addObserver(canvasView)
             canvasView.becomeFirstResponder()
@@ -129,7 +129,7 @@ extension PDFAnnotationContainerView {
     }
 
     private struct AssociatedKeys {
-        static var drawingChangedKey = "drawingChangedKey"
+        static var drawingChangedKey: UInt8 = 0
     }
 }
 #endif

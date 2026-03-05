@@ -551,10 +551,23 @@ struct SimplePDFExporter {
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.heightTracksTextView = false
-        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+        guard let textContainer = textView.textContainer,
+              let layoutManager = textView.layoutManager else {
+            SecureLogger.error("Student report PDF fallback: missing text container or layout manager")
+            let fallbackPDF = textView.dataWithPDF(inside: textView.bounds)
+            do {
+                try fallbackPDF.write(to: url, options: [.atomic, .completeFileProtection])
+                SecureLogger.debug("PDF saved via fallback (\(fallbackPDF.count) bytes)")
+            } catch {
+                SecureLogger.error("Error saving fallback PDF", error: error)
+            }
+            return url
+        }
+        
+        layoutManager.ensureLayout(for: textContainer)
         
         // Get the actual size needed
-        let usedRect = textView.layoutManager!.usedRect(for: textView.textContainer!)
+        let usedRect = layoutManager.usedRect(for: textContainer)
         textView.frame = NSRect(x: 0, y: 0, width: pageWidth, height: max(usedRect.height, pageHeight))
         
         // Generate PDF data directly from the view

@@ -429,9 +429,21 @@ enum RunningRecordPDFExporter {
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.heightTracksTextView = false
-        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+        guard let textContainer = textView.textContainer,
+              let layoutManager = textView.layoutManager else {
+            SecureLogger.error("Running Records PDF fallback: missing text container or layout manager")
+            let fallbackPDF = textView.dataWithPDF(inside: textView.bounds)
+            do {
+                try fallbackPDF.write(to: url, options: [.atomic])
+                SecureLogger.debug("Running Records PDF saved via fallback (\(fallbackPDF.count) bytes)")
+            } catch {
+                SecureLogger.error("Error saving fallback Running Records PDF", error: error)
+            }
+            return url
+        }
 
-        let usedRect = textView.layoutManager!.usedRect(for: textView.textContainer!)
+        layoutManager.ensureLayout(for: textContainer)
+        let usedRect = layoutManager.usedRect(for: textContainer)
         textView.frame = NSRect(x: 0, y: 0, width: pageWidth, height: max(usedRect.height, pageHeight))
 
         let pdfData = textView.dataWithPDF(inside: NSRect(x: 0, y: 0, width: pageWidth, height: textView.frame.height))

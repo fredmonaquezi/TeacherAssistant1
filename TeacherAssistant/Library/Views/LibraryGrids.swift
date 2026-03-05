@@ -735,6 +735,7 @@ struct PDFCardView: View {
     let isRenaming: Bool
     let onRename: () -> Void
     let onEndRename: () -> Void
+    private let isEditTagsEnabled = false
     
     @State private var isHovered = false
     @State private var isDragging = false
@@ -878,10 +879,12 @@ struct PDFCardView: View {
                 Label(languageManager.localized("Rename"), systemImage: "pencil")
             }
             
-            Button {
-                // TODO: Edit tags
-            } label: {
-                Label(languageManager.localized("Edit Tags"), systemImage: "tag")
+            if isEditTagsEnabled {
+                Button {
+                    // TODO: Edit tags
+                } label: {
+                    Label(languageManager.localized("Edit Tags"), systemImage: "tag")
+                }
             }
             
             Divider()

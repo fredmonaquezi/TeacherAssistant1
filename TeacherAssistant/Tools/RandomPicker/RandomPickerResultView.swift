@@ -105,7 +105,10 @@ struct RandomPickerResultView: View {
                 
                 // Confetti effect
                 if showConfetti {
-                    ConfettiView()
+                    GeometryReader { proxy in
+                        ConfettiView(containerSize: proxy.size)
+                    }
+                    .allowsHitTesting(false)
                 }
             }
             .navigationTitle("")
@@ -180,6 +183,7 @@ struct RandomPickerResultView: View {
 // MARK: - Confetti View
 
 struct ConfettiView: View {
+    let containerSize: CGSize
     @State private var confettiPieces: [ConfettiPiece] = []
     
     var body: some View {
@@ -200,14 +204,8 @@ struct ConfettiView: View {
     
     func generateConfetti() {
         let colors: [Color] = [.orange, .yellow, .red, .pink, .purple, .blue, .green]
-        
-        #if os(macOS)
-        let screenWidth: CGFloat = 800
-        let screenHeight: CGFloat = 600
-        #else
-        let screenWidth = UIScreen.main.bounds.width
-        let screenHeight = UIScreen.main.bounds.height
-        #endif
+        let screenWidth = max(containerSize.width, 1)
+        let screenHeight = max(containerSize.height, 1)
         
         for _ in 0..<50 {
             let piece = ConfettiPiece(

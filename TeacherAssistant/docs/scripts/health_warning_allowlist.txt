@@ -1,0 +1,4 @@
+# Optional warning allowlist for docs/scripts/health_check.sh.
+# Add one regex per line to suppress known non-blocking warnings.
+# Example:
+# RandomPickerResultView.swift:208:36: warning:
