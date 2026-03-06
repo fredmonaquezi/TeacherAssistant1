@@ -45,6 +45,7 @@ struct ClassPickerView: View {
             Image(systemName: toolIcon)
                 .font(.system(size: 40))
                 .foregroundColor(toolColor)
+                .offset(y: toolIconVerticalOffset)
                 .frame(width: 60, height: 60)
                 .appCardStyle(
                     cornerRadius: 12,
@@ -167,6 +168,16 @@ struct ClassPickerView: View {
         case .gradebook: return .green
         case .groups: return .purple
         case .randomPicker: return .orange
+        }
+    }
+
+    var toolIconVerticalOffset: CGFloat {
+        switch tool {
+        case .groups:
+            // Optical correction: person.3.fill sits slightly low in this badge.
+            return -2
+        default:
+            return 0
         }
     }
     

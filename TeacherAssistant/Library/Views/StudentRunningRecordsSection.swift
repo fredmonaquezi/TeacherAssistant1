@@ -591,7 +591,9 @@ struct StudentAllRunningRecordsView: View {
                 Button(languageManager.localized("Delete"), role: .destructive) {
                     if let record = recordToDelete {
                         context.delete(record)
-                        _ = SaveCoordinator.save(context: context, reason: "Delete running record detail")
+                        Task {
+                            _ = await SaveCoordinator.perform(context: context, reason: "Delete running record detail")
+                        }
                     }
                     recordToDelete = nil
                 }

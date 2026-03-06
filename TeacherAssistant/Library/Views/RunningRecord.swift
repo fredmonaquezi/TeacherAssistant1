@@ -11,7 +11,7 @@ enum RunningRecordDateRangePreset: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
-    func includes(
+    nonisolated func includes(
         _ date: Date,
         customStartDate: Date?,
         customEndDate: Date?,

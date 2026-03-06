@@ -23,7 +23,9 @@ struct TeacherAssistantApp: App {
                 .environmentObject(languageManager)
                 .environment(\.locale, Locale(identifier: languageManager.currentLanguage.localeIdentifier))
                 .task {
-                    initializeDefaultRubrics(in: activeContainer)
+                    let token = await PerformanceMonitor.shared.beginInterval(.appLaunch)
+                    await initializeDefaultRubrics(in: activeContainer)
+                    await PerformanceMonitor.shared.endInterval(token, success: true)
                 }
                 .modelContainer(activeContainer)
         } else {
@@ -35,7 +37,7 @@ struct TeacherAssistantApp: App {
     
     // MARK: - Initialize Default Rubrics
     
-    func initializeDefaultRubrics(in container: ModelContainer) {
-        createDefaultRubrics(context: container.mainContext)
+    func initializeDefaultRubrics(in container: ModelContainer) async {
+        await createDefaultRubrics(context: container.mainContext)
     }
 }

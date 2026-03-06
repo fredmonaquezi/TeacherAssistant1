@@ -12,6 +12,11 @@ import UIKit
 struct LibraryBrowseGrid: View {
     let subfolders: [LibraryFolder]
     let files: [LibraryFile]
+    let allFolders: [LibraryFolder]
+    let allFiles: [LibraryFile]
+    let folderByID: [UUID: LibraryFolder]
+    let fileCountByParent: [UUID: Int]
+    let subfolderCountByParent: [UUID: Int]
     
     @State private var renamingFolderID: UUID?
     @State private var renamingFileID: UUID?
@@ -25,6 +30,11 @@ struct LibraryBrowseGrid: View {
                 ForEach(subfolders, id: \.id) { sub in
                     FolderCardView(
                         folder: sub,
+                        allFolders: allFolders,
+                        allFiles: allFiles,
+                        folderByID: folderByID,
+                        fileCount: fileCountByParent[sub.id] ?? 0,
+                        subfolderCount: subfolderCountByParent[sub.id] ?? 0,
                         isRenaming: renamingFolderID == sub.id,
                         onRename: { renamingFolderID = sub.id },
                         onEndRename: { renamingFolderID = nil }
@@ -101,6 +111,11 @@ struct LibrarySelectGrid: View {
 
 struct FolderCardView: View {
     @Bindable var folder: LibraryFolder
+    let allFolders: [LibraryFolder]
+    let allFiles: [LibraryFile]
+    let folderByID: [UUID: LibraryFolder]
+    let fileCount: Int
+    let subfolderCount: Int
     let isRenaming: Bool
     let onRename: () -> Void
     let onEndRename: () -> Void
@@ -117,11 +132,8 @@ struct FolderCardView: View {
     // Delete confirmation
     @State private var showingDeleteAlert = false
     
-    @Query private var allFolders: [LibraryFolder]
-    @Query private var allFiles: [LibraryFile]
-    
-    // Predefined folder colors
-    let folderColors: [(name: String, hex: String, color: Color)] = [
+    // Shared palette to avoid rebuilding this array for every card instance.
+    private static let folderColors: [(name: String, hex: String, color: Color)] = [
         ("Blue", "#3B82F6", .blue),
         ("Purple", "#A855F7", .purple),
         ("Pink", "#EC4899", .pink),
@@ -314,14 +326,18 @@ struct FolderCardView: View {
         let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             folder.name = trimmed
-            _ = SaveCoordinator.save(context: context, reason: "Rename library folder")
+            Task {
+                _ = await SaveCoordinator.perform(context: context, reason: "Rename library folder")
+            }
         }
         onEndRename()
     }
     
     func deleteFolder() {
         context.delete(folder)
-        _ = SaveCoordinator.save(context: context, reason: "Delete library folder")
+        Task {
+            _ = await SaveCoordinator.perform(context: context, reason: "Delete library folder")
+        }
     }
     
     // MARK: - Drag and Drop
@@ -363,12 +379,16 @@ struct FolderCardView: View {
         guard !isDescendant(targetFolder, of: draggedFolder) else { return }
         
         draggedFolder.parentID = targetFolder.id
-        _ = SaveCoordinator.save(context: context, reason: "Move library folder")
+        Task {
+            _ = await SaveCoordinator.perform(context: context, reason: "Move library folder")
+        }
     }
     
     func moveFile(_ file: LibraryFile, into targetFolder: LibraryFolder) {
         file.parentFolderID = targetFolder.id
-        _ = SaveCoordinator.save(context: context, reason: "Move library file")
+        Task {
+            _ = await SaveCoordinator.perform(context: context, reason: "Move library file")
+        }
     }
     
     func isDescendant(_ possibleChild: LibraryFolder, of parent: LibraryFolder) -> Bool {
@@ -378,7 +398,7 @@ struct FolderCardView: View {
             if pid == parent.id {
                 return true
             }
-            currentParentID = allFolders.first(where: { $0.id == pid })?.parentID
+            currentParentID = folderByID[pid]?.parentID
         }
         
         return false
@@ -393,7 +413,9 @@ struct FolderCardView: View {
             colorHex: folder.colorHex
         )
         context.insert(duplicate)
-        _ = SaveCoordinator.save(context: context, reason: "Duplicate library folder")
+        Task {
+            _ = await SaveCoordinator.perform(context: context, reason: "Duplicate library folder")
+        }
     }
     
     func showInFinder() {
@@ -427,7 +449,7 @@ struct FolderCardView: View {
                     LazyVGrid(columns: [
                         GridItem(.adaptive(minimum: 100), spacing: 16)
                     ], spacing: 16) {
-                        ForEach(folderColors, id: \.name) { colorOption in
+                        ForEach(Self.folderColors, id: \.name) { colorOption in
                             colorOptionButton(colorOption)
                         }
                     }
@@ -436,8 +458,11 @@ struct FolderCardView: View {
                     // Reset to default
                     Button {
                         folder.colorHex = nil
-                        if SaveCoordinator.save(context: context, reason: "Reset library folder color") {
-                            showingColorPicker = false
+                        Task {
+                            let result = await SaveCoordinator.perform(context: context, reason: "Reset library folder color")
+                            if result.didSave {
+                                showingColorPicker = false
+                            }
                         }
                     } label: {
                         HStack {
@@ -476,7 +501,9 @@ struct FolderCardView: View {
         
         return Button {
             folder.colorHex = colorOption.hex
-            _ = SaveCoordinator.save(context: context, reason: "Update library folder color")
+            Task {
+                _ = await SaveCoordinator.perform(context: context, reason: "Update library folder color")
+            }
         } label: {
             VStack(spacing: 12) {
                 ZStack {
@@ -541,9 +568,6 @@ struct FolderCardView: View {
     // MARK: - Folder Info Sheet
     
     var folderInfoSheet: some View {
-        let fileCount = allFiles.filter { $0.parentFolderID == folder.id }.count
-        let subfolderCount = allFolders.filter { $0.parentID == folder.id }.count
-        
         return NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
@@ -618,7 +642,8 @@ struct FolderCardView: View {
                         )
                         
                         // Location Section
-                        if let parentFolder = allFolders.first(where: { $0.id == folder.parentID }) {
+                        if let parentFolderID = folder.parentID,
+                           let parentFolder = folderByID[parentFolderID] {
                             infoCard(
                                 title: "Location",
                                 items: [
@@ -657,7 +682,7 @@ struct FolderCardView: View {
     
     var folderColorName: String {
         guard let hex = folder.colorHex else { return "Blue (Default)" }
-        return folderColors.first(where: { $0.hex == hex })?.name ?? "Custom"
+        return Self.folderColors.first(where: { $0.hex == hex })?.name ?? "Custom"
     }
     
     func infoCard(title: String, items: [(icon: String, label: String, value: String)]) -> some View {
@@ -728,6 +753,53 @@ extension Color {
     }
 }
 
+private enum LibraryPDFThumbnailCache {
+    private static let cache = NSCache<NSString, PlatformImage>()
+    private static let renderingQueue = DispatchQueue(
+        label: "com.teacherassistant.library.pdf-thumbnail-cache",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
+
+    static func cachedThumbnail(fileID: UUID, pdfData: Data, size: CGSize) -> PlatformImage? {
+        let key = cacheKey(fileID: fileID, pdfData: pdfData, size: size)
+        return cache.object(forKey: key as NSString)
+    }
+
+    static func requestThumbnail(
+        fileID: UUID,
+        pdfData: Data,
+        size: CGSize,
+        completion: @escaping (PlatformImage?) -> Void
+    ) {
+        let key = cacheKey(fileID: fileID, pdfData: pdfData, size: size)
+        if let cached = cache.object(forKey: key as NSString) {
+            completion(cached)
+            return
+        }
+
+        renderingQueue.async {
+            let rendered = renderThumbnail(from: pdfData, size: size)
+            if let rendered {
+                cache.setObject(rendered, forKey: key as NSString)
+            }
+            DispatchQueue.main.async {
+                completion(rendered)
+            }
+        }
+    }
+
+    private static func cacheKey(fileID: UUID, pdfData: Data, size: CGSize) -> String {
+        let prefixSignature = pdfData.prefix(16).map { String(format: "%02x", $0) }.joined()
+        return "\(fileID.uuidString)-\(pdfData.count)-\(Int(size.width))x\(Int(size.height))-\(prefixSignature)"
+    }
+
+    private static func renderThumbnail(from pdfData: Data, size: CGSize) -> PlatformImage? {
+        guard let pdfDocument = PDFDocument(data: pdfData) else { return nil }
+        return pdfDocument.generateThumbnail(size: size)
+    }
+}
+
 // MARK: - PDF Card
 
 struct PDFCardView: View {
@@ -740,12 +812,19 @@ struct PDFCardView: View {
     @State private var isHovered = false
     @State private var isDragging = false
     @State private var editingName: String = ""
+    @State private var thumbnail: PlatformImage?
+    @State private var thumbnailRequestToken: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.modelContext) private var context
     @EnvironmentObject var languageManager: LanguageManager
     
     // Delete confirmation
     @State private var showingDeleteAlert = false
+
+    private let thumbnailSize = CGSize(width: 180, height: 200)
+    private var thumbnailReloadToken: String {
+        "\(file.id.uuidString)-\(file.pdfData.count)"
+    }
     
     var body: some View {
         VStack(spacing: 8) {
@@ -763,7 +842,7 @@ struct PDFCardView: View {
                         .shadow(color: Color.black.opacity(isHovered ? 0.15 : 0.08), radius: isHovered ? 8 : 4, x: 0, y: 2)
                     
                     // PDF Thumbnail
-                    if let thumbnail = generateThumbnail(from: file.pdfData) {
+                    if let thumbnail {
                         #if os(macOS)
                         Image(nsImage: thumbnail)
                             .resizable()
@@ -831,6 +910,12 @@ struct PDFCardView: View {
             .onDrag {
                 isDragging = true
                 return NSItemProvider(object: "file:\(file.id.uuidString)" as NSString)
+            }
+            .onAppear {
+                loadThumbnail(resetCurrentValue: false)
+            }
+            .onChange(of: thumbnailReloadToken) { _, _ in
+                loadThumbnail(resetCurrentValue: true)
             }
             
             // File Name (editable)
@@ -913,82 +998,46 @@ struct PDFCardView: View {
         let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             file.name = trimmed
-            _ = SaveCoordinator.save(context: context, reason: "Rename library file")
+            Task {
+                _ = await SaveCoordinator.perform(context: context, reason: "Rename library file")
+            }
         }
         onEndRename()
     }
     
     func deleteFile() {
         context.delete(file)
-        _ = SaveCoordinator.save(context: context, reason: "Delete library file")
-    }
-    
-    // MARK: - Thumbnail Generation
-    
-    #if os(macOS)
-    func generateThumbnail(from pdfData: Data) -> NSImage? {
-        guard let pdfDocument = PDFDocument(data: pdfData),
-              let firstPage = pdfDocument.page(at: 0) else {
-            return nil
+        Task {
+            _ = await SaveCoordinator.perform(context: context, reason: "Delete library file")
         }
-        
-        let pageRect = firstPage.bounds(for: .mediaBox)
-        let thumbnailSize = CGSize(width: 180, height: 200)
-        
-        // Calculate scale to fill the thumbnail area
-        let scale = max(
-            thumbnailSize.width / pageRect.width,
-            thumbnailSize.height / pageRect.height
-        )
-        
-        let scaledSize = CGSize(
-            width: pageRect.width * scale,
-            height: pageRect.height * scale
-        )
-        
-        let image = NSImage(size: scaledSize)
-        image.lockFocus()
-        
-        NSGraphicsContext.current?.imageInterpolation = .high
-        firstPage.draw(with: .mediaBox, to: NSGraphicsContext.current!.cgContext)
-        
-        image.unlockFocus()
-        
-        return image
     }
-    #else
-    func generateThumbnail(from pdfData: Data) -> UIImage? {
-        guard let pdfDocument = PDFDocument(data: pdfData),
-              let firstPage = pdfDocument.page(at: 0) else {
-            return nil
+
+    private func loadThumbnail(resetCurrentValue: Bool) {
+        if resetCurrentValue {
+            thumbnail = nil
         }
-        
-        let pageRect = firstPage.bounds(for: .mediaBox)
-        let thumbnailSize = CGSize(width: 180, height: 200)
-        
-        // Calculate scale to fill the thumbnail area
-        let scale = max(
-            thumbnailSize.width / pageRect.width,
-            thumbnailSize.height / pageRect.height
-        )
-        
-        let scaledSize = CGSize(
-            width: pageRect.width * scale,
-            height: pageRect.height * scale
-        )
-        
-        let renderer = UIGraphicsImageRenderer(size: scaledSize)
-        let image = renderer.image { context in
-            UIColor.white.setFill()
-            context.fill(CGRect(origin: .zero, size: scaledSize))
-            
-            context.cgContext.interpolationQuality = .high
-            firstPage.draw(with: .mediaBox, to: context.cgContext)
+
+        let token = thumbnailReloadToken
+        thumbnailRequestToken = token
+
+        if let cached = LibraryPDFThumbnailCache.cachedThumbnail(
+            fileID: file.id,
+            pdfData: file.pdfData,
+            size: thumbnailSize
+        ) {
+            thumbnail = cached
+            return
         }
-        
-        return image
+
+        LibraryPDFThumbnailCache.requestThumbnail(
+            fileID: file.id,
+            pdfData: file.pdfData,
+            size: thumbnailSize
+        ) { rendered in
+            guard thumbnailRequestToken == token else { return }
+            thumbnail = rendered
+        }
     }
-    #endif
 }
 
 // MARK: - Selectable Cards
@@ -1078,7 +1127,12 @@ struct SelectablePDFCard: View {
     let isSelected: Bool
     let action: () -> Void
     
-    @State private var isHovered = false
+    @State private var thumbnail: PlatformImage?
+    @State private var thumbnailRequestToken: String = ""
+    private let thumbnailSize = CGSize(width: 180, height: 200)
+    private var thumbnailReloadToken: String {
+        "\(file.id.uuidString)-\(file.pdfData.count)"
+    }
     
     var body: some View {
         Button(action: action) {
@@ -1098,7 +1152,7 @@ struct SelectablePDFCard: View {
                         .scaleEffect(isSelected ? 0.97 : 1.0)
                     
                     // PDF Thumbnail
-                    if let thumbnail = generateThumbnail(from: file.pdfData) {
+                    if let thumbnail {
                         #if os(macOS)
                         Image(nsImage: thumbnail)
                             .resizable()
@@ -1152,68 +1206,38 @@ struct SelectablePDFCard: View {
         }
         .buttonStyle(.plain)
         .animation(.spring(response: 0.3), value: isSelected)
-    }
-    
-    #if os(macOS)
-    func generateThumbnail(from pdfData: Data) -> NSImage? {
-        guard let pdfDocument = PDFDocument(data: pdfData),
-              let firstPage = pdfDocument.page(at: 0) else {
-            return nil
+        .onAppear {
+            loadThumbnail(resetCurrentValue: false)
         }
-        
-        let pageRect = firstPage.bounds(for: .mediaBox)
-        let thumbnailSize = CGSize(width: 180, height: 200)
-        
-        let scale = max(
-            thumbnailSize.width / pageRect.width,
-            thumbnailSize.height / pageRect.height
-        )
-        
-        let scaledSize = CGSize(
-            width: pageRect.width * scale,
-            height: pageRect.height * scale
-        )
-        
-        let image = NSImage(size: scaledSize)
-        image.lockFocus()
-        
-        NSGraphicsContext.current?.imageInterpolation = .high
-        firstPage.draw(with: .mediaBox, to: NSGraphicsContext.current!.cgContext)
-        
-        image.unlockFocus()
-        
-        return image
-    }
-    #else
-    func generateThumbnail(from pdfData: Data) -> UIImage? {
-        guard let pdfDocument = PDFDocument(data: pdfData),
-              let firstPage = pdfDocument.page(at: 0) else {
-            return nil
+        .onChange(of: thumbnailReloadToken) { _, _ in
+            loadThumbnail(resetCurrentValue: true)
         }
-        
-        let pageRect = firstPage.bounds(for: .mediaBox)
-        let thumbnailSize = CGSize(width: 180, height: 200)
-        
-        let scale = max(
-            thumbnailSize.width / pageRect.width,
-            thumbnailSize.height / pageRect.height
-        )
-        
-        let scaledSize = CGSize(
-            width: pageRect.width * scale,
-            height: pageRect.height * scale
-        )
-        
-        let renderer = UIGraphicsImageRenderer(size: scaledSize)
-        let image = renderer.image { context in
-            UIColor.white.setFill()
-            context.fill(CGRect(origin: .zero, size: scaledSize))
-            
-            context.cgContext.interpolationQuality = .high
-            firstPage.draw(with: .mediaBox, to: context.cgContext)
-        }
-        
-        return image
     }
-    #endif
+
+    private func loadThumbnail(resetCurrentValue: Bool) {
+        if resetCurrentValue {
+            thumbnail = nil
+        }
+
+        let token = thumbnailReloadToken
+        thumbnailRequestToken = token
+
+        if let cached = LibraryPDFThumbnailCache.cachedThumbnail(
+            fileID: file.id,
+            pdfData: file.pdfData,
+            size: thumbnailSize
+        ) {
+            thumbnail = cached
+            return
+        }
+
+        LibraryPDFThumbnailCache.requestThumbnail(
+            fileID: file.id,
+            pdfData: file.pdfData,
+            size: thumbnailSize
+        ) { rendered in
+            guard thumbnailRequestToken == token else { return }
+            thumbnail = rendered
+        }
+    }
 }

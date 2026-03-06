@@ -26,20 +26,19 @@ struct LibraryView: View {
     @State private var showingMoveSheet = false
     
     @State private var searchText: String = ""
-
-    
+    @State private var derivedData: LibraryDerivedData = .empty
 
     // Current folder
     var folder: LibraryFolder? {
-        allFolders.first { $0.id == folderID }
+        derivedData.folder
     }
 
     var subfolders: [LibraryFolder] {
-        allFolders.filter { $0.parentID == folderID }
+        derivedData.subfolders
     }
 
     var files: [LibraryFile] {
-        allFiles.filter { $0.parentFolderID == folderID }
+        derivedData.files
     }
 
     var isRootFolder: Bool {
@@ -55,13 +54,32 @@ struct LibraryView: View {
     }
 
     var matchingFolders: [LibraryFolder] {
-        let q = searchText.lowercased()
-        return allFolders.filter { $0.name.lowercased().contains(q) }
+        derivedData.matchingFolders
     }
 
     var matchingFiles: [LibraryFile] {
-        let q = searchText.lowercased()
-        return allFiles.filter { $0.name.lowercased().contains(q) }
+        derivedData.matchingFiles
+    }
+
+    var folderByID: [UUID: LibraryFolder] {
+        derivedData.folderByID
+    }
+
+    var fileCountByParent: [UUID: Int] {
+        derivedData.fileCountByParent
+    }
+
+    var subfolderCountByParent: [UUID: Int] {
+        derivedData.subfolderCountByParent
+    }
+
+    private var refreshToken: String {
+        [
+            String(allFolders.count),
+            String(allFiles.count),
+            searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+            folderID.uuidString,
+        ].joined(separator: "|")
     }
 
     var body: some View {
@@ -222,8 +240,24 @@ struct LibraryView: View {
             } message: {
                 Text(languageManager.localized("The selected PDF exceeds the maximum allowed file size of 100 MB."))
             }
+            .task(id: refreshToken) {
+                do {
+                    try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+                } catch {
+                    return
+                }
+                await refreshDerivedData()
+            }
         } else {
             ProgressView("Loading folder...")
+                .task(id: refreshToken) {
+                    do {
+                        try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+                    } catch {
+                        return
+                    }
+                    await refreshDerivedData()
+                }
         }
     }
 
@@ -232,7 +266,9 @@ struct LibraryView: View {
         if isSearching {
             LibrarySearchResultsGrid(
                 folders: matchingFolders,
-                files: matchingFiles
+                files: matchingFiles,
+                allFolders: allFolders,
+                allFiles: allFiles
             )
         } else if isSelecting {
             LibrarySelectGrid(
@@ -244,7 +280,12 @@ struct LibraryView: View {
         } else {
             LibraryBrowseGrid(
                 subfolders: subfolders,
-                files: files
+                files: files,
+                allFolders: allFolders,
+                allFiles: allFiles,
+                folderByID: folderByID,
+                fileCountByParent: fileCountByParent,
+                subfolderCountByParent: subfolderCountByParent
             )
         }
     }
@@ -338,40 +379,65 @@ struct LibraryView: View {
     // MARK: - Actions
 
     func createFolder() {
-        let newFolder = LibraryFolder(name: "New Folder", parentID: folderID)
-        context.insert(newFolder)
-        _ = SaveCoordinator.save(context: context, reason: "Create library folder")
+        Task {
+            await PersistenceWriteCoordinator.shared.perform(
+                context: context,
+                reason: "Create library folder"
+            ) {
+                let newFolder = LibraryFolder(name: "New Folder", parentID: folderID)
+                context.insert(newFolder)
+            }
+        }
     }
 
     func renameFolder(to newName: String) {
         guard let folder = folder else { return }
-        folder.name = newName
-        _ = SaveCoordinator.save(context: context, reason: "Rename current library folder")
+        Task {
+            await PersistenceWriteCoordinator.shared.perform(
+                context: context,
+                reason: "Rename current library folder"
+            ) {
+                folder.name = newName
+            }
+        }
     }
 
     func deleteCurrentFolder() {
         guard let folder = folder, folder.parentID != nil else { return }
-        deleteFolderRecursively(folder)
-        if SaveCoordinator.save(context: context, reason: "Delete current library folder") {
-            dismiss()
+        Task {
+            let result = await PersistenceWriteCoordinator.shared.perform(
+                context: context,
+                reason: "Delete current library folder"
+            ) {
+                deleteFolderRecursively(folder)
+            }
+            if result.didSave {
+                dismiss()
+            }
         }
     }
 
     func deleteSelection() {
-        for id in selectedFileIDs {
-            if let file = allFiles.first(where: { $0.id == id }) {
-                context.delete(file)
-            }
-        }
+        Task {
+            let result = await PersistenceWriteCoordinator.shared.perform(
+                context: context,
+                reason: "Delete library selection"
+            ) {
+                for id in selectedFileIDs {
+                    if let file = allFiles.first(where: { $0.id == id }) {
+                        context.delete(file)
+                    }
+                }
 
-        for id in selectedFolderIDs {
-            if let folder = allFolders.first(where: { $0.id == id }) {
-                deleteFolderRecursively(folder)
+                for id in selectedFolderIDs {
+                    if let folder = allFolders.first(where: { $0.id == id }) {
+                        deleteFolderRecursively(folder)
+                    }
+                }
             }
-        }
-
-        if SaveCoordinator.save(context: context, reason: "Delete library selection") {
-            exitSelectMode()
+            if result.didSave {
+                exitSelectMode()
+            }
         }
     }
 
@@ -428,49 +494,61 @@ struct LibraryView: View {
     }
 
     func savePDF(name: String, data: Data, subject: Subject?, unit: Unit?) {
-        let newFile = LibraryFile(
-            name: name,
-            pdfData: data,
-            parentFolderID: folderID
-        )
-        
-        // Link to subject/unit
-        newFile.linkedSubject = subject
-        newFile.linkedUnit = unit
+        Task {
+            await PersistenceWriteCoordinator.shared.perform(
+                context: context,
+                reason: "Import PDF into library"
+            ) {
+                let newFile = LibraryFile(
+                    name: name,
+                    pdfData: data,
+                    parentFolderID: folderID
+                )
 
-        context.insert(newFile)
-        _ = SaveCoordinator.save(context: context, reason: "Import PDF into library")
+                // Link to subject/unit
+                newFile.linkedSubject = subject
+                newFile.linkedUnit = unit
+
+                context.insert(newFile)
+            }
+        }
     }
     
     func moveSelection(to destination: LibraryFolder) {
-        // Move files
-        for id in selectedFileIDs {
-            if let file = allFiles.first(where: { $0.id == id }) {
-                file.parentFolderID = destination.id
-            }
-        }
-
-        // Move folders (with safety check)
-        for id in selectedFolderIDs {
-            if let folder = allFolders.first(where: { $0.id == id }) {
-
-                // ❌ Block moving into itself
-                if folder.id == destination.id {
-                    continue
+        Task {
+            let result = await PersistenceWriteCoordinator.shared.perform(
+                context: context,
+                reason: "Move library selection"
+            ) {
+                // Move files
+                for id in selectedFileIDs {
+                    if let file = allFiles.first(where: { $0.id == id }) {
+                        file.parentFolderID = destination.id
+                    }
                 }
 
-                // ❌ Block moving into one of its descendants
-                if isDescendant(destination, of: folder) {
-                    continue
+                // Move folders (with safety check)
+                for id in selectedFolderIDs {
+                    if let folder = allFolders.first(where: { $0.id == id }) {
+
+                        // Block moving into itself.
+                        if folder.id == destination.id {
+                            continue
+                        }
+
+                        // Block moving into one of its descendants.
+                        if isDescendant(destination, of: folder) {
+                            continue
+                        }
+
+                        // Safe to move.
+                        folder.parentID = destination.id
+                    }
                 }
-
-                // ✅ Safe to move
-                folder.parentID = destination.id
             }
-        }
-
-        if SaveCoordinator.save(context: context, reason: "Move library selection") {
-            exitSelectMode()
+            if result.didSave {
+                exitSelectMode()
+            }
         }
     }
     
@@ -485,6 +563,24 @@ struct LibraryView: View {
         }
 
         return false
+    }
+
+    @MainActor
+    private func refreshDerivedData() async {
+        let token = await PerformanceMonitor.shared.beginInterval(.libraryDerive)
+        let derived = await LibraryStore.deriveAsync(
+            allFolders: allFolders,
+            allFiles: allFiles,
+            folderID: folderID,
+            searchText: searchText
+        )
+        if Task.isCancelled {
+            await PerformanceMonitor.shared.endInterval(token, success: false)
+            return
+        }
+
+        derivedData = derived
+        await PerformanceMonitor.shared.endInterval(token, success: true)
     }
 
 

@@ -22,6 +22,7 @@ struct StudentProgressView: View {
     @State private var schoolName: String = ""
     @State private var showConfirmation = false
     @State private var selectedTab: ProgressTab = .overview
+    @State private var derivedData: StudentProgressDerivedData = .empty
     
     enum ProgressTab: String, CaseIterable {
         case overview = "Overview"
@@ -62,36 +63,46 @@ struct StudentProgressView: View {
     }
     // MARK: - Data Filters
     
+    var overallAverageScore: Double {
+        derivedData.overallAverageScore
+    }
+
     var resultsForStudent: [StudentResult] {
-        allResults.filter { $0.student?.id == student.id }
+        derivedData.resultsForStudent
     }
 
     var scoredResultsForStudent: [StudentResult] {
-        resultsForStudent.filter(\.isScored)
+        derivedData.scoredResultsForStudent
+    }
+
+    var recentActivityViewModels: [StudentProgressRecentActivityViewModel] {
+        derivedData.recentActivityViewModels
     }
     
     var attendanceRecordsForStudent: [AttendanceRecord] {
-        allAttendanceSessions.flatMap { session in
-            session.records.filter { $0.student?.id == student.id }
-        }
+        derivedData.attendanceRecordsForStudent
     }
     
     // MARK: - Attendance Stats
     
+    var attendanceSummary: StudentProgressAttendanceSummary {
+        derivedData.attendanceSummary
+    }
+
     var totalSessions: Int {
-        attendanceRecordsForStudent.count
+        attendanceSummary.totalSessions
     }
     
     var presentCount: Int {
-        attendanceRecordsForStudent.filter { $0.status == .present }.count
+        attendanceSummary.present
     }
     
     var absentCount: Int {
-        attendanceRecordsForStudent.filter { $0.status == .absent }.count
+        attendanceSummary.absent
     }
     
     var earlyCount: Int {
-        attendanceRecordsForStudent.filter { $0.status == .late }.count
+        attendanceSummary.late
     }
     
     var attendancePercentage: Double {
@@ -101,16 +112,33 @@ struct StudentProgressView: View {
     
     // MARK: - Subjects
     
-    var subjectsForStudent: [Subject] {
-        let subjects = resultsForStudent.compactMap { $0.assessment?.unit?.subject }
-        
-        var unique: [Subject] = []
-        for subject in subjects {
-            if !unique.contains(where: { $0.id == subject.id }) {
-                unique.append(subject)
-            }
-        }
-        return unique.sorted { $0.name < $1.name }
+    var subjectOverviewViewModels: [StudentProgressSubjectOverviewViewModel] {
+        derivedData.subjectOverviewViewModels
+    }
+
+    var subjectSectionViewModels: [StudentProgressSubjectSectionViewModel] {
+        derivedData.subjectSectionViewModels
+    }
+
+    var subjectSummaries: [StudentProgressSubjectSummary] {
+        derivedData.subjectSummaries
+    }
+
+    var runningRecordsDescending: [RunningRecord] {
+        derivedData.runningRecordsDescending
+    }
+
+    var runningRecordCount: Int {
+        runningRecordsDescending.count
+    }
+
+    private var refreshToken: String {
+        [
+            String(allResults.count),
+            String(allAttendanceSessions.count),
+            String(allDevelopmentScores.count),
+            String(describing: student.id),
+        ].joined(separator: "|")
     }
     
     var body: some View {
@@ -184,6 +212,14 @@ struct StudentProgressView: View {
             Button("OK".localized) { }
         } message: {
             Text("Student progress report has been generated successfully!".localized)
+        }
+        .task(id: refreshToken) {
+            do {
+                try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+            } catch {
+                return
+            }
+            await refreshDerivedData()
         }
         .macNavigationDepth()
     }
@@ -306,10 +342,10 @@ struct StudentProgressView: View {
             currentY += 30
             
             let stats = [
-                "Academic Average: \(String(format: "%.1f", self.resultsForStudent.averageScore))",
+                "Academic Average: \(String(format: "%.1f", self.overallAverageScore))",
                 "Total Assessments: \(self.scoredResultsForStudent.count)",
                 "Attendance Rate: \(String(format: "%.0f%%", self.attendancePercentage))",
-                "Running Records: \(self.student.runningRecords.count)",
+                "Running Records: \(self.runningRecordCount)",
                 "Development Areas: \(self.studentDevelopmentScores.count)"
             ]
             
@@ -321,20 +357,15 @@ struct StudentProgressView: View {
             currentY += 20
             
             // Subject Performance
-            if !self.subjectsForStudent.isEmpty {
+            if !self.subjectSectionViewModels.isEmpty {
                 "Subject Performance".draw(at: CGPoint(x: 50, y: currentY), withAttributes: sectionAttrs)
                 currentY += 30
                 
-                for subject in self.subjectsForStudent.prefix(8) {
-                    let subjectResults = self.resultsForStudent.filter {
-                        $0.assessment?.unit?.subject?.id == subject.id
-                    }
-                    let average = subjectResults.averageScore
-                    
-                    let subjectText = "\(subject.name): \(String(format: "%.1f", average))"
+                for summary in self.subjectSummaries.prefix(8) {
+                    let subjectText = "\(summary.subject.name): \(String(format: "%.1f", summary.averageScore))"
                     subjectText.draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
                     
-                    let countText = "(\(subjectResults.count) assessments)"
+                    let countText = "(\(summary.results.count) assessments)"
                     let countAttrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 12), .foregroundColor: UIColor.gray]
                     countText.draw(at: CGPoint(x: 350, y: currentY + 2), withAttributes: countAttrs)
                     
@@ -352,7 +383,7 @@ struct StudentProgressView: View {
             footerText.draw(at: CGPoint(x: (pageRect.width - footerSize.width) / 2, y: pageRect.height - 40), withAttributes: footerAttrs)
             
             // Page 2: Academics
-            if !self.subjectsForStudent.isEmpty {
+            if !self.subjectSectionViewModels.isEmpty {
                 context.beginPage()
                 currentY = 50
                 
@@ -366,26 +397,21 @@ struct StudentProgressView: View {
                 context.cgContext.strokePath()
                 currentY += 30
                 
-                let overallText = "Overall Average: \(String(format: "%.1f", self.resultsForStudent.averageScore)) (\(self.scoredResultsForStudent.count) assessments)"
+                let overallText = "Overall Average: \(String(format: "%.1f", self.overallAverageScore)) (\(self.scoredResultsForStudent.count) assessments)"
                 overallText.draw(at: CGPoint(x: 50, y: currentY), withAttributes: bodyAttrs)
                 currentY += 40
                 
-                for subject in self.subjectsForStudent {
-                    let subjectResults = self.resultsForStudent.filter {
-                        $0.assessment?.unit?.subject?.id == subject.id
-                    }
-                    let average = subjectResults.averageScore
+                for summary in self.subjectSummaries {
+                    summary.subject.name.draw(at: CGPoint(x: 50, y: currentY), withAttributes: sectionAttrs)
                     
-                    subject.name.draw(at: CGPoint(x: 50, y: currentY), withAttributes: sectionAttrs)
-                    
-                    let avgText = "\(String(format: "%.1f", average))"
+                    let avgText = "\(String(format: "%.1f", summary.averageScore))"
                     let avgFont = UIFont.boldSystemFont(ofSize: 24)
                     let avgAttrs: [NSAttributedString.Key: Any] = [.font: avgFont, .foregroundColor: UIColor.systemBlue]
                     avgText.draw(at: CGPoint(x: pageRect.width - 100, y: currentY - 5), withAttributes: avgAttrs)
                     
                     currentY += 25
                     
-                    "Average: \(String(format: "%.1f", average)) • \(subjectResults.count) assessments".draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
+                    "Average: \(String(format: "%.1f", summary.averageScore)) • \(summary.results.count) assessments".draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
                     currentY += 30
                     
                     if currentY > pageRect.height - 150 {
@@ -435,7 +461,7 @@ struct StudentProgressView: View {
             }
             
             // Page 4: Running Records
-            if !self.student.runningRecords.isEmpty {
+            if !self.runningRecordsDescending.isEmpty {
                 context.beginPage()
                 currentY = 50
                 
@@ -449,13 +475,11 @@ struct StudentProgressView: View {
                 context.cgContext.strokePath()
                 currentY += 30
                 
-                let summary = "Total Records: \(self.student.runningRecords.count) • Average Accuracy: \(String(format: "%.1f%%", self.averageAccuracy))"
+                let summary = "Total Records: \(self.runningRecordCount) • Average Accuracy: \(String(format: "%.1f%%", self.averageAccuracy))"
                 summary.draw(at: CGPoint(x: 50, y: currentY), withAttributes: bodyAttrs)
                 currentY += 40
-                
-                let sortedRecords = self.student.runningRecords.sorted { $0.date > $1.date }
-                
-                for record in sortedRecords.prefix(20) {
+
+                for record in self.runningRecordsDescending.prefix(20) {
                     record.textTitle.draw(at: CGPoint(x: 50, y: currentY), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 14), .foregroundColor: UIColor.black])
                     currentY += 20
                     
@@ -497,7 +521,7 @@ struct StudentProgressView: View {
                     currentY += 25
                     
                     for score in group.scores {
-                        let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
+                        let criterionName = displayRubricText(score.criterionName)
                         let stars = String(repeating: "★", count: score.rating) + String(repeating: "☆", count: 5 - score.rating)
                         
                         criterionName.draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
@@ -580,10 +604,10 @@ struct StudentProgressView: View {
                 currentY += 30
                 
                 let stats = [
-                    "Academic Average: \(String(format: "%.1f", resultsForStudent.averageScore))",
+                    "Academic Average: \(String(format: "%.1f", overallAverageScore))",
                     "Total Assessments: \(scoredResultsForStudent.count)",
                     "Attendance Rate: \(String(format: "%.0f%%", attendancePercentage))",
-                    "Running Records: \(student.runningRecords.count)",
+                    "Running Records: \(runningRecordCount)",
                     "Development Areas: \(studentDevelopmentScores.count)"
                 ]
                 
@@ -593,19 +617,14 @@ struct StudentProgressView: View {
                 }
                 
             case .academics:
-                let overallText = "Overall Average: \(String(format: "%.1f", resultsForStudent.averageScore))"
+                let overallText = "Overall Average: \(String(format: "%.1f", overallAverageScore))"
                 overallText.draw(at: CGPoint(x: 50, y: currentY), withAttributes: bodyAttrs)
                 currentY += 40
                 
-                for subject in subjectsForStudent {
-                    let subjectResults = resultsForStudent.filter {
-                        $0.assessment?.unit?.subject?.id == subject.id
-                    }
-                    let average = subjectResults.averageScore
-                    
-                    subject.name.draw(at: CGPoint(x: 50, y: currentY), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 16), .foregroundColor: UIColor.black])
+                for summary in subjectSummaries {
+                    summary.subject.name.draw(at: CGPoint(x: 50, y: currentY), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 16), .foregroundColor: UIColor.black])
                     currentY += 22
-                    "Average: \(String(format: "%.1f", average)) • \(subjectResults.count) assessments".draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
+                    "Average: \(String(format: "%.1f", summary.averageScore)) • \(summary.results.count) assessments".draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
                     currentY += 30
                 }
                 
@@ -624,10 +643,10 @@ struct StudentProgressView: View {
                 }
                 
             case .runningRecords:
-                "Total Records: \(student.runningRecords.count)".draw(at: CGPoint(x: 50, y: currentY), withAttributes: bodyAttrs)
+                "Total Records: \(runningRecordCount)".draw(at: CGPoint(x: 50, y: currentY), withAttributes: bodyAttrs)
                 currentY += 30
                 
-                for record in student.runningRecords.sorted(by: { $0.date > $1.date }).prefix(15) {
+                for record in runningRecordsDescending.prefix(15) {
                     record.textTitle.draw(at: CGPoint(x: 50, y: currentY), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 14), .foregroundColor: UIColor.black])
                     currentY += 20
                     "\(String(format: "%.1f%%", record.accuracy)) - \(readingLevelName(record.readingLevel))".draw(at: CGPoint(x: 70, y: currentY), withAttributes: [.font: UIFont.systemFont(ofSize: 12), .foregroundColor: UIColor.gray])
@@ -641,7 +660,7 @@ struct StudentProgressView: View {
                     currentY += 25
                     
                     for score in group.scores {
-                        let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
+                        let criterionName = displayRubricText(score.criterionName)
                         criterionName.draw(at: CGPoint(x: 70, y: currentY), withAttributes: bodyAttrs)
                         currentY += 20
                         let stars = String(repeating: "★", count: score.rating)
@@ -719,10 +738,10 @@ struct StudentProgressView: View {
         currentY += 30
         
         let stats = [
-            "Academic Average: \(String(format: "%.1f", resultsForStudent.averageScore))",
+            "Academic Average: \(String(format: "%.1f", overallAverageScore))",
             "Total Assessments: \(scoredResultsForStudent.count)",
             "Attendance Rate: \(String(format: "%.0f%%", attendancePercentage))",
-            "Running Records: \(student.runningRecords.count)",
+            "Running Records: \(runningRecordCount)",
             "Development Areas: \(studentDevelopmentScores.count)"
         ]
         
@@ -737,20 +756,15 @@ struct StudentProgressView: View {
         currentY += 20
         
         // Subject Performance
-        if !subjectsForStudent.isEmpty {
+        if !subjectSectionViewModels.isEmpty {
             ("Subject Performance" as NSString).draw(
                 at: CGPoint(x: margin, y: currentY),
                 withAttributes: [.font: sectionFont, .foregroundColor: UIColor.black]
             )
             currentY += 30
             
-            for subject in subjectsForStudent.prefix(10) {
-                let subjectResults = resultsForStudent.filter {
-                    $0.assessment?.unit?.subject?.id == subject.id
-                }
-                let average = subjectResults.averageScore
-                
-                let subjectText = "\(subject.name): \(String(format: "%.1f", average)) (\(subjectResults.count) assessments)"
+            for summary in subjectSummaries.prefix(10) {
+                let subjectText = "\(summary.subject.name): \(String(format: "%.1f", summary.averageScore)) (\(summary.results.count) assessments)"
                 (subjectText as NSString).draw(
                     at: CGPoint(x: margin + 20, y: currentY),
                     withAttributes: [.font: bodyFont, .foregroundColor: UIColor.black]
@@ -775,7 +789,7 @@ struct StudentProgressView: View {
         )
         currentY += 30
         
-        let overallText = "Overall Average: \(String(format: "%.1f", resultsForStudent.averageScore)) (\(scoredResultsForStudent.count) total assessments)"
+        let overallText = "Overall Average: \(String(format: "%.1f", overallAverageScore)) (\(scoredResultsForStudent.count) total assessments)"
         (overallText as NSString).draw(
             at: CGPoint(x: margin + 20, y: currentY),
             withAttributes: [.font: bodyFont, .foregroundColor: UIColor.black]
@@ -783,19 +797,14 @@ struct StudentProgressView: View {
         currentY += 40
         
         // Subject breakdown
-        for subject in subjectsForStudent {
-            let subjectResults = resultsForStudent.filter {
-                $0.assessment?.unit?.subject?.id == subject.id
-            }
-            let average = subjectResults.averageScore
-            
-            (subject.name as NSString).draw(
+        for summary in subjectSummaries {
+            (summary.subject.name as NSString).draw(
                 at: CGPoint(x: margin, y: currentY),
                 withAttributes: [.font: UIFont.boldSystemFont(ofSize: 14), .foregroundColor: UIColor.black]
             )
             currentY += 20
             
-            let avgText = "Average: \(String(format: "%.1f", average)) • \(subjectResults.count) assessments"
+            let avgText = "Average: \(String(format: "%.1f", summary.averageScore)) • \(summary.results.count) assessments"
             (avgText as NSString).draw(
                 at: CGPoint(x: margin + 20, y: currentY),
                 withAttributes: [.font: captionFont, .foregroundColor: UIColor.gray]
@@ -854,16 +863,14 @@ struct StudentProgressView: View {
         )
         currentY += 30
         
-        let summary = "Total Records: \(student.runningRecords.count) • Average Accuracy: \(String(format: "%.1f%%", averageAccuracy))"
+        let summary = "Total Records: \(runningRecordCount) • Average Accuracy: \(String(format: "%.1f%%", averageAccuracy))"
         (summary as NSString).draw(
             at: CGPoint(x: margin + 20, y: currentY),
             withAttributes: [.font: bodyFont, .foregroundColor: UIColor.black]
         )
         currentY += 40
         
-        let sortedRecords = student.runningRecords.sorted { $0.date > $1.date }
-        
-        for record in sortedRecords.prefix(15) {
+        for record in runningRecordsDescending.prefix(15) {
             (record.textTitle as NSString).draw(
                 at: CGPoint(x: margin, y: currentY),
                 withAttributes: [.font: UIFont.boldSystemFont(ofSize: 14), .foregroundColor: UIColor.black]
@@ -909,7 +916,7 @@ struct StudentProgressView: View {
             currentY += 25
             
             for score in group.scores {
-                let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
+                let criterionName = displayRubricText(score.criterionName)
                 let stars = String(repeating: "★", count: score.rating) + String(repeating: "☆", count: 5 - score.rating)
                 
                 (criterionName as NSString).draw(
@@ -984,7 +991,7 @@ struct StudentProgressView: View {
         pdfContext.endPDFPage()
         
         // Page 2: Academic Performance
-        if !subjectsForStudent.isEmpty {
+        if !subjectSectionViewModels.isEmpty {
             pdfContext.beginPDFPage(nil)
             drawPDFContentMac(pdfContext: pdfContext, pageRect: pageRect, title: "Academic Performance", section: "academics")
             pdfContext.endPDFPage()
@@ -998,7 +1005,7 @@ struct StudentProgressView: View {
         }
         
         // Page 4: Running Records
-        if !student.runningRecords.isEmpty {
+        if !runningRecordsDescending.isEmpty {
             pdfContext.beginPDFPage(nil)
             drawPDFContentMac(pdfContext: pdfContext, pageRect: pageRect, title: "Reading Records", section: "reading")
             pdfContext.endPDFPage()
@@ -1062,10 +1069,10 @@ struct StudentProgressView: View {
         switch section {
         case "overview":
             let stats = [
-                "Academic Average: \(String(format: "%.1f", resultsForStudent.averageScore))",
+                "Academic Average: \(String(format: "%.1f", overallAverageScore))",
                 "Total Assessments: \(scoredResultsForStudent.count)",
                 "Attendance Rate: \(String(format: "%.0f%%", attendancePercentage))",
-                "Running Records: \(student.runningRecords.count)",
+                "Running Records: \(runningRecordCount)",
                 "Development Areas: \(studentDevelopmentScores.count)"
             ]
             
@@ -1075,18 +1082,13 @@ struct StudentProgressView: View {
             }
             
         case "academics":
-            "Overall Average: \(String(format: "%.1f", resultsForStudent.averageScore))".draw(at: CGPoint(x: margin, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
+            "Overall Average: \(String(format: "%.1f", overallAverageScore))".draw(at: CGPoint(x: margin, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
             currentY += 30
             
-            for subject in subjectsForStudent.prefix(10) {
-                let subjectResults = resultsForStudent.filter {
-                    $0.assessment?.unit?.subject?.id == subject.id
-                }
-                let average = subjectResults.averageScore
-                
-                subject.name.draw(at: CGPoint(x: margin, y: currentY), withAttributes: nameAttrs as [NSAttributedString.Key : Any])
+            for summary in subjectSummaries.prefix(10) {
+                summary.subject.name.draw(at: CGPoint(x: margin, y: currentY), withAttributes: nameAttrs as [NSAttributedString.Key : Any])
                 currentY += 20
-                "Average: \(String(format: "%.1f", average)) • \(subjectResults.count) assessments".draw(at: CGPoint(x: margin + 20, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
+                "Average: \(String(format: "%.1f", summary.averageScore)) • \(summary.results.count) assessments".draw(at: CGPoint(x: margin + 20, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
                 currentY += 25
                 
                 if currentY > pageRect.height - 100 { break }
@@ -1107,10 +1109,10 @@ struct StudentProgressView: View {
             }
             
         case "reading":
-            "Total Records: \(student.runningRecords.count)".draw(at: CGPoint(x: margin, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
+            "Total Records: \(runningRecordCount)".draw(at: CGPoint(x: margin, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
             currentY += 30
             
-            for record in student.runningRecords.sorted(by: { $0.date > $1.date }).prefix(15) {
+            for record in runningRecordsDescending.prefix(15) {
                 record.textTitle.draw(at: CGPoint(x: margin, y: currentY), withAttributes: nameAttrs as [NSAttributedString.Key : Any])
                 currentY += 18
                 "\(String(format: "%.1f%%", record.accuracy)) - \(readingLevelName(record.readingLevel))".draw(at: CGPoint(x: margin + 20, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
@@ -1126,7 +1128,7 @@ struct StudentProgressView: View {
                 currentY += 20
                 
                 for score in group.scores.prefix(10) {
-                    let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
+                    let criterionName = displayRubricText(score.criterionName)
                     let stars = String(repeating: "★", count: score.rating)
                     criterionName.draw(at: CGPoint(x: margin + 20, y: currentY), withAttributes: bodyAttrs as [NSAttributedString.Key : Any])
                     currentY += 18
@@ -1278,10 +1280,10 @@ struct StudentProgressView: View {
         currentY += 30
         
         let stats = [
-            "Academic Average: \(String(format: "%.1f", resultsForStudent.averageScore))",
+            "Academic Average: \(String(format: "%.1f", overallAverageScore))",
             "Total Assessments: \(scoredResultsForStudent.count)",
             "Attendance Rate: \(String(format: "%.0f%%", attendancePercentage))",
-            "Running Records: \(student.runningRecords.count)",
+            "Running Records: \(runningRecordCount)",
             "Development Areas: \(studentDevelopmentScores.count)"
         ]
         
@@ -1293,18 +1295,13 @@ struct StudentProgressView: View {
         
         currentY += 20
         
-        if !subjectsForStudent.isEmpty {
+        if !subjectSectionViewModels.isEmpty {
             NSAttributedString(string: "Subject Performance".localized, attributes: sectionAttributes)
                 .draw(at: CGPoint(x: margin, y: currentY))
             currentY += 30
             
-            for subject in subjectsForStudent.prefix(8) {
-                let subjectResults = resultsForStudent.filter {
-                    $0.assessment?.unit?.subject?.id == subject.id
-                }
-                let average = subjectResults.averageScore
-                
-                let subjectText = "\(subject.name): \(String(format: "%.1f", average)) (\(subjectResults.count) assessments)"
+            for summary in subjectSummaries.prefix(8) {
+                let subjectText = "\(summary.subject.name): \(String(format: "%.1f", summary.averageScore)) (\(summary.results.count) assessments)"
                 NSAttributedString(string: subjectText, attributes: bodyAttributes)
                     .draw(at: CGPoint(x: margin + 20, y: currentY))
                 currentY += 22
@@ -1335,22 +1332,17 @@ struct StudentProgressView: View {
             .draw(at: CGPoint(x: margin, y: currentY))
         currentY += 30
         
-        let overallText = "Overall Average: \(String(format: "%.1f", resultsForStudent.averageScore)) (\(scoredResultsForStudent.count) total assessments)"
+        let overallText = "Overall Average: \(String(format: "%.1f", overallAverageScore)) (\(scoredResultsForStudent.count) total assessments)"
         NSAttributedString(string: overallText, attributes: bodyAttributes)
             .draw(at: CGPoint(x: margin + 20, y: currentY))
         currentY += 40
         
-        for subject in subjectsForStudent {
-            let subjectResults = resultsForStudent.filter {
-                $0.assessment?.unit?.subject?.id == subject.id
-            }
-            let average = subjectResults.averageScore
-            
-            NSAttributedString(string: subject.name, attributes: [.font: NSFont.boldSystemFont(ofSize: 14), .foregroundColor: NSColor(calibratedWhite: 0.0, alpha: 1.0)])
+        for summary in subjectSummaries {
+            NSAttributedString(string: summary.subject.name, attributes: [.font: NSFont.boldSystemFont(ofSize: 14), .foregroundColor: NSColor(calibratedWhite: 0.0, alpha: 1.0)])
                 .draw(at: CGPoint(x: margin, y: currentY))
             currentY += 20
             
-            let avgText = "Average: \(String(format: "%.1f", average)) • \(subjectResults.count) assessments"
+            let avgText = "Average: \(String(format: "%.1f", summary.averageScore)) • \(summary.results.count) assessments"
             NSAttributedString(string: avgText, attributes: captionAttributes)
                 .draw(at: CGPoint(x: margin + 20, y: currentY))
             currentY += 25
@@ -1415,14 +1407,12 @@ struct StudentProgressView: View {
             .draw(at: CGPoint(x: margin, y: currentY))
         currentY += 30
         
-        let summary = "Total Records: \(student.runningRecords.count) • Average Accuracy: \(String(format: "%.1f%%", averageAccuracy))"
+        let summary = "Total Records: \(runningRecordCount) • Average Accuracy: \(String(format: "%.1f%%", averageAccuracy))"
         NSAttributedString(string: summary, attributes: bodyAttributes)
             .draw(at: CGPoint(x: margin + 20, y: currentY))
         currentY += 40
         
-        let sortedRecords = student.runningRecords.sorted { $0.date > $1.date }
-        
-        for record in sortedRecords.prefix(15) {
+        for record in runningRecordsDescending.prefix(15) {
             NSAttributedString(string: record.textTitle, attributes: [.font: NSFont.boldSystemFont(ofSize: 14), .foregroundColor: NSColor(calibratedWhite: 0.0, alpha: 1.0)])
                 .draw(at: CGPoint(x: margin, y: currentY))
             currentY += 20
@@ -1465,7 +1455,7 @@ struct StudentProgressView: View {
             currentY += 25
             
             for score in group.scores {
-                let criterionName = displayRubricText(score.criterion?.name ?? "Unknown")
+                let criterionName = displayRubricText(score.criterionName)
                 let stars = String(repeating: "★", count: score.rating) + String(repeating: "☆", count: 5 - score.rating)
                 
                 NSAttributedString(string: criterionName, attributes: bodyAttributes)
@@ -1545,9 +1535,9 @@ struct StudentProgressView: View {
             // Quick Stats
             HStack(spacing: 24) {
                 quickStat(
-                    value: String(format: "%.1f", resultsForStudent.averageScore),
+                    value: String(format: "%.1f", overallAverageScore),
                     label: "Average".localized,
-                    color: averageColor(resultsForStudent.averageScore)
+                    color: averageColor(overallAverageScore)
                 )
                 
                 Divider()
@@ -1641,493 +1631,56 @@ struct StudentProgressView: View {
     // MARK: - Overview Tab
     
     var overviewTab: some View {
-        VStack(spacing: 20) {
-            // Summary Cards
-            HStack(spacing: 16) {
-                summaryCard(
-                    title: "Academic Average".localized,
-                    value: String(format: "%.1f", resultsForStudent.averageScore),
-                    icon: "chart.bar.fill",
-                    color: .purple
-                )
-                
-                summaryCard(
-                    title: "Attendance Rate".localized,
-                    value: String(format: "%.0f%%", attendancePercentage),
-                    icon: "calendar",
-                    color: .green
-                )
-            }
-            
-            HStack(spacing: 16) {
-                summaryCard(
-                    title: "Running Records".localized,
-                    value: "\(student.runningRecords.count)",
-                    icon: "book.fill",
-                    color: .orange
-                )
-                
-                summaryCard(
-                    title: "Development Areas".localized,
-                    value: "\(studentDevelopmentScores.count)",
-                    icon: "star.fill",
-                    color: .pink
-                )
-            }
-            
-            // Subject Performance Overview
-            sectionHeader(title: "Subject Performance".localized, icon: "graduationcap.fill", color: .purple)
-            
-            if subjectsForStudent.isEmpty {
-                emptyState(icon: "book.closed", message: "No academic results yet")
-            } else {
-                ForEach(subjectsForStudent, id: \.id) { subject in
-                    subjectOverviewCard(subject: subject)
-                }
-            }
-            
-            // Recent Activity
-            sectionHeader(title: "Recent Activity".localized, icon: "clock.fill", color: .blue)
-            
-            recentActivityList
-        }
-    }
-    
-    func summaryCard(title: String, value: String, icon: String, color: Color) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title)
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(color)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(color.opacity(0.1))
-        .cornerRadius(16)
-    }
-    
-    func subjectOverviewCard(subject: Subject) -> some View {
-        let subjectResults = resultsForStudent.filter {
-            $0.assessment?.unit?.subject?.id == subject.id
-        }
-        let average = subjectResults.averageScore
-        
-        return HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(subject.name)
-                    .font(.headline)
-                
-                Text("\(subjectResults.count) \(subjectResults.count == 1 ? "assessment".localized : "assessments".localized)")                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            Text(String(format: "%.1f", average))
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(averageColor(average))
-        }
-        .padding()
-        .background(cardBackgroundColor)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 2)
-    }
-    
-    var recentActivityList: some View {
-        VStack(spacing: 12) {
-            let recentResults = resultsForStudent
-                .sorted { ($0.assessment?.sortOrder ?? 0) > ($1.assessment?.sortOrder ?? 0) }
-                .prefix(5)
-            
-            if recentResults.isEmpty {
-                emptyState(icon: "tray", message: "No recent activity")
-            } else {
-                ForEach(Array(recentResults), id: \.id) { result in
-                    activityRow(result: result)
-                }
-            }
-        }
-    }
-    
-    func activityRow(result: StudentResult) -> some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(Color.purple.opacity(0.2))
-                .frame(width: 40, height: 40)
-                .overlay(
-                    Image(systemName: "checkmark")
-                        .font(.caption)
-                        .foregroundColor(.purple)
-                )
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(result.assessment?.title ?? "Assessment")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
-                if let subject = result.assessment?.unit?.subject {
-                    Text(subject.name)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Spacer()
-            
-            Text(String(format: "%.1f", result.score))
-                .font(.headline)
-                .foregroundColor(averageColor(result.score))
-        }
-        .padding()
-        .background(cardBackgroundColor)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 2)
+        StudentProgressOverviewTabView(
+            overallAverageScore: overallAverageScore,
+            attendancePercentage: attendancePercentage,
+            runningRecordCount: runningRecordCount,
+            developmentAreaCount: studentDevelopmentScores.count,
+            subjectOverviewViewModels: subjectOverviewViewModels,
+            recentActivityViewModels: recentActivityViewModels
+        )
+        .equatable()
     }
     
     // MARK: - Academics Tab
     
     var academicsTab: some View {
-        VStack(spacing: 20) {
-            // Overall Stats
-            HStack(spacing: 16) {
-                statCard(
-                    title: "Overall Average",
-                    value: String(format: "%.1f", resultsForStudent.averageScore),
-                    icon: "chart.bar.fill",
-                    color: averageColor(resultsForStudent.averageScore)
-                )
-                
-                statCard(
-                    title: "Total Assessments",
-                    value: "\(scoredResultsForStudent.count)",
-                    icon: "list.bullet.clipboard",
-                    color: .blue
-                )
-            }
-            
-            // Subjects
-            sectionHeader(title: "Performance by Subject", icon: "graduationcap.fill", color: .purple)
-            
-            if subjectsForStudent.isEmpty {
-                emptyState(icon: "book.closed", message: "No academic results yet")
-            } else {
-                ForEach(subjectsForStudent, id: \.id) { subject in
-                    subjectSection(subject: subject)
-                }
-            }
-        }
+        StudentProgressAcademicsTabView(
+            overallAverageScore: overallAverageScore,
+            scoredResultsCount: scoredResultsForStudent.count,
+            subjectSectionViewModels: subjectSectionViewModels
+        )
+        .equatable()
     }
     
     // MARK: - Attendance Tab
     
     var attendanceTab: some View {
-        VStack(spacing: 20) {
-            // Attendance Summary
-            sectionHeader(title: "Attendance Summary", icon: "calendar", color: .green)
-            
-            if totalSessions == 0 {
-                emptyState(icon: "calendar.badge.exclamationmark", message: "No attendance records yet")
-            } else {
-                // Stats Grid
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 16) {
-                    attendanceStatCard(title: "Total Sessions", value: "\(totalSessions)", color: .blue)
-                    attendanceStatCard(title: "Present", value: "\(presentCount)", color: .green)
-                    attendanceStatCard(title: "Absent", value: "\(absentCount)", color: .red)
-                    attendanceStatCard(title: "Late", value: "\(earlyCount)", color: .orange)
-                }
-                
-                // Attendance Rate
-                VStack(spacing: 12) {
-                    Text("Attendance Rate")
-                        .font(.headline)
-                    
-                    ZStack {
-                        Circle()
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 20)
-                            .frame(width: 150, height: 150)
-                        
-                        Circle()
-                            .trim(from: 0, to: attendancePercentage / 100)
-                            .stroke(
-                                attendancePercentage >= 90 ? Color.green : attendancePercentage >= 75 ? Color.orange : Color.red,
-                                style: StrokeStyle(lineWidth: 20, lineCap: .round)
-                            )
-                            .frame(width: 150, height: 150)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.spring(), value: attendancePercentage)
-                        
-                        VStack(spacing: 4) {
-                            Text(String(format: "%.0f%%", attendancePercentage))
-                                .font(.system(size: 36, weight: .bold))
-                                .foregroundColor(attendancePercentage >= 90 ? .green : attendancePercentage >= 75 ? .orange : .red)
-                            
-                            Text("Present")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(cardBackgroundColor)
-                .cornerRadius(16)
-                .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 2)
-                
-                // Attendance Breakdown
-                sectionHeader(title: "Breakdown", icon: "chart.pie.fill", color: .blue)
-                
-                VStack(spacing: 12) {
-                    attendanceBreakdownRow(label: "Present", count: presentCount, total: totalSessions, color: .green)
-                    attendanceBreakdownRow(label: "Absent", count: absentCount, total: totalSessions, color: .red)
-                    attendanceBreakdownRow(label: "Late", count: earlyCount, total: totalSessions, color: .orange)
-                }
-            }
-        }
-    }
-    
-    func attendanceStatCard(title: String, value: String, color: Color) -> some View {
-        VStack(spacing: 8) {
-            Text(value)
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(color)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(color.opacity(0.1))
-        .cornerRadius(12)
-    }
-    
-    func attendanceBreakdownRow(label: String, count: Int, total: Int, color: Color) -> some View {
-        let percentage = total > 0 ? Double(count) / Double(total) : 0
-        
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(label)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
-                Spacer()
-                
-                Text("\(count) (\(Int(percentage * 100))%)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 8)
-                    
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(color)
-                        .frame(width: geometry.size.width * percentage, height: 8)
-                        .animation(.spring(), value: percentage)
-                }
-            }
-            .frame(height: 8)
-        }
-        .padding()
-        .background(cardBackgroundColor)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 2)
+        StudentProgressAttendanceTabView(
+            totalSessions: totalSessions,
+            presentCount: presentCount,
+            absentCount: absentCount,
+            lateCount: earlyCount,
+            attendancePercentage: attendancePercentage
+        )
+        .equatable()
     }
     
     // MARK: - Running Records Tab
     
     var runningRecordsTab: some View {
-        VStack(spacing: 20) {
-            sectionHeader(title: "Running Records", icon: "book.fill", color: .orange)
-            
-            if student.runningRecords.isEmpty {
-                emptyState(icon: "book.closed", message: "No running records yet")
-            } else {
-                // Stats
-                HStack(spacing: 16) {
-                    statCard(
-                        title: "Total Records",
-                        value: "\(student.runningRecords.count)",
-                        icon: "doc.text.fill",
-                        color: .orange
-                    )
-                    
-                    statCard(
-                        title: "Avg. Accuracy",
-                        value: String(format: "%.1f%%", averageAccuracy),
-                        icon: "checkmark.circle.fill",
-                        color: .green
-                    )
-                }
-                
-                // Latest Level
-                if let latestRecord = student.runningRecords.sorted(by: { $0.date > $1.date }).first {
-                    VStack(spacing: 12) {
-                        Text("Current Reading Level")
-                            .font(.headline)
-                        
-                        HStack(spacing: 16) {
-                            Image(systemName: latestRecord.readingLevel.systemImage)
-                                .font(.system(size: 40))
-                                .foregroundColor(readingLevelColor(latestRecord.readingLevel))
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(readingLevelName(latestRecord.readingLevel))
-                                    .font(.title3)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(readingLevelColor(latestRecord.readingLevel))
-                                
-                                Text(latestRecord.date.appDateString)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(readingLevelColor(latestRecord.readingLevel).opacity(0.1))
-                        .cornerRadius(12)
-                    }
-                }
-                
-                // Progress Chart
-                if student.runningRecords.count >= 2 {
-                    sectionHeader(title: "Progress Over Time", icon: "chart.line.uptrend.xyaxis", color: .blue)
-                    
-                    runningRecordsChart
-                }
-                
-                // Records List
-                sectionHeader(title: "All Records", icon: "list.bullet", color: .purple)
-                
-                ForEach(student.runningRecords.sorted(by: { $0.date > $1.date }), id: \.id) { record in
-                    runningRecordCard(record)
-                }
-            }
-        }
-    }
-    
-    var runningRecordsChart: some View {
-        let sortedRecords = student.runningRecords.sorted(by: { $0.date < $1.date })
-        
-        return VStack(spacing: 8) {
-            Chart {
-                ForEach(sortedRecords, id: \.id) { record in
-                    LineMark(
-                        x: .value("Date", record.date),
-                        y: .value("Accuracy", record.accuracy)
-                    )
-                    .foregroundStyle(.orange)
-                    .symbol(.circle)
-                    .symbolSize(60)
-                    
-                    PointMark(
-                        x: .value("Date", record.date),
-                        y: .value("Accuracy", record.accuracy)
-                    )
-                    .foregroundStyle(.orange)
-                }
-                
-                // Reference lines
-                RuleMark(y: .value("Independent", 95))
-                    .foregroundStyle(.green.opacity(0.3))
-                    .lineStyle(StrokeStyle(dash: [5, 5]))
-                
-                RuleMark(y: .value("Instructional", 90))
-                    .foregroundStyle(.orange.opacity(0.3))
-                    .lineStyle(StrokeStyle(dash: [5, 5]))
-            }
-            .chartYScale(domain: 70...100)
-            .frame(height: 200)
-            .padding()
-            .background(cardBackgroundColor)
-            .cornerRadius(12)
-            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 2)
-            
-            // Legend
-            HStack(spacing: 16) {
-                legendItem(color: .green, text: "95%+ Independent")
-                legendItem(color: .orange, text: "90%+ Instructional")
-                legendItem(color: .red, text: "<90% Frustration")
-            }
-            .font(.caption)
-            .foregroundColor(.secondary)
-        }
-    }
-    
-    func legendItem(color: Color, text: String) -> some View {
-        HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(color.opacity(0.5))
-                .frame(width: 20, height: 3)
-            
-            Text(text)
-        }
-    }
-    
-    func runningRecordCard(_ record: RunningRecord) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(record.textTitle)
-                        .font(.headline)
-                    
-                    Text(record.date.appDateString)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(String(format: "%.1f%%", record.accuracy))
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundColor(readingLevelColor(record.readingLevel))
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: record.readingLevel.systemImage)
-                            .font(.caption)
-                        Text(readingLevelShortName(record.readingLevel))
-                            .font(.caption)
-                    }
-                    .foregroundColor(readingLevelColor(record.readingLevel))
-                }
-            }
-            
-            if !record.notes.isEmpty {
-                Divider()
-                
-                Text(record.notes)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding()
-        .background(cardBackgroundColor)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 2)
+        StudentProgressRunningRecordsTabView(
+            runningRecordCount: runningRecordCount,
+            averageAccuracy: averageAccuracy,
+            latestRunningRecordViewModel: derivedData.latestRunningRecordViewModel,
+            runningRecordViewModelsDescending: derivedData.runningRecordViewModelsDescending,
+            runningRecordViewModelsAscending: derivedData.runningRecordViewModelsAscending
+        )
+        .equatable()
     }
     
     var averageAccuracy: Double {
-        guard !student.runningRecords.isEmpty else { return 0 }
-        let total = student.runningRecords.reduce(0.0) { $0 + $1.accuracy }
-        return total / Double(student.runningRecords.count)
+        derivedData.runningRecordAverageAccuracy
     }
     
     func readingLevelColor(_ level: ReadingLevel) -> Color {
@@ -2146,84 +1699,52 @@ struct StudentProgressView: View {
         }
     }
     
-    func readingLevelShortName(_ level: ReadingLevel) -> String {
-        switch level {
-        case .independent: return "Ind."
-        case .instructional: return "Inst."
-        case .frustration: return "Frust."
+    @MainActor
+    private func refreshDerivedData() async {
+        let token = await PerformanceMonitor.shared.beginInterval(.studentProgressDerive)
+        let derived = await StudentProgressStore.deriveAsync(
+            student: student,
+            allResults: allResults,
+            allAttendanceSessions: allAttendanceSessions,
+            allDevelopmentScores: allDevelopmentScores
+        )
+        if Task.isCancelled {
+            await PerformanceMonitor.shared.endInterval(token, success: false)
+            return
         }
+
+        derivedData = derived
+        await PerformanceMonitor.shared.endInterval(token, success: true)
     }
     
     // MARK: - Development Tab
     
     var studentDevelopmentScores: [DevelopmentScore] {
-        allDevelopmentScores.filter { $0.matchesStudent(student) }
+        derivedData.studentDevelopmentScores
     }
     
     var latestDevelopmentScores: [DevelopmentScore] {
-        var latestScores: [UUID: DevelopmentScore] = [:]
-        
-        for score in studentDevelopmentScores {
-            guard let criterionID = score.criterion?.id else { continue }
-            
-            if let existing = latestScores[criterionID] {
-                if score.date > existing.date {
-                    latestScores[criterionID] = score
-                }
-            } else {
-                latestScores[criterionID] = score
-            }
-        }
-        
-        return Array(latestScores.values).sorted {
-            ($0.criterion?.sortOrder ?? 0) < ($1.criterion?.sortOrder ?? 0)
-        }
+        derivedData.latestDevelopmentScores
+    }
+
+    var developmentCategoryViewModels: [StudentProgressDevelopmentCategoryViewModel] {
+        derivedData.developmentCategoryViewModels
     }
     
     var developmentTab: some View {
-        VStack(spacing: 20) {
-            sectionHeader(title: "Development Tracking".localized, icon: "star.fill", color: .pink)
-            
-            if studentDevelopmentScores.isEmpty {
-                emptyState(icon: "star.circle", message: "No development tracking yet".localized)
-            } else {
-                // Summary
-                HStack(spacing: 16) {
-                    statCard(
-                        title: "Areas Tracked",
-                        value: "\(latestDevelopmentScores.count)",
-                        icon: "star.fill",
-                        color: .pink
-                    )
-                    
-                    statCard(
-                        title: "Total Updates",
-                        value: "\(studentDevelopmentScores.count)",
-                        icon: "arrow.clockwise",
-                        color: .blue
-                    )
-                }
-                
-                // Development Categories
-                let grouped = groupedDevelopmentScores()
-                
-                ForEach(grouped, id: \.category) { group in
-                    developmentCategorySection(category: group.category, scores: group.scores)
-                }
-            }
-        }
+        StudentProgressDevelopmentTabView(
+            latestTrackedCount: latestDevelopmentScores.count,
+            totalUpdatesCount: studentDevelopmentScores.count,
+            developmentCategoryViewModels: developmentCategoryViewModels
+        )
+        .equatable()
+        .environmentObject(languageManager)
     }
-    
-    func groupedDevelopmentScores() -> [(category: String, scores: [DevelopmentScore])] {
-        var grouped: [String: [DevelopmentScore]] = [:]
-        
-        for score in latestDevelopmentScores {
-            let categoryName = score.criterion?.category?.name ?? "Other"
-            grouped[categoryName, default: []].append(score)
+
+    func groupedDevelopmentScores() -> [(category: String, scores: [StudentProgressDevelopmentScoreViewModel])] {
+        developmentCategoryViewModels.map { group in
+            (category: group.category, scores: group.scores)
         }
-        
-        return grouped.map { (category: $0.key, scores: $0.value) }
-            .sorted { $0.category < $1.category }
     }
 
     func displayRubricText(_ value: String) -> String {
@@ -2234,13 +1755,13 @@ struct StudentProgressView: View {
         return RubricLocalization.localized(trimmed, languageCode: languageManager.currentLanguage.rawValue)
     }
     
-    func developmentCategorySection(category: String, scores: [DevelopmentScore]) -> some View {
+    func developmentCategorySection(category: String, scores: [StudentProgressDevelopmentScoreViewModel]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(displayRubricText(category))
                 .font(.headline)
                 .foregroundColor(.pink)
             
-            ForEach(scores, id: \.id) { score in
+            ForEach(scores) { score in
                 developmentScoreCard(score)
             }
         }
@@ -2249,10 +1770,12 @@ struct StudentProgressView: View {
         .cornerRadius(12)
     }
     
-    func developmentScoreCard(_ score: DevelopmentScore) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    func developmentScoreCard(_ score: StudentProgressDevelopmentScoreViewModel) -> some View {
+        let color = ratingColor(for: score.rating)
+
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(displayRubricText(score.criterion?.name ?? "Unknown"))
+                Text(displayRubricText(score.criterionName))
                     .font(.subheadline)
                     .fontWeight(.medium)
                 
@@ -2263,7 +1786,7 @@ struct StudentProgressView: View {
                     ForEach(1...5, id: \.self) { star in
                         Image(systemName: star <= score.rating ? "star.fill" : "star")
                             .font(.caption)
-                            .foregroundColor(star <= score.rating ? score.ratingColor : .gray.opacity(0.3))
+                            .foregroundColor(star <= score.rating ? color : .gray.opacity(0.3))
                     }
                 }
             }
@@ -2271,10 +1794,10 @@ struct StudentProgressView: View {
             // Rating label
             Text(score.ratingLabel)
                 .font(.caption)
-                .foregroundColor(score.ratingColor)
+                .foregroundColor(color)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(score.ratingColor.opacity(0.15))
+                .background(color.opacity(0.15))
                 .cornerRadius(6)
             
             if !score.notes.isEmpty {
@@ -2293,6 +1816,17 @@ struct StudentProgressView: View {
         .background(cardBackgroundColor)
         .cornerRadius(10)
         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+
+    func ratingColor(for rating: Int) -> Color {
+        switch rating {
+        case 5: return .green
+        case 4: return .blue
+        case 3: return .orange
+        case 2: return .yellow
+        case 1: return .red
+        default: return .gray
+        }
     }
     
     // MARK: - Helper Views
@@ -2350,43 +1884,27 @@ struct StudentProgressView: View {
     
     // MARK: - Subject Section (for academics tab)
     
-    func subjectSection(subject: Subject) -> some View {
-        
-        let subjectResults = resultsForStudent.filter {
-            $0.assessment?.unit?.subject?.id == subject.id
-        }
-        
-        let subjectAverage = subjectResults.averageScore
-        
-        let units = subjectResults.compactMap { $0.assessment?.unit }
-        
-        var uniqueUnits: [Unit] = []
-        for unit in units {
-            if !uniqueUnits.contains(where: { $0.id == unit.id }) {
-                uniqueUnits.append(unit)
-            }
-        }
-        
-        return VStack(alignment: .leading, spacing: 12) {
+    func subjectSection(subject: StudentProgressSubjectSectionViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(subject.name)
+                    Text(subject.subjectName)
                         .font(.title3)
                         .fontWeight(.bold)
                     
-                    Text("\(subjectResults.count) assessments")
+                    Text("\(subject.assessmentCount) assessments")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 
                 Spacer()
                 
-                Text(String(format: "%.1f", subjectAverage))
+                Text(String(format: "%.1f", subject.averageScore))
                     .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(averageColor(subjectAverage))
+                    .foregroundColor(averageColor(subject.averageScore))
             }
             
-            if !uniqueUnits.isEmpty {
+            if !subject.units.isEmpty {
                 Divider()
                 
                 Text("Units")
@@ -2394,8 +1912,8 @@ struct StudentProgressView: View {
                     .foregroundColor(.secondary)
                     .textCase(.uppercase)
                 
-                ForEach(uniqueUnits, id: \.id) { unit in
-                    unitRow(unit: unit, subjectResults: subjectResults)
+                ForEach(subject.units) { unitSummary in
+                    unitRow(unitSummary: unitSummary)
                 }
             }
         }
@@ -2405,30 +1923,23 @@ struct StudentProgressView: View {
         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
     
-    func unitRow(unit: Unit, subjectResults: [StudentResult]) -> some View {
-        
-        let unitResults = subjectResults.filter {
-            $0.assessment?.unit?.id == unit.id
-        }
-        
-        let unitAverage = unitResults.averageScore
-        
+    func unitRow(unitSummary: StudentProgressUnitRowViewModel) -> some View {
         return HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(unit.name)
+                Text(unitSummary.unitName)
                     .font(.subheadline)
                     .fontWeight(.medium)
                 
-                Text("\(unitResults.count) criteria")
+                Text("\(unitSummary.criteriaCount) criteria")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
             
             Spacer()
             
-            Text(String(format: "%.1f", unitAverage))
+            Text(String(format: "%.1f", unitSummary.averageScore))
                 .font(.headline)
-                .foregroundColor(averageColor(unitAverage))
+                .foregroundColor(averageColor(unitSummary.averageScore))
         }
         .padding()
         .background(Color.gray.opacity(0.05))

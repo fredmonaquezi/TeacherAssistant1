@@ -14,11 +14,72 @@ struct DevelopmentTrackerSheet: View {
     @State private var selectedTemplate: RubricTemplate?
     @State private var ratings: [UUID: Int] = [:] // criterion ID -> rating
     @State private var notes: [UUID: String] = [:] // criterion ID -> notes
+    @State private var selectedYearFilter = DevelopmentTrackerSheet.allYearsFilterToken
+    @State private var selectedCriteriaFilter = DevelopmentTrackerSheet.allCriteriaFilterToken
+
+    private static let allYearsFilterToken = "__all_years__"
+    private static let allCriteriaFilterToken = "__all_criteria__"
     
     var availableTemplates: [RubricTemplate] {
         // Filter templates by student's grade level if available
         // For now, show all templates
         allTemplates.sorted { $0.name < $1.name }
+    }
+
+    var filteredTemplates: [RubricTemplate] {
+        availableTemplates.filter { template in
+            let matchesYear =
+                selectedYearFilter == Self.allYearsFilterToken ||
+                normalized(template.gradeLevel) == normalized(selectedYearFilter)
+            let matchesCriteria =
+                selectedCriteriaFilter == Self.allCriteriaFilterToken ||
+                normalized(template.subject) == normalized(selectedCriteriaFilter)
+
+            return matchesYear && matchesCriteria
+        }
+    }
+
+    var yearFilterOptions: [String] {
+        let predefined = ["Years 1-3", "Years 4-6", "Years 7-9", "Years 10-12"]
+        let availableLevels = availableTemplates
+            .map { $0.gradeLevel }
+            .map(normalized)
+            .filter { !$0.isEmpty }
+
+        var seen = Set<String>()
+        var ordered: [String] = []
+
+        for level in predefined {
+            let normalizedLevel = normalized(level)
+            if seen.insert(normalizedLevel).inserted {
+                ordered.append(level)
+            }
+        }
+
+        for level in availableLevels {
+            if seen.insert(level).inserted {
+                ordered.append(level)
+            }
+        }
+
+        return ordered
+    }
+
+    var criteriaFilterOptions: [String] {
+        var normalizedToOriginal: [String: String] = [:]
+
+        for template in availableTemplates {
+            let normalizedSubject = normalized(template.subject)
+            guard !normalizedSubject.isEmpty else { continue }
+
+            if normalizedToOriginal[normalizedSubject] == nil {
+                normalizedToOriginal[normalizedSubject] = template.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return normalizedToOriginal.values.sorted {
+            displayText($0).localizedCaseInsensitiveCompare(displayText($1)) == .orderedAscending
+        }
     }
     
     var body: some View {
@@ -33,12 +94,18 @@ struct DevelopmentTrackerSheet: View {
                     if availableTemplates.isEmpty {
                         emptyTemplatesView
                     } else {
-                        templateSelector
-                        
-                        // Rating sections
-                        if let template = selectedTemplate {
-                            ForEach(template.categories.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { category in
-                                categorySection(category)
+                        filterSelector
+
+                        if filteredTemplates.isEmpty {
+                            noMatchingTemplatesView
+                        } else {
+                            templateSelector
+
+                            // Rating sections
+                            if let template = selectedTemplate {
+                                ForEach(template.categories.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { category in
+                                    categorySection(category)
+                                }
                             }
                         }
                     }
@@ -68,9 +135,13 @@ struct DevelopmentTrackerSheet: View {
         #endif
         .onAppear {
             loadExistingRatings()
-            if selectedTemplate == nil {
-                selectedTemplate = availableTemplates.first
-            }
+            syncSelectedTemplateWithFilters()
+        }
+        .onChange(of: selectedYearFilter) { _, _ in
+            syncSelectedTemplateWithFilters()
+        }
+        .onChange(of: selectedCriteriaFilter) { _, _ in
+            syncSelectedTemplateWithFilters()
         }
     }
     
@@ -107,6 +178,54 @@ struct DevelopmentTrackerSheet: View {
         )
     }
     
+    var filterSelector: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Filters".localized)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Year".localized)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    Picker("Year".localized, selection: $selectedYearFilter) {
+                        Text("All Years".localized).tag(Self.allYearsFilterToken)
+                        ForEach(yearFilterOptions, id: \.self) { year in
+                            Text(displayText(year)).tag(year)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Criteria".localized)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    Picker("Criteria".localized, selection: $selectedCriteriaFilter) {
+                        Text("All Criteria".localized).tag(Self.allCriteriaFilterToken)
+                        ForEach(criteriaFilterOptions, id: \.self) { criteria in
+                            Text(displayText(criteria)).tag(criteria)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.purple.opacity(0.12),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .purple
+        )
+    }
+
     // MARK: - Template Selector
     
     var templateSelector: some View {
@@ -117,7 +236,7 @@ struct DevelopmentTrackerSheet: View {
                 .textCase(.uppercase)
             
             Picker("Template".localized, selection: $selectedTemplate) {
-                ForEach(availableTemplates, id: \.id) { template in
+                ForEach(filteredTemplates, id: \.id) { template in
                     Text(displayText(template.name)).tag(template as RubricTemplate?)
                 }
             }
@@ -134,6 +253,33 @@ struct DevelopmentTrackerSheet: View {
             borderColor: Color.purple.opacity(0.12),
             shadowOpacity: 0.03,
             shadowRadius: 5,
+            shadowY: 2,
+            tint: .purple
+        )
+    }
+
+    var noMatchingTemplatesView: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 34))
+                .foregroundColor(.secondary)
+
+            Text("No templates match the selected filters".localized)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+
+            Text("Try a different year or criteria filter".localized)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.gray.opacity(0.18),
+            shadowOpacity: 0.03,
+            shadowRadius: 4,
             shadowY: 2,
             tint: .purple
         )
@@ -303,6 +449,26 @@ struct DevelopmentTrackerSheet: View {
         if localized != trimmed { return localized }
         return RubricLocalization.localized(value, languageCode: languageManager.currentLanguage.rawValue)
     }
+
+    func normalized(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    func syncSelectedTemplateWithFilters() {
+        guard !filteredTemplates.isEmpty else {
+            selectedTemplate = nil
+            return
+        }
+
+        if let selectedTemplate,
+           filteredTemplates.contains(where: { $0.id == selectedTemplate.id }) {
+            return
+        }
+
+        self.selectedTemplate = filteredTemplates.first
+    }
     
     func loadExistingRatings() {
         let studentScores = allScores.filter { $0.matchesStudent(student) }
@@ -334,7 +500,9 @@ struct DevelopmentTrackerSheet: View {
         }
 
         if didRepairStableReferences {
-            _ = SaveCoordinator.save(context: context, reason: "Repair development score references")
+            Task {
+                _ = await SaveCoordinator.perform(context: context, reason: "Repair development score references")
+            }
         }
     }
     
@@ -358,7 +526,9 @@ struct DevelopmentTrackerSheet: View {
             context.insert(score)
         }
         
-        _ = SaveCoordinator.save(context: context, reason: "Save development ratings")
+        Task {
+            _ = await SaveCoordinator.perform(context: context, reason: "Save development ratings")
+        }
     }
     
     func findCriterion(by id: UUID) -> RubricCriterion? {

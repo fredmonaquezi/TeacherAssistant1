@@ -10,54 +10,50 @@ struct StudentDetailView: View {
     @State private var selectedUnitForEvaluation: Unit?
     @State private var isEditingInfo = false
     @State private var showingDevelopmentTracker = false  // ← ADD THIS
+    @State private var derivedData: StudentDetailDerivedData = .empty
     
     @Query var allResults: [StudentResult]
     @Query var allAttendanceSessions: [AttendanceSession]
+    @Query var allScores: [DevelopmentScore]
     
     @EnvironmentObject var languageManager: LanguageManager
     
     // MARK: - Computed Data
     
     var subjectsForStudentClass: [Subject] {
-        guard let schoolClass = student.schoolClass else { return [] }
-        return schoolClass.subjects.sorted { $0.sortOrder < $1.sortOrder }
+        derivedData.subjectsForStudentClass
     }
     
-    var resultsForThisStudent: [StudentResult] {
-        allResults.filter { $0.student?.id == student.id }
-    }
-
     var scoredResultsForThisStudent: [StudentResult] {
-        resultsForThisStudent.filter(\.isScored)
+        derivedData.scoredResultsForStudent
     }
     
     var studentAverage: Double {
-        resultsForThisStudent.averageScore
+        derivedData.studentAverage
     }
     
     var attendanceRecords: [AttendanceRecord] {
-        allAttendanceSessions
-            .filter { $0.records.contains(where: { $0.student?.id == student.id }) }
-            .compactMap { session in
-                session.records.first(where: { $0.student?.id == student.id })
-            }
+        derivedData.attendanceRecords
     }
     
     var attendanceSummary: (present: Int, absent: Int, late: Int, leftEarly: Int) {
-        var present = 0, absent = 0, late = 0, leftEarly = 0
-        
-        for record in attendanceRecords {
-            switch record.status {
-            case .present: present += 1
-            case .absent: absent += 1
-            case .late: late += 1
-            case .leftEarly: leftEarly += 1
-            }
-        }
-        
-        return (present, absent, late, leftEarly)
+        (
+            present: derivedData.attendanceSummary.present,
+            absent: derivedData.attendanceSummary.absent,
+            late: derivedData.attendanceSummary.late,
+            leftEarly: derivedData.attendanceSummary.leftEarly
+        )
     }
-    
+
+    private var refreshToken: String {
+        [
+            String(allResults.count),
+            String(allAttendanceSessions.count),
+            String(allScores.count),
+            String(describing: student.id),
+        ].joined(separator: "|")
+    }
+
     // MARK: - Body
     
     var body: some View {
@@ -93,15 +89,15 @@ struct StudentDetailView: View {
                 
                 // MARK: - Subject Breakdown
                 subjectBreakdownSection
-                
-                // MARK: - Recent Grades
-                recentGradesSection
-                
-                // MARK: - Development Tracking  ← ADD THIS ENTIRE SECTION
-                developmentTrackingSection
-                
+
                 // MARK: - Actions
                 actionsSection
+
+                // MARK: - Development Tracking
+                developmentTrackingSection
+
+                // MARK: - Recent Grades
+                recentGradesSection
                 
             }
             .padding(.vertical, 20)
@@ -127,6 +123,14 @@ struct StudentDetailView: View {
         }
         .sheet(item: $selectedSubject) { subject in
             unitPickerSheet(for: subject)
+        }
+        .task(id: refreshToken) {
+            do {
+                try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+            } catch {
+                return
+            }
+            await refreshDerivedData()
         }
         .macNavigationDepth()
     }
@@ -312,56 +316,17 @@ struct StudentDetailView: View {
                 .font(.headline)
                 .padding(.horizontal)
             
-            if subjectsForStudentClass.isEmpty {
+            if derivedData.subjectCardViewModels.isEmpty {
                 Text("No subjects in this class yet".localized)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding(.horizontal)
             } else {
-                ForEach(subjectsForStudentClass, id: \.id) { subject in
-                    subjectCard(subject)
+                ForEach(derivedData.subjectCardViewModels) { model in
+                    StudentDetailSubjectCardView(model: model)
                 }
             }
         }
-    }
-    
-    func subjectCard(_ subject: Subject) -> some View {
-        let subjectResults = resultsForThisStudent.filter {
-            $0.assessment?.unit?.subject?.id == subject.id
-        }
-        let subjectAverage = subjectResults.averageScore
-        let assessmentCount = subjectResults.count
-        
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(subject.name)
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                    
-                    Text("\(assessmentCount) " + "assessments".localized)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(String(format: "%.1f", subjectAverage))
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(averageColor(subjectAverage))
-                    
-                    Text("average".localized)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(10)
-        .padding(.horizontal)
     }
     
     // MARK: - Recent Grades
@@ -372,63 +337,21 @@ struct StudentDetailView: View {
                 .font(.headline)
                 .padding(.horizontal)
             
-            if resultsForThisStudent.isEmpty {
+            if derivedData.recentGradeViewModels.isEmpty {
                 Text("No assessments yet".localized)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding(.horizontal)
             } else {
-                let recentResults = resultsForThisStudent
-                    .sorted { ($0.assessment?.sortOrder ?? 0) > ($1.assessment?.sortOrder ?? 0) }
-                    .prefix(10)
-                
-                ForEach(Array(recentResults), id: \.id) { result in
-                    gradeRow(result)
+                ForEach(derivedData.recentGradeViewModels) { model in
+                    StudentDetailRecentGradeRowView(model: model)
                 }
             }
         }
-    }
-    
-    func gradeRow(_ result: StudentResult) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(result.assessment?.title ?? "Assessment")
-                    .font(.body)
-                    .fontWeight(.medium)
-                
-                HStack(spacing: 4) {
-                    if let subject = result.assessment?.unit?.subject {
-                        Text(subject.name)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    if let unit = result.assessment?.unit {
-                        Text("• \(unit.name)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            
-            Spacer()
-            
-            Text(String(format: "%.1f", result.score))
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(averageColor(result.score))
-        }
-        .padding()
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(8)
-        .padding(.horizontal)
     }
     
    
     // MARK: - Development Tracking Section
-
-    @Query private var allScores: [DevelopmentScore]
-    @Query private var allTemplates: [RubricTemplate]
 
     var developmentTrackingSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -456,10 +379,10 @@ struct StudentDetailView: View {
             }
             .padding(.horizontal)
             
-            if let latestScores = getLatestDevelopmentScores(), !latestScores.isEmpty {
+            if !derivedData.latestDevelopmentScores.isEmpty {
                 // Show latest ratings
                 VStack(spacing: 8) {
-                    ForEach(groupedScoresByCategory(latestScores), id: \.category) { group in
+                    ForEach(derivedData.developmentCategoryViewModels) { group in
                         developmentCategoryCard(category: group.category, scores: group.scores)
                     }
                 }
@@ -495,16 +418,16 @@ struct StudentDetailView: View {
         }
     }
 
-    func developmentCategoryCard(category: String, scores: [DevelopmentScore]) -> some View {
+    func developmentCategoryCard(category: String, scores: [StudentDetailDevelopmentScoreViewModel]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(displayRubricText(category))
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.purple)
             
-            ForEach(scores, id: \.id) { score in
+            ForEach(scores) { score in
                 HStack {
-                    Text(displayRubricText(score.criterion?.name ?? "Unknown"))
+                    Text(displayRubricText(score.criterionName))
                         .font(.caption)
                     
                     Spacer()
@@ -514,7 +437,7 @@ struct StudentDetailView: View {
                         ForEach(1...5, id: \.self) { star in
                             Image(systemName: star <= score.rating ? "star.fill" : "star")
                                 .font(.caption)
-                                .foregroundColor(star <= score.rating ? score.ratingColor : .gray.opacity(0.3))
+                                .foregroundColor(star <= score.rating ? ratingColor(for: score.rating) : .gray.opacity(0.3))
                         }
                     }
                     
@@ -522,6 +445,8 @@ struct StudentDetailView: View {
                     Text(ratingLabel(score.rating))
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .frame(width: 150, alignment: .leading)
                 }
             }
         }
@@ -530,41 +455,15 @@ struct StudentDetailView: View {
         .cornerRadius(10)
     }
 
-    func getLatestDevelopmentScores() -> [DevelopmentScore]? {
-        let studentScores = allScores.filter { $0.matchesStudent(student) }
-        
-        guard !studentScores.isEmpty else { return nil }
-        
-        // Get the most recent score for each criterion
-        var latestScores: [UUID: DevelopmentScore] = [:]
-        
-        for score in studentScores {
-            guard let criterionID = score.criterion?.id else { continue }
-            
-            if let existing = latestScores[criterionID] {
-                if score.date > existing.date {
-                    latestScores[criterionID] = score
-                }
-            } else {
-                latestScores[criterionID] = score
-            }
+    func ratingColor(for rating: Int) -> Color {
+        switch rating {
+        case 5: return .green
+        case 4: return .blue
+        case 3: return .orange
+        case 2: return .yellow
+        case 1: return .red
+        default: return .gray
         }
-        
-        return Array(latestScores.values).sorted {
-            ($0.criterion?.sortOrder ?? 0) < ($1.criterion?.sortOrder ?? 0)
-        }
-    }
-
-    func groupedScoresByCategory(_ scores: [DevelopmentScore]) -> [(category: String, scores: [DevelopmentScore])] {
-        var grouped: [String: [DevelopmentScore]] = [:]
-        
-        for score in scores {
-            let categoryName = score.criterion?.category?.name ?? "Other"
-            grouped[categoryName, default: []].append(score)
-        }
-        
-        return grouped.map { (category: $0.key, scores: $0.value) }
-            .sorted { $0.category < $1.category }
     }
 
     func ratingLabel(_ rating: Int) -> String {
@@ -584,6 +483,28 @@ struct StudentDetailView: View {
         let localized = languageManager.localized(trimmed)
         if localized != trimmed { return localized }
         return RubricLocalization.localized(trimmed, languageCode: languageManager.currentLanguage.rawValue)
+    }
+
+    func localizedGenderLabel(_ gender: StudentGender) -> String {
+        languageManager.localized(gender.rawValue)
+    }
+
+    @MainActor
+    private func refreshDerivedData() async {
+        let token = await PerformanceMonitor.shared.beginInterval(.studentDetailDerive)
+        let derived = await StudentDetailStore.deriveAsync(
+            student: student,
+            allResults: allResults,
+            allAttendanceSessions: allAttendanceSessions,
+            allScores: allScores
+        )
+        if Task.isCancelled {
+            await PerformanceMonitor.shared.endInterval(token, success: false)
+            return
+        }
+
+        derivedData = derived
+        await PerformanceMonitor.shared.endInterval(token, success: true)
     }
     
     // MARK: - Actions Section
@@ -629,6 +550,9 @@ struct StudentDetailView: View {
                     
                     // MARK: - Name Section
                     nameSection
+
+                    // MARK: - Gender Section
+                    genderSection
                     
                     // MARK: - Status Indicators
                     statusIndicatorsSection
@@ -718,6 +642,42 @@ struct StudentDetailView: View {
                 .padding()
                 .background(Color.gray.opacity(0.1))
                 .cornerRadius(10)
+        }
+        .padding()
+        .background(cardBackgroundColor)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+
+    // MARK: - Gender Section
+
+    var genderSection: some View {
+        let genderBinding = Binding<StudentGender>(
+            get: { StudentGender(rawValue: student.gender) ?? .preferNotToSay },
+            set: { student.gender = $0.rawValue }
+        )
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "person.2.fill")
+                    .foregroundColor(.indigo)
+                Text("Gender (Optional)".localized)
+                    .font(.headline)
+            }
+
+            Picker("Gender".localized, selection: genderBinding) {
+                ForEach(StudentGender.allCases, id: \.self) { genderOption in
+                    Text(localizedGenderLabel(genderOption)).tag(genderOption)
+                }
+            }
+            .pickerStyle(.menu)
+            .padding()
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(10)
+
+            Text("Used for group balancing in group generator".localized)
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
         .padding()
         .background(cardBackgroundColor)

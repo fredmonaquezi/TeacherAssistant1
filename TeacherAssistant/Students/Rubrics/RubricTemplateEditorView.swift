@@ -37,8 +37,11 @@ struct RubricTemplateEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done".localized) {
-                        if SaveCoordinator.save(context: context, reason: "Save rubric template edits") {
-                            dismiss()
+                        Task {
+                            let result = await SaveCoordinator.perform(context: context, reason: "Save rubric template edits")
+                            if result.didSave {
+                                dismiss()
+                            }
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -319,15 +322,21 @@ struct RubricTemplateEditorView: View {
     
     func deleteCategory(_ category: RubricCategory) {
         context.delete(category)
-        if SaveCoordinator.save(context: context, reason: "Delete rubric category") {
-            categoryToDelete = nil
+        Task {
+            let result = await SaveCoordinator.perform(context: context, reason: "Delete rubric category")
+            if result.didSave {
+                categoryToDelete = nil
+            }
         }
     }
     
     func deleteCriterion(_ criterion: RubricCriterion) {
         context.delete(criterion)
-        if SaveCoordinator.save(context: context, reason: "Delete rubric criterion") {
-            criterionToDelete = nil
+        Task {
+            let result = await SaveCoordinator.perform(context: context, reason: "Delete rubric criterion")
+            if result.didSave {
+                criterionToDelete = nil
+            }
         }
     }
     
@@ -468,8 +477,8 @@ struct AddCategorySheet: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add".localized) {
-                        if addCategory() {
-                            dismiss()
+                        Task {
+                            await addCategory()
                         }
                     }
                     .disabled(categoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -482,13 +491,16 @@ struct AddCategorySheet: View {
         #endif
     }
     
-    func addCategory() -> Bool {
-        guard let sanitizedName = SecurityHelpers.sanitizeName(categoryName) else { return false }
+    func addCategory() async {
+        guard let sanitizedName = SecurityHelpers.sanitizeName(categoryName) else { return }
         let category = RubricCategory(name: sanitizedName)
         category.template = template
         category.sortOrder = template.categories.count
         context.insert(category)
-        return SaveCoordinator.save(context: context, reason: "Add rubric category")
+        let result = await SaveCoordinator.perform(context: context, reason: "Add rubric category")
+        if result.didSave {
+            dismiss()
+        }
     }
 }
 
@@ -607,8 +619,8 @@ struct AddCriterionSheet: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add".localized) {
-                        if addCriterion() {
-                            dismiss()
+                        Task {
+                            await addCriterion()
                         }
                     }
                     .disabled(criterionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -621,8 +633,8 @@ struct AddCriterionSheet: View {
         #endif
     }
     
-    func addCriterion() -> Bool {
-        guard let sanitizedName = SecurityHelpers.sanitizeName(criterionName) else { return false }
+    func addCriterion() async {
+        guard let sanitizedName = SecurityHelpers.sanitizeName(criterionName) else { return }
         let sanitizedDetails = SecurityHelpers.sanitizeNotes(criterionDetails)
         let criterion = RubricCriterion(
             name: sanitizedName,
@@ -631,7 +643,10 @@ struct AddCriterionSheet: View {
         criterion.category = category
         criterion.sortOrder = category.criteria.count
         context.insert(criterion)
-        return SaveCoordinator.save(context: context, reason: "Add rubric criterion")
+        let result = await SaveCoordinator.perform(context: context, reason: "Add rubric criterion")
+        if result.didSave {
+            dismiss()
+        }
     }
 }
 
@@ -656,8 +671,11 @@ struct EditCriterionView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done".localized) {
-                    if SaveCoordinator.save(context: context, reason: "Edit rubric criterion") {
-                        dismiss()
+                    Task {
+                        let result = await SaveCoordinator.perform(context: context, reason: "Edit rubric criterion")
+                        if result.didSave {
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -755,8 +773,8 @@ struct CreateNewTemplateSheet: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create".localized) {
-                        if createTemplate() {
-                            dismiss()
+                        Task {
+                            await createTemplate()
                         }
                     }
                     .disabled(templateName.isEmpty || gradeLevel.isEmpty || subject.isEmpty)
@@ -769,10 +787,10 @@ struct CreateNewTemplateSheet: View {
         #endif
     }
     
-    func createTemplate() -> Bool {
-        guard let sanitizedName = SecurityHelpers.sanitizeName(templateName) else { return false }
-        guard let sanitizedGrade = SecurityHelpers.sanitizeName(gradeLevel) else { return false }
-        guard let sanitizedSubject = SecurityHelpers.sanitizeName(subject) else { return false }
+    func createTemplate() async {
+        guard let sanitizedName = SecurityHelpers.sanitizeName(templateName) else { return }
+        guard let sanitizedGrade = SecurityHelpers.sanitizeName(gradeLevel) else { return }
+        guard let sanitizedSubject = SecurityHelpers.sanitizeName(subject) else { return }
 
         let template = RubricTemplate(
             name: sanitizedName,
@@ -780,6 +798,9 @@ struct CreateNewTemplateSheet: View {
             subject: sanitizedSubject
         )
         context.insert(template)
-        return SaveCoordinator.save(context: context, reason: "Create rubric template")
+        let result = await SaveCoordinator.perform(context: context, reason: "Create rubric template")
+        if result.didSave {
+            dismiss()
+        }
     }
 }

@@ -258,11 +258,12 @@ struct ScoreEntrySheet: View {
         studentResult.score = parsedScore ?? 0
         studentResult.hasScore = !trimmedScoreText.isEmpty
 
-        guard SaveCoordinator.save(context: context, reason: "Save score entry") else {
-            return
+        Task {
+            let result = await SaveCoordinator.perform(context: context, reason: "Save score entry")
+            if result.didSave {
+                dismiss()
+            }
         }
-
-        dismiss()
     }
 
     static func formatScore(_ score: Double) -> String {

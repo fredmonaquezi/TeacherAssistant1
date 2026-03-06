@@ -24,124 +24,51 @@ struct RunningRecordsView: View {
     @State private var showingEmptyExportAlert = false
     @State private var showingStudentRequiredAlert = false
     @State private var showingExportFailedAlert = false
+    @State private var derivedData: RunningRecordsDerivedData = .empty
 
     var classOptions: [SchoolClass] {
-        var seen: Set<String> = []
-        var classes: [SchoolClass] = []
-        for student in allStudents {
-            guard let schoolClass = student.schoolClass else { continue }
-            let key = String(describing: schoolClass.id)
-            if seen.insert(key).inserted {
-                classes.append(schoolClass)
-            }
-        }
-        return classes.sorted { lhs, rhs in
-            classDisplayName(lhs) < classDisplayName(rhs)
-        }
+        derivedData.classOptions
     }
 
     var studentOptions: [Student] {
-        var seen: Set<PersistentIdentifier> = []
-        return allStudents
-            .filter { student in
-                guard let selectedClass else { return true }
-                return student.schoolClass?.id == selectedClass.id
-            }
-            .filter { student in
-                seen.insert(student.id).inserted
-            }
-            .sorted {
-                if $0.name.caseInsensitiveCompare($1.name) == .orderedSame {
-                    return $0.sortOrder < $1.sortOrder
-                }
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
-    }
-
-    var normalizedCustomRange: (start: Date, end: Date) {
-        let start = Calendar.current.startOfDay(for: customDateStart)
-        let endDayStart = Calendar.current.startOfDay(for: customDateEnd)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: endDayStart)?.addingTimeInterval(-1) ?? endDayStart
-        return start <= end ? (start, end) : (end, start)
-    }
-
-    var filteredRecords: [RunningRecord] {
-        var records = allRunningRecords
-
-        if let selectedClass {
-            records = records.filter { $0.student?.schoolClass?.id == selectedClass.id }
-        }
-
-        if let selectedStudent {
-            records = records.filter { $0.student?.id == selectedStudent.id }
-        }
-
-        if let level = filterLevel {
-            records = records.filter { $0.readingLevel == level }
-        }
-
-        records = records.filter { record in
-            let customStart = selectedDateRange == .custom ? normalizedCustomRange.start : nil
-            let customEnd = selectedDateRange == .custom ? normalizedCustomRange.end : nil
-            return selectedDateRange.includes(record.date, customStartDate: customStart, customEndDate: customEnd)
-        }
-
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if !query.isEmpty {
-            records = records.filter { record in
-                record.searchableText.contains(query)
-            }
-        }
-
-        return records
+        derivedData.studentOptions
     }
 
     var sortedRecords: [RunningRecord] {
-        filteredRecords.sorted { lhs, rhs in
-            switch sortOption {
-            case .dateDescending:
-                return lhs.date > rhs.date
-            case .dateAscending:
-                return lhs.date < rhs.date
-            case .accuracyDescending:
-                return lhs.accuracy > rhs.accuracy
-            case .accuracyAscending:
-                return lhs.accuracy < rhs.accuracy
-            case .studentAscending:
-                return lhs.studentDisplayName.localizedCaseInsensitiveCompare(rhs.studentDisplayName) == .orderedAscending
-            case .studentDescending:
-                return lhs.studentDisplayName.localizedCaseInsensitiveCompare(rhs.studentDisplayName) == .orderedDescending
-            }
-        }
+        derivedData.sortedRecords
     }
 
     var filteredAverageAccuracy: Double {
-        guard !sortedRecords.isEmpty else { return 0 }
-        let total = sortedRecords.reduce(0.0) { $0 + $1.accuracy }
-        return total / Double(sortedRecords.count)
+        derivedData.filteredAverageAccuracy
     }
 
     var levelCounts: (independent: Int, instructional: Int, frustration: Int) {
-        sortedRecords.reduce(into: (0, 0, 0)) { counts, record in
-            switch record.readingLevel {
-            case .independent:
-                counts.0 += 1
-            case .instructional:
-                counts.1 += 1
-            case .frustration:
-                counts.2 += 1
-            }
-        }
+        derivedData.levelCounts
     }
 
     var uniqueStudentsCount: Int {
-        Set(allRunningRecords.compactMap { $0.student?.id }).count
+        derivedData.uniqueStudentsCount
     }
 
     var averageAccuracy: Double {
-        guard !allRunningRecords.isEmpty else { return 0 }
-        let total = allRunningRecords.reduce(0.0) { $0 + $1.accuracy }
-        return total / Double(allRunningRecords.count)
+        derivedData.averageAccuracy
+    }
+
+    private var refreshToken: String {
+        let startDay = Calendar.current.startOfDay(for: customDateStart).timeIntervalSince1970
+        let endDay = Calendar.current.startOfDay(for: customDateEnd).timeIntervalSince1970
+        return [
+            String(allStudents.count),
+            String(allRunningRecords.count),
+            String(describing: selectedClass?.id),
+            String(describing: selectedStudent?.id),
+            filterLevel?.rawValue ?? "none",
+            selectedDateRange.rawValue,
+            String(Int(startDay)),
+            String(Int(endDay)),
+            sortOption.rawValue,
+            searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+        ].joined(separator: "|")
     }
 
     var hasActiveFilters: Bool {
@@ -260,8 +187,14 @@ struct RunningRecordsView: View {
             }
             Button(languageManager.localized("Delete"), role: .destructive) {
                 if let record = recordToDelete {
-                    context.delete(record)
-                    _ = SaveCoordinator.save(context: context, reason: "Delete running record from list")
+                    Task {
+                        await PersistenceWriteCoordinator.shared.perform(
+                            context: context,
+                            reason: "Delete running record from list"
+                        ) {
+                            context.delete(record)
+                        }
+                    }
                 }
                 recordToDelete = nil
             }
@@ -293,6 +226,14 @@ struct RunningRecordsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(languageManager.localized("The export file could not be created. Please try again."))
+        }
+        .task(id: refreshToken) {
+            do {
+                try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+            } catch {
+                return
+            }
+            await refreshDerivedData()
         }
         .onChange(of: selectedClass?.id) { _, _ in
             guard let selectedStudent else { return }
@@ -740,6 +681,30 @@ struct RunningRecordsView: View {
         sortOption = .dateDescending
         customDateStart = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
         customDateEnd = Date()
+    }
+
+    @MainActor
+    private func refreshDerivedData() async {
+        let token = await PerformanceMonitor.shared.beginInterval(.runningRecordsDerive)
+        let derived = await RunningRecordsStore.deriveAsync(
+            allStudents: allStudents,
+            allRunningRecords: allRunningRecords,
+            selectedClass: selectedClass,
+            selectedStudent: selectedStudent,
+            filterLevel: filterLevel,
+            selectedDateRange: selectedDateRange,
+            customDateStart: customDateStart,
+            customDateEnd: customDateEnd,
+            sortOption: sortOption,
+            searchText: searchText
+        )
+        if Task.isCancelled {
+            await PerformanceMonitor.shared.endInterval(token, success: false)
+            return
+        }
+
+        derivedData = derived
+        await PerformanceMonitor.shared.endInterval(token, success: true)
     }
 
     private func normalizedStudentName(_ name: String) -> String {

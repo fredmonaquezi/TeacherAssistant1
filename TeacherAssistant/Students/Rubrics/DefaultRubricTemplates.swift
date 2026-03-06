@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @MainActor
-func createDefaultRubrics(context: ModelContext) {
+func createDefaultRubrics(context: ModelContext) async {
     // Quick check if templates already exist - exit immediately if they do
     let descriptor = FetchDescriptor<RubricTemplate>()
     do {
@@ -30,7 +30,7 @@ func createDefaultRubrics(context: ModelContext) {
     // HIGH SCHOOL (Years 10-12)
     createHighSchoolTemplates(context: context)
     
-    _ = SaveCoordinator.save(context: context, reason: "Create default rubric templates")
+    _ = await SaveCoordinator.perform(context: context, reason: "Create default rubric templates")
     SecureLogger.debug("Default rubric templates created successfully")
 }
 

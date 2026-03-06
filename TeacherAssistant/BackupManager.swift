@@ -129,6 +129,7 @@ final class BackupManager {
     
     @MainActor
     static func exportBackup(context: ModelContext) throws -> URL {
+        Task { await PerformanceMonitor.shared.incrementCounter(.backupExport) }
         // Rate limiting check
         try checkOperationAllowed()
         
@@ -563,6 +564,7 @@ final class BackupManager {
     // MARK: - Import
     
     static func importBackup(from url: URL, context: ModelContext) throws {
+        Task { await PerformanceMonitor.shared.incrementCounter(.backupImport) }
         // Rate limiting check
         try checkOperationAllowed()
         

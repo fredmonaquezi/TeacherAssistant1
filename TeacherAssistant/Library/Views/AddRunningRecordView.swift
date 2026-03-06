@@ -550,11 +550,12 @@ struct AddRunningRecordView: View {
         if existingRecord == nil {
             context.insert(record)
         }
-        guard SaveCoordinator.save(context: context, reason: "Save running record") else {
-            return
+        Task {
+            let result = await SaveCoordinator.perform(context: context, reason: "Save running record")
+            if result.didSave {
+                dismiss()
+            }
         }
-
-        dismiss()
     }
     
     func levelName(_ level: ReadingLevel) -> String {

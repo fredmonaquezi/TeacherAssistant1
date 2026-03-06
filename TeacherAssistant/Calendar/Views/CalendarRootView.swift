@@ -13,10 +13,23 @@ struct CalendarRootView: View {
     @State private var viewMode: CalendarViewMode = .month
     @State private var selectedClassID: PersistentIdentifier?
     @State private var showingDayDetail = false
+    @State private var derivedData: CalendarDerivedData = .empty
     
     private var selectedClass: SchoolClass? {
-        guard let selectedClassID else { return nil }
-        return classes.first(where: { $0.persistentModelID == selectedClassID })
+        derivedData.selectedClass
+    }
+
+    private var upcomingEventViewModels: [CalendarUpcomingEventViewModel] {
+        Array(derivedData.upcomingEventViewModels.prefix(5))
+    }
+
+    private var refreshToken: String {
+        [
+            String(classes.count),
+            String(diaryEntries.count),
+            String(events.count),
+            String(describing: selectedClassID),
+        ].joined(separator: "|")
     }
 
     enum CalendarViewMode: String, CaseIterable {
@@ -54,24 +67,24 @@ struct CalendarRootView: View {
                     MonthCalendarView(
                         monthDate: selectedDate,
                         selectedDate: $selectedDate,
-                        entries: filteredDiaryEntries,
-                        events: filteredEvents,
+                        dayCellViewModelsByDay: derivedData.dayCellViewModelsByDay,
                         localeIdentifier: languageManager.currentLanguage.localeIdentifier,
                         onSelect: {
                             showingDayDetail = true
                         }
                     )
+                    .equatable()
                 } else {
                     WeekCalendarView(
                         dateInWeek: selectedDate,
                         selectedDate: $selectedDate,
-                        entries: filteredDiaryEntries,
-                        events: filteredEvents,
+                        dayCellViewModelsByDay: derivedData.dayCellViewModelsByDay,
                         localeIdentifier: languageManager.currentLanguage.localeIdentifier,
                         onSelect: {
                             showingDayDetail = true
                         }
                     )
+                    .equatable()
                 }
 
                 upcomingEventsCard
@@ -84,18 +97,40 @@ struct CalendarRootView: View {
         #endif
         .appSheetBackground(tint: .blue)
         .id(languageManager.currentLanguage)
+        .task(id: refreshToken) {
+            do {
+                try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+            } catch {
+                return
+            }
+            await refreshDerivedData()
+        }
         .sheet(isPresented: $showingDayDetail) {
             DayDetailSheet(
                 date: selectedDate,
                 classes: classes,
                 selectedClass: selectedClass,
-                entries: filteredDiaryEntries,
-                events: filteredEvents,
+                diaryEntries: dayEntries(for: selectedDate),
+                events: dayEvents(for: selectedDate),
                 onSaveEntry: { entry in
-                    context.insert(entry)
+                    Task {
+                        await PersistenceWriteCoordinator.shared.perform(
+                            context: context,
+                            reason: "Create calendar diary entry"
+                        ) {
+                            context.insert(entry)
+                        }
+                    }
                 },
                 onSaveEvent: { event in
-                    context.insert(event)
+                    Task {
+                        await PersistenceWriteCoordinator.shared.perform(
+                            context: context,
+                            reason: "Create calendar event"
+                        ) {
+                            context.insert(event)
+                        }
+                    }
                 }
             )
         }
@@ -190,9 +225,68 @@ struct CalendarRootView: View {
     // MARK: - Upcoming
 
     var upcomingEventsCard: some View {
-        let upcoming = upcomingEvents(limit: 5)
+        CalendarUpcomingEventsCardView(
+            events: upcomingEventViewModels,
+            localeIdentifier: languageManager.currentLanguage.localeIdentifier
+        )
+            .equatable()
+    }
 
-        return VStack(alignment: .leading, spacing: 12) {
+    // MARK: - Filtering
+
+    var filteredDiaryEntries: [ClassDiaryEntry] {
+        derivedData.filteredDiaryEntries
+    }
+
+    var filteredEvents: [CalendarEvent] {
+        derivedData.filteredEvents
+    }
+
+    // MARK: - Helpers
+
+    func monthTitle(for date: Date) -> String {
+        CalendarLocalizedFormatting.monthTitle(
+            for: date,
+            localeIdentifier: languageManager.currentLanguage.localeIdentifier,
+            in: viewMode
+        )
+    }
+
+    private func dayEntries(for date: Date) -> [ClassDiaryEntry] {
+        let day = Calendar.current.startOfDay(for: date)
+        return derivedData.diaryEntriesByDay[day] ?? []
+    }
+
+    private func dayEvents(for date: Date) -> [CalendarEvent] {
+        let day = Calendar.current.startOfDay(for: date)
+        return derivedData.eventsByDay[day] ?? []
+    }
+
+    @MainActor
+    private func refreshDerivedData() async {
+        let token = await PerformanceMonitor.shared.beginInterval(.calendarDerive)
+        let derived = await CalendarStore.deriveAsync(
+            classes: classes,
+            diaryEntries: diaryEntries,
+            events: events,
+            selectedClassID: selectedClassID
+        )
+        if Task.isCancelled {
+            await PerformanceMonitor.shared.endInterval(token, success: false)
+            return
+        }
+
+        derivedData = derived
+        await PerformanceMonitor.shared.endInterval(token, success: true)
+    }
+}
+
+struct CalendarUpcomingEventsCardView: View, Equatable {
+    let events: [CalendarUpcomingEventViewModel]
+    let localeIdentifier: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "bell.badge.fill")
                     .foregroundColor(.orange)
@@ -201,34 +295,16 @@ struct CalendarRootView: View {
                 Spacer()
             }
 
-            if upcoming.isEmpty {
+            if events.isEmpty {
                 Text("No upcoming alerts".localized)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             } else {
-                ForEach(upcoming, id: \.id) { event in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(event.title)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                            Text(shortDate(event.date))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        if let schoolClass = event.schoolClass {
-                            Text(schoolClass.name)
-                                .font(.caption2)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.orange.opacity(0.15))
-                                )
-                        }
-                    }
-                    .padding(.vertical, 6)
+                ForEach(events) { event in
+                    CalendarUpcomingEventRowView(
+                        event: event,
+                        localeIdentifier: localeIdentifier
+                    )
                 }
             }
         }
@@ -239,42 +315,35 @@ struct CalendarRootView: View {
             tint: .orange
         )
     }
+}
 
-    // MARK: - Filtering
+private struct CalendarUpcomingEventRowView: View, Equatable {
+    let event: CalendarUpcomingEventViewModel
+    let localeIdentifier: String
 
-    var filteredDiaryEntries: [ClassDiaryEntry] {
-        guard let selectedClass else { return diaryEntries }
-        return diaryEntries.filter { $0.schoolClass?.persistentModelID == selectedClass.persistentModelID }
-    }
-
-    var filteredEvents: [CalendarEvent] {
-        guard let selectedClass else { return events }
-        return events.filter { $0.schoolClass?.persistentModelID == selectedClass.persistentModelID }
-    }
-
-    // MARK: - Helpers
-
-    func monthTitle(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: languageManager.currentLanguage.localeIdentifier)
-        if viewMode == .month {
-            formatter.dateFormat = "LLLL yyyy"
-            return formatter.string(from: date)
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(CalendarLocalizedFormatting.mediumDate(event.date, localeIdentifier: localeIdentifier))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            if let className = event.className, !className.isEmpty {
+                Text(className)
+                    .font(.caption2)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.orange.opacity(0.15))
+                    )
+            }
         }
-        return date.appDateString(systemStyle: .medium)
-    }
-
-    func shortDate(_ date: Date) -> String {
-        date.appDateString(systemStyle: .medium)
-    }
-
-    func upcomingEvents(limit: Int) -> [CalendarEvent] {
-        let today = Calendar.current.startOfDay(for: Date())
-        return filteredEvents
-            .filter { $0.date >= today }
-            .sorted { $0.date < $1.date }
-            .prefix(limit)
-            .map { $0 }
+        .padding(.vertical, 6)
     }
 }
 
@@ -283,8 +352,7 @@ struct CalendarRootView: View {
 struct MonthCalendarView: View {
     let monthDate: Date
     @Binding var selectedDate: Date
-    let entries: [ClassDiaryEntry]
-    let events: [CalendarEvent]
+    let dayCellViewModelsByDay: [Date: CalendarDayCellViewModel]
     let localeIdentifier: String
     let onSelect: () -> Void
 
@@ -329,11 +397,7 @@ struct MonthCalendarView: View {
     func dayCell(for date: Date) -> some View {
         let isCurrentMonth = Calendar.current.isDate(date, equalTo: monthDate, toGranularity: .month)
         let isSelected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-        let dayEntries = entriesFor(date)
-        let dayEvents = eventsFor(date)
-        let previewEvents = Array(dayEvents.prefix(2))
-        let previewEntries = Array(dayEntries.prefix(2))
-        let remainingCount = max(0, (dayEntries.count + dayEvents.count) - (previewEvents.count + previewEntries.count))
+        let daySummary = daySummary(for: date)
 
         return Button {
             selectedDate = date
@@ -353,24 +417,23 @@ struct MonthCalendarView: View {
                     }
                 }
 
-                ForEach(previewEvents, id: \.id) { event in
-                    Text(event.title)
+                ForEach(daySummary.eventPreviews) { event in
+                    Text(event.text)
                         .font(.caption2)
                         .fontWeight(.semibold)
                         .lineLimit(1)
                         .foregroundColor(.orange)
                 }
 
-                ForEach(previewEntries, id: \.id) { entry in
-                    let label = entry.unit?.name ?? entry.subject?.name ?? entry.schoolClass?.name ?? "Class Diary".localized
-                    Text(label)
+                ForEach(daySummary.entryPreviews) { entry in
+                    Text(entry.text)
                         .font(.caption2)
                         .lineLimit(1)
                         .foregroundColor(.blue)
                 }
 
-                if remainingCount > 0 {
-                    Text(String(format: "+%d", remainingCount))
+                if daySummary.remainingCount > 0 {
+                    Text(String(format: "+%d", daySummary.remainingCount))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -389,12 +452,8 @@ struct MonthCalendarView: View {
         .buttonStyle(.plain)
     }
 
-    func entriesFor(_ date: Date) -> [ClassDiaryEntry] {
-        entries.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
-    }
-
-    func eventsFor(_ date: Date) -> [CalendarEvent] {
-        events.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    func daySummary(for date: Date) -> CalendarDayCellViewModel {
+        dayCellViewModelsByDay[Calendar.current.startOfDay(for: date)] ?? .empty
     }
 
     func isToday(_ date: Date) -> Bool {
@@ -407,8 +466,7 @@ struct MonthCalendarView: View {
 struct WeekCalendarView: View {
     let dateInWeek: Date
     @Binding var selectedDate: Date
-    let entries: [ClassDiaryEntry]
-    let events: [CalendarEvent]
+    let dayCellViewModelsByDay: [Date: CalendarDayCellViewModel]
     let localeIdentifier: String
     let onSelect: () -> Void
 
@@ -434,11 +492,7 @@ struct WeekCalendarView: View {
 
     func weekDayCell(for date: Date) -> some View {
         let isSelected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-        let dayEntries = entriesFor(date)
-        let dayEvents = eventsFor(date)
-        let previewEvents = Array(dayEvents.prefix(2))
-        let previewEntries = Array(dayEntries.prefix(2))
-        let remainingCount = max(0, (dayEntries.count + dayEvents.count) - (previewEvents.count + previewEntries.count))
+        let daySummary = daySummary(for: date)
 
         return Button {
             selectedDate = date
@@ -450,22 +504,21 @@ struct WeekCalendarView: View {
                     .foregroundColor(.secondary)
                 Text("\(Calendar.current.component(.day, from: date))")
                     .font(AppTypography.cardTitle)
-                ForEach(previewEvents, id: \.id) { event in
-                    Text(event.title)
+                ForEach(daySummary.eventPreviews) { event in
+                    Text(event.text)
                         .font(.caption2)
                         .fontWeight(.semibold)
                         .lineLimit(1)
                         .foregroundColor(.orange)
                 }
-                ForEach(previewEntries, id: \.id) { entry in
-                    let label = entry.unit?.name ?? entry.subject?.name ?? entry.schoolClass?.name ?? "Class Diary".localized
-                    Text(label)
+                ForEach(daySummary.entryPreviews) { entry in
+                    Text(entry.text)
                         .font(.caption2)
                         .lineLimit(1)
                         .foregroundColor(.blue)
                 }
-                if remainingCount > 0 {
-                    Text(String(format: "+%d", remainingCount))
+                if daySummary.remainingCount > 0 {
+                    Text(String(format: "+%d", daySummary.remainingCount))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -485,18 +538,29 @@ struct WeekCalendarView: View {
     }
 
     func shortWeekday(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: localeIdentifier)
-        formatter.dateFormat = "EEE"
-        return formatter.string(from: date)
+        CalendarLocalizedFormatting.shortWeekday(date, localeIdentifier: localeIdentifier)
     }
 
-    func entriesFor(_ date: Date) -> [ClassDiaryEntry] {
-        entries.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    func daySummary(for date: Date) -> CalendarDayCellViewModel {
+        dayCellViewModelsByDay[Calendar.current.startOfDay(for: date)] ?? .empty
     }
+}
 
-    func eventsFor(_ date: Date) -> [CalendarEvent] {
-        events.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
+extension MonthCalendarView: Equatable {
+    static func == (lhs: MonthCalendarView, rhs: MonthCalendarView) -> Bool {
+        lhs.monthDate == rhs.monthDate &&
+        lhs.selectedDate == rhs.selectedDate &&
+        lhs.dayCellViewModelsByDay == rhs.dayCellViewModelsByDay &&
+        lhs.localeIdentifier == rhs.localeIdentifier
+    }
+}
+
+extension WeekCalendarView: Equatable {
+    static func == (lhs: WeekCalendarView, rhs: WeekCalendarView) -> Bool {
+        lhs.dateInWeek == rhs.dateInWeek &&
+        lhs.selectedDate == rhs.selectedDate &&
+        lhs.dayCellViewModelsByDay == rhs.dayCellViewModelsByDay &&
+        lhs.localeIdentifier == rhs.localeIdentifier
     }
 }
 
@@ -510,7 +574,7 @@ struct DayDetailSheet: View {
     let date: Date
     let classes: [SchoolClass]
     let selectedClass: SchoolClass?
-    let entries: [ClassDiaryEntry]
+    let diaryEntries: [ClassDiaryEntry]
     let events: [CalendarEvent]
     let onSaveEntry: (ClassDiaryEntry) -> Void
     let onSaveEvent: (CalendarEvent) -> Void
@@ -547,7 +611,14 @@ struct DayDetailSheet: View {
                 }
                 Button("Delete".localized, role: .destructive) {
                     if let entryToDelete {
-                        context.delete(entryToDelete)
+                        Task {
+                            await PersistenceWriteCoordinator.shared.perform(
+                                context: context,
+                                reason: "Delete calendar diary entry"
+                            ) {
+                                context.delete(entryToDelete)
+                            }
+                        }
                     }
                     entryToDelete = nil
                 }
@@ -560,7 +631,14 @@ struct DayDetailSheet: View {
                 }
                 Button("Delete".localized, role: .destructive) {
                     if let eventToDelete {
-                        context.delete(eventToDelete)
+                        Task {
+                            await PersistenceWriteCoordinator.shared.perform(
+                                context: context,
+                                reason: "Delete calendar event"
+                            ) {
+                                context.delete(eventToDelete)
+                            }
+                        }
                     }
                     eventToDelete = nil
                 }
@@ -821,34 +899,25 @@ struct DayDetailSheet: View {
     }
 
     var diaryEntriesForDay: [ClassDiaryEntry] {
-        entries.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
-            .sorted {
-                let t0 = $0.startTime ?? Date.distantFuture
-                let t1 = $1.startTime ?? Date.distantFuture
-                if t0 != t1 { return t0 < t1 }
-                return ($0.schoolClass?.name ?? "") < ($1.schoolClass?.name ?? "")
-            }
+        diaryEntries
     }
 
     var eventsForDay: [CalendarEvent] {
-        events.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
-            .sorted {
-                if $0.isAllDay != $1.isAllDay { return $0.isAllDay }
-                let t0 = $0.startTime ?? Date.distantFuture
-                let t1 = $1.startTime ?? Date.distantFuture
-                return t0 < t1
-            }
+        events
     }
 
     func dayTitle(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: languageManager.currentLanguage.localeIdentifier)
-        formatter.dateFormat = "EEE"
-        return formatter.string(from: date)
+        CalendarLocalizedFormatting.shortWeekday(
+            date,
+            localeIdentifier: languageManager.currentLanguage.localeIdentifier
+        )
     }
 
     func longDate(_ date: Date) -> String {
-        date.appDateString(systemStyle: .full)
+        CalendarLocalizedFormatting.longDate(
+            date,
+            localeIdentifier: languageManager.currentLanguage.localeIdentifier
+        )
     }
 
     func merge(date: Date, time: Date) -> Date {
@@ -1315,6 +1384,70 @@ struct EventEditor: View {
 
     func defaultTime(hour: Int, minute: Int) -> Date {
         Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()
+    }
+}
+
+private enum CalendarLocalizedFormatting {
+    private static var formatterCache: [String: DateFormatter] = [:]
+    private static let cacheLock = NSLock()
+
+    static func monthTitle(
+        for date: Date,
+        localeIdentifier: String,
+        in mode: CalendarRootView.CalendarViewMode
+    ) -> String {
+        switch mode {
+        case .month:
+            return formatted(
+                date,
+                localeIdentifier: localeIdentifier,
+                dateFormat: "LLLL yyyy"
+            )
+        case .week:
+            return mediumDate(date, localeIdentifier: localeIdentifier)
+        }
+    }
+
+    static func shortWeekday(_ date: Date, localeIdentifier: String) -> String {
+        formatted(date, localeIdentifier: localeIdentifier, dateFormat: "EEE")
+    }
+
+    static func mediumDate(_ date: Date, localeIdentifier: String) -> String {
+        formatted(date, localeIdentifier: localeIdentifier, dateStyle: .medium)
+    }
+
+    static func longDate(_ date: Date, localeIdentifier: String) -> String {
+        formatted(date, localeIdentifier: localeIdentifier, dateStyle: .full)
+    }
+
+    private static func formatted(
+        _ date: Date,
+        localeIdentifier: String,
+        dateFormat: String? = nil,
+        dateStyle: DateFormatter.Style = .none
+    ) -> String {
+        let key = "\(localeIdentifier)|\(dateFormat ?? "style-\(dateStyle.rawValue)")"
+        let formatter: DateFormatter
+
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+
+        if let cached = formatterCache[key] {
+            formatter = cached
+        } else {
+            let created = DateFormatter()
+            created.locale = Locale(identifier: localeIdentifier)
+            if let dateFormat {
+                created.dateFormat = dateFormat
+            } else {
+                created.dateStyle = dateStyle
+                created.timeStyle = .none
+            }
+            formatterCache[key] = created
+            formatter = created
+        }
+
+        return formatter.string(from: date)
     }
 }
 

@@ -982,3 +982,13 @@
 "Delete PDF?" = "Excluir PDF?";
 "Are you sure you want to delete \"%@\" and all its contents? This action cannot be undone." = "Tem certeza de que deseja excluir \"%@\" e todo o seu conteúdo? Esta ação não pode ser desfeita.";
 "Are you sure you want to delete \"%@\"? This action cannot be undone." = "Tem certeza de que deseja excluir \"%@\"? Esta ação não pode ser desfeita.";
+"Year" = "Ano";
+"Filters" = "Filtros";
+"All Years" = "Todos os Anos";
+"All Criteria" = "Todos os Critérios";
+"No templates match the selected filters" = "Nenhum modelo corresponde aos filtros selecionados";
+"Try a different year or criteria filter" = "Tente um filtro de ano ou critério diferente";
+"Male" = "Masculino";
+"Female" = "Feminino";
+"Non-binary" = "Não binário";
+"Prefer not to say" = "Prefiro não informar";

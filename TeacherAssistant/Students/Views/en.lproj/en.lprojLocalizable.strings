@@ -1010,3 +1010,13 @@
 "Delete PDF?" = "Delete PDF?";
 "Are you sure you want to delete \"%@\" and all its contents? This action cannot be undone." = "Are you sure you want to delete \"%@\" and all its contents? This action cannot be undone.";
 "Are you sure you want to delete \"%@\"? This action cannot be undone." = "Are you sure you want to delete \"%@\"? This action cannot be undone.";
+"Year" = "Year";
+"Filters" = "Filters";
+"All Years" = "All Years";
+"All Criteria" = "All Criteria";
+"No templates match the selected filters" = "No templates match the selected filters";
+"Try a different year or criteria filter" = "Try a different year or criteria filter";
+"Male" = "Male";
+"Female" = "Female";
+"Non-binary" = "Non-binary";
+"Prefer not to say" = "Prefer not to say";

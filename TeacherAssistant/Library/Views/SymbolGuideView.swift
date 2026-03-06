@@ -479,8 +479,11 @@ struct RunningRecordDetailView: View {
                 
                 Button(languageManager.localized("Delete"), role: .destructive) {
                     context.delete(record)
-                    if SaveCoordinator.save(context: context, reason: "Delete running record symbol guide") {
-                        dismiss()
+                    Task {
+                        let result = await SaveCoordinator.perform(context: context, reason: "Delete running record symbol guide")
+                        if result.didSave {
+                            dismiss()
+                        }
                     }
                 }
             } message: {

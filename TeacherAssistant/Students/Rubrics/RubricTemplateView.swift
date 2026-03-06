@@ -82,7 +82,9 @@ struct RubricTemplateManagerView: View {
             Button(languageManager.localized("Delete"), role: .destructive) {
                 if let templateToDelete {
                     context.delete(templateToDelete)
-                    _ = SaveCoordinator.save(context: context, reason: "Delete rubric template")
+                    Task {
+                        _ = await SaveCoordinator.perform(context: context, reason: "Delete rubric template")
+                    }
                 }
                 templateToDelete = nil
             }
