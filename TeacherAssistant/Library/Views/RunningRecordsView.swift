@@ -25,6 +25,7 @@ struct RunningRecordsView: View {
     @State private var showingStudentRequiredAlert = false
     @State private var showingExportFailedAlert = false
     @State private var derivedData: RunningRecordsDerivedData = .empty
+    @State private var saveRefreshRevision = 0
 
     var classOptions: [SchoolClass] {
         derivedData.classOptions
@@ -68,6 +69,7 @@ struct RunningRecordsView: View {
             String(Int(endDay)),
             sortOption.rawValue,
             searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+            String(saveRefreshRevision),
         ].joined(separator: "|")
     }
 
@@ -226,6 +228,9 @@ struct RunningRecordsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(languageManager.localized("The export file could not be created. Please try again."))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
+            saveRefreshRevision &+= 1
         }
         .task(id: refreshToken) {
             do {

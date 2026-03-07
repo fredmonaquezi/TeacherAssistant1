@@ -110,30 +110,10 @@ final class SnapshotManager {
     }
 
     private func automaticSnapshotDirectory() throws -> URL {
-        let applicationSupportDirectory = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
+        try BackupManager.applicationSupportSubdirectory(
+            named: "AutomaticSnapshots",
+            createIfMissing: true
         )
-        let bundleDirectory = applicationSupportDirectory.appendingPathComponent(
-            Bundle.main.bundleIdentifier ?? "TeacherAssistant",
-            isDirectory: true
-        )
-        let snapshotDirectory = bundleDirectory.appendingPathComponent(
-            "AutomaticSnapshots",
-            isDirectory: true
-        )
-
-        if !FileManager.default.fileExists(atPath: snapshotDirectory.path) {
-            try FileManager.default.createDirectory(
-                at: snapshotDirectory,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-        }
-
-        return snapshotDirectory
     }
 
     private func pruneSnapshots(in directory: URL) {

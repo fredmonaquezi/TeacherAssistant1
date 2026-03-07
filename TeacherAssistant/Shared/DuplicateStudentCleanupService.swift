@@ -51,6 +51,19 @@ struct DuplicateStudentCleanupReport {
     }
 }
 
+enum DuplicateStudentCleanupError: LocalizedError {
+    private static let fallbackMessage = "Your latest changes could not be saved. Please try again."
+
+    case saveFailed(details: String?)
+
+    var errorDescription: String? {
+        switch self {
+        case let .saveFailed(details):
+            return details ?? Self.fallbackMessage
+        }
+    }
+}
+
 @MainActor
 enum DuplicateStudentCleanupService {
     private static let completionKey = "duplicateStudentCleanup.v1.completedAt"
@@ -137,7 +150,14 @@ enum DuplicateStudentCleanupService {
         }
 
         if report.didChange {
-            try context.save()
+            let saveResult = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Run duplicate student cleanup"
+            )
+
+            if !saveResult.didSave {
+                throw DuplicateStudentCleanupError.saveFailed(details: saveResult.errorDescription)
+            }
         }
         UserDefaults.standard.set(Date(), forKey: completionKey)
         return report

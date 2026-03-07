@@ -63,12 +63,14 @@ enum MacBackupManager {
                     }
                 } catch {
                     SecureLogger.operationFailed("Backup save", error: error)
-                    showError(title: "Backup Failed".localized, message: error.localizedDescription)
+                    let appError = AppError.backup(stage: .export, underlyingError: error)
+                    showError(title: "Backup Failed".localized, message: appError.messageForAlert)
                 }
             }
         } catch {
             SecureLogger.operationFailed("Backup creation", error: error)
-            showError(title: "Backup Failed".localized, message: error.localizedDescription)
+            let appError = AppError.backup(stage: .export, underlyingError: error)
+            showError(title: "Backup Failed".localized, message: appError.messageForAlert)
         }
     }
 
@@ -127,7 +129,8 @@ enum MacBackupManager {
                     alert.runModal()
                 } catch {
                     SecureLogger.operationFailed("Restore", error: error)
-                    showError(title: "Restore Failed".localized, message: error.localizedDescription)
+                    let appError = AppError.backup(stage: .import, underlyingError: error)
+                    showError(title: "Restore Failed".localized, message: appError.messageForAlert)
                 }
             }
         }

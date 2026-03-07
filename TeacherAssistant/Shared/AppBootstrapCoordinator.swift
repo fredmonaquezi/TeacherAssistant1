@@ -29,13 +29,17 @@ final class AppBootstrapCoordinator: ObservableObject {
             SnapshotManager.shared.captureUpgradeSnapshotIfNeeded(context: container.mainContext)
             SecureLogger.info("Opened primary model container")
         } catch {
+            let appError = AppError.recovery(
+                action: .openPrimaryStore,
+                underlyingError: error
+            )
             presentRecoveryMode(
                 BootstrapRecoveryState.from(
-                    startupError: error,
+                    startupError: appError,
                     latestLocalSnapshotURL: BackupManager.latestLocalSnapshotURL()
                 )
             )
-            SecureLogger.error("Failed to open primary model container", error: error)
+            SecureLogger.error("Failed to open primary model container", error: appError)
         }
     }
 
@@ -45,13 +49,13 @@ final class AppBootstrapCoordinator: ObservableObject {
             return
         }
 
-        performRecoveryAction {
+        performRecoveryAction(action: .restoreFromSnapshot) {
             try activateRecoveryContainer(from: latestLocalSnapshotURL)
         }
     }
 
     func importBackup(from url: URL) {
-        performRecoveryAction {
+        performRecoveryAction(action: .importBackup) {
             let didStartAccessing = url.startAccessingSecurityScopedResource()
             defer {
                 if didStartAccessing {
@@ -64,7 +68,7 @@ final class AppBootstrapCoordinator: ObservableObject {
     }
 
     func createFreshStore() {
-        performRecoveryAction {
+        performRecoveryAction(action: .createFreshStore) {
             let storeName = recoveryStoreName()
             let container = try createContainer(storeName: storeName)
             activateContainer(container, storeName: storeName)
@@ -72,7 +76,10 @@ final class AppBootstrapCoordinator: ObservableObject {
         }
     }
 
-    private func performRecoveryAction(_ action: () throws -> Void) {
+    private func performRecoveryAction(
+        action recoveryAction: AppError.RecoveryAction,
+        _ action: () throws -> Void
+    ) {
         guard !isRecoveryActionInProgress else { return }
 
         isRecoveryActionInProgress = true
@@ -81,8 +88,12 @@ final class AppBootstrapCoordinator: ObservableObject {
         do {
             try action()
         } catch {
-            recoveryMessage = error.localizedDescription
-            SecureLogger.error("Recovery action failed", error: error)
+            let appError = AppError.recovery(
+                action: recoveryAction,
+                underlyingError: error
+            )
+            recoveryMessage = appError.messageForAlert
+            SecureLogger.error("Recovery action failed [\(appError.code)]", error: error)
         }
     }
 
@@ -128,28 +139,25 @@ final class AppBootstrapCoordinator: ObservableObject {
     }
 
     private func openInitialStore() {
-        var startupError: Error?
-
-        for storeName in startupStoreCandidates() {
-            do {
-                let container = try createContainer(storeName: storeName)
-                activateContainer(container, storeName: storeName)
-                SnapshotManager.shared.captureUpgradeSnapshotIfNeeded(context: container.mainContext)
-                SecureLogger.info("Opened model container: \(storeName)")
-                return
-            } catch {
-                startupError = error
-                SecureLogger.error("Failed to open model container: \(storeName)", error: error)
-            }
-        }
-
-        if let startupError {
-            presentRecoveryMode(
-                BootstrapRecoveryState.from(
-                    startupError: startupError,
-                    latestLocalSnapshotURL: BackupManager.latestLocalSnapshotURL()
-                )
+        let resolution: BootstrapStoreStartupResolution<ModelContainer> =
+            BootstrapStoreStartupService.resolve(
+                candidateStoreNames: startupStoreCandidates(),
+                openStore: { storeName in
+                    try createContainer(storeName: storeName)
+                },
+                latestLocalSnapshotURL: {
+                    BackupManager.latestLocalSnapshotURL()
+                },
+                didOpenStore: { container in
+                    SnapshotManager.shared.captureUpgradeSnapshotIfNeeded(context: container.mainContext)
+                }
             )
+
+        switch resolution {
+        case .opened(let openedStore):
+            activateContainer(openedStore.store, storeName: openedStore.storeName)
+        case .recovery(let state):
+            presentRecoveryMode(state)
         }
     }
 

@@ -27,6 +27,7 @@ struct LibraryView: View {
     
     @State private var searchText: String = ""
     @State private var derivedData: LibraryDerivedData = .empty
+    @State private var saveRefreshRevision = 0
 
     // Current folder
     var folder: LibraryFolder? {
@@ -79,177 +80,169 @@ struct LibraryView: View {
             String(allFiles.count),
             searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
             folderID.uuidString,
+            String(saveRefreshRevision),
         ].joined(separator: "|")
     }
 
     var body: some View {
-        if let folder = folder {
-            Group {
-                #if os(macOS)
-                VStack(spacing: 0) {
-                    libraryTopBar
-                    Divider()
+        Group {
+            if let folder = folder {
+                Group {
+                    #if os(macOS)
+                    VStack(spacing: 0) {
+                        libraryTopBar
+                        Divider()
+                        libraryGridContent
+                    }
+                    #else
                     libraryGridContent
-                }
-                #else
-                libraryGridContent
-                    .navigationTitle(folder.name)
-                    .toolbar {
+                        .navigationTitle(folder.name)
+                        .toolbar {
 
-                        // 🔍 SEARCH FIELD (CENTER)
-                        ToolbarItem(placement: .principal) {
-                            TextField("Search", text: $searchText)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(maxWidth: 300)
-                        }
+                            // 🔍 SEARCH FIELD (CENTER)
+                            ToolbarItem(placement: .principal) {
+                                TextField("Search", text: $searchText)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: 300)
+                            }
 
-                        // 🔘 ACTION BUTTONS (RIGHT)
-                        ToolbarItemGroup(placement: .primaryAction) {
+                            // 🔘 ACTION BUTTONS (RIGHT)
+                            ToolbarItemGroup(placement: .primaryAction) {
 
-                            if isSelecting {
-                                Button("Cancel") {
-                                    exitSelectMode()
-                                }
+                                if isSelecting {
+                                    Button("Cancel") {
+                                        exitSelectMode()
+                                    }
 
-                                Button {
-                                    showingMoveSheet = true
-                                } label: {
-                                    Label("Move", systemImage: "folder")
-                                }
-                                .disabled(selectionCount == 0)
+                                    Button {
+                                        showingMoveSheet = true
+                                    } label: {
+                                        Label("Move", systemImage: "folder")
+                                    }
+                                    .disabled(selectionCount == 0)
 
-                                Button(role: .destructive) {
-                                    showingDeleteConfirm = true
-                                } label: {
-                                    Label(
-                                        String(format: languageManager.localized("Delete (%d)"), selectionCount),
-                                        systemImage: "trash"
-                                    )
-                                }
-                                .disabled(selectionCount == 0)
+                                    Button(role: .destructive) {
+                                        showingDeleteConfirm = true
+                                    } label: {
+                                        Label(
+                                            String(format: languageManager.localized("Delete (%d)"), selectionCount),
+                                            systemImage: "trash"
+                                        )
+                                    }
+                                    .disabled(selectionCount == 0)
 
-                            } else {
-                                Button {
-                                    createFolder()
-                                } label: {
-                                    Label("New Folder", systemImage: "folder.badge.plus")
-                                }
+                                } else {
+                                    Button {
+                                        createFolder()
+                                    } label: {
+                                        Label("New Folder", systemImage: "folder.badge.plus")
+                                    }
 
-                                Button {
-                                    showingImportPicker = true
-                                } label: {
-                                    Label("Import PDF", systemImage: "square.and.arrow.down")
-                                }
+                                    Button {
+                                        showingImportPicker = true
+                                    } label: {
+                                        Label("Import PDF", systemImage: "square.and.arrow.down")
+                                    }
 
-                                Button {
-                                    showingRenameSheet = true
-                                } label: {
-                                    Label("Rename", systemImage: "pencil")
-                                }
+                                    Button {
+                                        showingRenameSheet = true
+                                    } label: {
+                                        Label("Rename", systemImage: "pencil")
+                                    }
 
-                                Button(role: .destructive) {
-                                    showingDeleteConfirm = true
-                                } label: {
-                                    Label("Delete Folder", systemImage: "trash")
-                                }
-                                .disabled(isRootFolder)
+                                    Button(role: .destructive) {
+                                        showingDeleteConfirm = true
+                                    } label: {
+                                        Label("Delete Folder", systemImage: "trash")
+                                    }
+                                    .disabled(isRootFolder)
 
-                                Button {
-                                    enterSelectMode()
-                                } label: {
-                                    Text("Select")
+                                    Button {
+                                        enterSelectMode()
+                                    } label: {
+                                        Text("Select")
+                                    }
                                 }
                             }
                         }
-                    }
-                #endif
-            }
+                    #endif
+                }
 
-            // Rename
-            .sheet(isPresented: $showingRenameSheet) {
-                RenameFolderSheet(currentName: folder.name) { newName in
-                    renameFolder(to: newName)
+                // Rename
+                .sheet(isPresented: $showingRenameSheet) {
+                    RenameFolderSheet(currentName: folder.name) { newName in
+                        renameFolder(to: newName)
+                    }
                 }
-            }
-            
-            // Moving
-            .sheet(isPresented: $showingMoveSheet) {
-                MoveDestinationPicker(
-                    allFolders: allFolders,
-                    currentFolderID: folderID
-                ) { destination in
-                    moveSelection(to: destination)
-                    showingMoveSheet = false
+                
+                // Moving
+                .sheet(isPresented: $showingMoveSheet) {
+                    MoveDestinationPicker(
+                        allFolders: allFolders,
+                        currentFolderID: folderID
+                    ) { destination in
+                        moveSelection(to: destination)
+                        showingMoveSheet = false
+                    }
                 }
-            }
 
-            // Import
-            .fileImporter(
-                isPresented: $showingImportPicker,
-                allowedContentTypes: [.pdf],
-                allowsMultipleSelection: false
-            ) { result in
-                if case .success(let urls) = result, let url = urls.first {
-                    importPDF(from: url)
-                }
-            }
-            // Delete
-            .confirmationDialog(
-                isSelecting
-                    ? languageManager.localized("Delete selected items?")
-                    : languageManager.localized("Delete this folder?"),
-                isPresented: $showingDeleteConfirm,
-                titleVisibility: .visible
-            ) {
-                if isSelecting {
-                    Button(languageManager.localized("Delete"), role: .destructive) {
-                        deleteSelection()
-                    }
-                } else {
-                    Button(languageManager.localized("Delete Folder"), role: .destructive) {
-                        deleteCurrentFolder()
+                // Import
+                .fileImporter(
+                    isPresented: $showingImportPicker,
+                    allowedContentTypes: [.pdf],
+                    allowsMultipleSelection: false
+                ) { result in
+                    if case .success(let urls) = result, let url = urls.first {
+                        importPDF(from: url)
                     }
                 }
-                Button(languageManager.localized("Cancel"), role: .cancel) {}
-            }
-            // Tag PDF Sheet
-            .sheet(isPresented: $showingTagSheet) {
-                if let pending = pendingFile {
-                    PDFTagSheet(
-                        fileName: pending.name,
-                        onSave: { editedName, subject, unit in
-                            // Sanitize the edited name before saving
-                            let safeName = SecurityHelpers.sanitizeFilename(editedName)
-                            savePDF(
-                                name: safeName,
-                                data: pending.data,
-                                subject: subject,
-                                unit: unit
-                            )
-                            pendingFile = nil
-                        },
-                        onCancel: {
-                            pendingFile = nil
+                // Delete
+                .confirmationDialog(
+                    isSelecting
+                        ? languageManager.localized("Delete selected items?")
+                        : languageManager.localized("Delete this folder?"),
+                    isPresented: $showingDeleteConfirm,
+                    titleVisibility: .visible
+                ) {
+                    if isSelecting {
+                        Button(languageManager.localized("Delete"), role: .destructive) {
+                            deleteSelection()
                         }
-                    )
+                    } else {
+                        Button(languageManager.localized("Delete Folder"), role: .destructive) {
+                            deleteCurrentFolder()
+                        }
+                    }
+                    Button(languageManager.localized("Cancel"), role: .cancel) {}
                 }
-            }
-            // File size error alert
-            .alert(languageManager.localized("File Too Large"), isPresented: $showingFileSizeError) {
-                Button(languageManager.localized("OK")) { }
-            } message: {
-                Text(languageManager.localized("The selected PDF exceeds the maximum allowed file size of 100 MB."))
-            }
-            .task(id: refreshToken) {
-                do {
-                    try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
-                } catch {
-                    return
+                // Tag PDF Sheet
+                .sheet(isPresented: $showingTagSheet) {
+                    if let pending = pendingFile {
+                        PDFTagSheet(
+                            fileName: pending.name,
+                            onSave: { editedName, subject, unit in
+                                // Sanitize the edited name before saving
+                                let safeName = SecurityHelpers.sanitizeFilename(editedName)
+                                savePDF(
+                                    name: safeName,
+                                    data: pending.data,
+                                    subject: subject,
+                                    unit: unit
+                                )
+                                pendingFile = nil
+                            },
+                            onCancel: {
+                                pendingFile = nil
+                            }
+                        )
+                    }
                 }
-                await refreshDerivedData()
-            }
-        } else {
-            ProgressView("Loading folder...")
+                // File size error alert
+                .alert(languageManager.localized("File Too Large"), isPresented: $showingFileSizeError) {
+                    Button(languageManager.localized("OK")) { }
+                } message: {
+                    Text(languageManager.localized("The selected PDF exceeds the maximum allowed file size of 100 MB."))
+                }
                 .task(id: refreshToken) {
                     do {
                         try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
@@ -258,6 +251,20 @@ struct LibraryView: View {
                     }
                     await refreshDerivedData()
                 }
+            } else {
+                ProgressView("Loading folder...")
+                    .task(id: refreshToken) {
+                        do {
+                            try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+                        } catch {
+                            return
+                        }
+                        await refreshDerivedData()
+                    }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
+            saveRefreshRevision &+= 1
         }
     }
 

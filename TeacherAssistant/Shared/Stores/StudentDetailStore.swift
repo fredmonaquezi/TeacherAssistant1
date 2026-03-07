@@ -132,26 +132,25 @@ enum StudentDetailStore {
         let attendanceSnapshots = makeAttendanceSnapshots(allAttendanceSessions)
         let scoreSnapshots = makeScoreSnapshots(allScores, student: student)
 
-        let computation = await Task.detached(priority: .userInitiated) {
-            computeDerivation(
-                studentIDKey: studentIDKey,
-                resultSnapshots: resultSnapshots,
-                attendanceSnapshots: attendanceSnapshots,
-                scoreSnapshots: scoreSnapshots
+        return await DerivationRunner.runAsync(
+            compute: {
+                computeDerivation(
+                    studentIDKey: studentIDKey,
+                    resultSnapshots: resultSnapshots,
+                    attendanceSnapshots: attendanceSnapshots,
+                    scoreSnapshots: scoreSnapshots
+                )
+            },
+            cancelledResult: .empty
+        ) { computation in
+            makeDerivedData(
+                subjectsForStudentClass: subjectsForStudentClass,
+                allResults: allResults,
+                allAttendanceSessions: allAttendanceSessions,
+                allScores: allScores,
+                computation: computation
             )
-        }.value
-
-        if Task.isCancelled {
-            return .empty
         }
-
-        return makeDerivedData(
-            subjectsForStudentClass: subjectsForStudentClass,
-            allResults: allResults,
-            allAttendanceSessions: allAttendanceSessions,
-            allScores: allScores,
-            computation: computation
-        )
     }
 
     private static func sortedSubjects(for student: Student) -> [Subject] {

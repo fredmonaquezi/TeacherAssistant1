@@ -98,7 +98,8 @@ struct DashboardView: View {
                         exportURL = try BackupManager.exportBackup(context: context)
                         showingExporter = true
                     } catch {
-                        errorMessage = error.localizedDescription
+                        let appError = AppError.backup(stage: .export, underlyingError: error)
+                        errorMessage = appError.messageForAlert
                         showingErrorAlert = true
                     }
 #endif
@@ -148,7 +149,8 @@ struct DashboardView: View {
             showingExporter = false
 
             if case .failure(let error) = result {
-                errorMessage = error.localizedDescription
+                let appError = AppError.backup(stage: .export, underlyingError: error)
+                errorMessage = appError.messageForAlert
                 showingErrorAlert = true
             }
         }
@@ -174,7 +176,11 @@ struct DashboardView: View {
                 showingRestoreConfirmation = true
 
             } catch {
-                errorMessage = error.localizedDescription
+                let appError = AppError.recovery(
+                    action: .selectBackupFile,
+                    underlyingError: error
+                )
+                errorMessage = appError.messageForAlert
                 showingErrorAlert = true
             }
         }
@@ -197,7 +203,8 @@ struct DashboardView: View {
                         url.stopAccessingSecurityScopedResource()
                     }
                 } catch {
-                    errorMessage = error.localizedDescription
+                    let appError = AppError.backup(stage: .import, underlyingError: error)
+                    errorMessage = appError.messageForAlert
                     showingErrorAlert = true
                 }
 

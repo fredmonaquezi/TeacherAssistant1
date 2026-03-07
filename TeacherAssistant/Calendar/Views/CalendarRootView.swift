@@ -3,7 +3,6 @@ import SwiftData
 
 struct CalendarRootView: View {
     @EnvironmentObject var languageManager: LanguageManager
-    @Environment(\.modelContext) private var context
 
     @Query private var classes: [SchoolClass]
     @Query private var diaryEntries: [ClassDiaryEntry]
@@ -14,6 +13,7 @@ struct CalendarRootView: View {
     @State private var selectedClassID: PersistentIdentifier?
     @State private var showingDayDetail = false
     @State private var derivedData: CalendarDerivedData = .empty
+    @State private var saveRefreshRevision = 0
     
     private var selectedClass: SchoolClass? {
         derivedData.selectedClass
@@ -29,6 +29,7 @@ struct CalendarRootView: View {
             String(diaryEntries.count),
             String(events.count),
             String(describing: selectedClassID),
+            String(saveRefreshRevision),
         ].joined(separator: "|")
     }
 
@@ -59,9 +60,19 @@ struct CalendarRootView: View {
     var calendarContent: some View {
         ScrollView {
             VStack(spacing: PlatformSpacing.sectionSpacing) {
-                headerBar
+                CalendarHeaderSectionView(
+                    selectedDate: $selectedDate,
+                    viewMode: $viewMode,
+                    localeIdentifier: languageManager.currentLanguage.localeIdentifier
+                )
 
-                filterBar
+                CalendarFilterSectionView(
+                    classes: classes,
+                    selectedClassID: $selectedClassID,
+                    onSelectToday: {
+                        selectedDate = Date()
+                    }
+                )
 
                 if viewMode == .month {
                     MonthCalendarView(
@@ -97,6 +108,9 @@ struct CalendarRootView: View {
         #endif
         .appSheetBackground(tint: .blue)
         .id(languageManager.currentLanguage)
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
+            saveRefreshRevision &+= 1
+        }
         .task(id: refreshToken) {
             do {
                 try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
@@ -105,121 +119,14 @@ struct CalendarRootView: View {
             }
             await refreshDerivedData()
         }
-        .sheet(isPresented: $showingDayDetail) {
-            DayDetailSheet(
-                date: selectedDate,
-                classes: classes,
-                selectedClass: selectedClass,
-                diaryEntries: dayEntries(for: selectedDate),
-                events: dayEvents(for: selectedDate),
-                onSaveEntry: { entry in
-                    Task {
-                        await PersistenceWriteCoordinator.shared.perform(
-                            context: context,
-                            reason: "Create calendar diary entry"
-                        ) {
-                            context.insert(entry)
-                        }
-                    }
-                },
-                onSaveEvent: { event in
-                    Task {
-                        await PersistenceWriteCoordinator.shared.perform(
-                            context: context,
-                            reason: "Create calendar event"
-                        ) {
-                            context.insert(event)
-                        }
-                    }
-                }
-            )
-        }
-    }
-
-    // MARK: - Header
-
-    var headerBar: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Button {
-                    let component: Calendar.Component = viewMode == .month ? .month : .weekOfYear
-                    selectedDate = Calendar.current.date(byAdding: component, value: -1, to: selectedDate) ?? selectedDate
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
-                Text(monthTitle(for: selectedDate))
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Spacer()
-
-                Button {
-                    let component: Calendar.Component = viewMode == .month ? .month : .weekOfYear
-                    selectedDate = Calendar.current.date(byAdding: component, value: 1, to: selectedDate) ?? selectedDate
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.plain)
-            }
-
-            Picker("View Mode".localized, selection: $viewMode) {
-                ForEach(CalendarViewMode.allCases, id: \.rawValue) { mode in
-                    Text(mode.localizedLabel).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-        .padding()
-        .appCardStyle(
-            cornerRadius: 16,
-            borderColor: Color.blue.opacity(0.12),
-            tint: .blue
+        .calendarDayDetailSheet(
+            isPresented: $showingDayDetail,
+            date: selectedDate,
+            classes: classes,
+            selectedClass: selectedClass,
+            diaryEntries: dayEntries(for: selectedDate),
+            events: dayEvents(for: selectedDate)
         )
-    }
-
-    // MARK: - Filter
-
-    var filterBar: some View {
-        HStack(spacing: 12) {
-            Text("Class".localized)
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            Picker("Class".localized, selection: $selectedClassID) {
-                Text("All Classes".localized).tag(PersistentIdentifier?.none)
-                ForEach(classes, id: \.persistentModelID) { schoolClass in
-                    Text(schoolClass.name).tag(PersistentIdentifier?.some(schoolClass.persistentModelID))
-                }
-            }
-            .pickerStyle(.menu)
-
-            Spacer()
-
-            Button {
-                selectedDate = Date()
-            } label: {
-                Text("Today".localized)
-                    .font(.caption)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .appCardStyle(
-                        cornerRadius: 10,
-                        borderColor: Color.blue.opacity(0.16),
-                        shadowOpacity: 0.02,
-                        shadowRadius: 4,
-                        shadowY: 1,
-                        tint: .blue
-                    )
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 4)
     }
 
     // MARK: - Upcoming
@@ -243,14 +150,6 @@ struct CalendarRootView: View {
     }
 
     // MARK: - Helpers
-
-    func monthTitle(for date: Date) -> String {
-        CalendarLocalizedFormatting.monthTitle(
-            for: date,
-            localeIdentifier: languageManager.currentLanguage.localeIdentifier,
-            in: viewMode
-        )
-    }
 
     private func dayEntries(for date: Date) -> [ClassDiaryEntry] {
         let day = Calendar.current.startOfDay(for: date)
@@ -561,374 +460,6 @@ extension WeekCalendarView: Equatable {
         lhs.selectedDate == rhs.selectedDate &&
         lhs.dayCellViewModelsByDay == rhs.dayCellViewModelsByDay &&
         lhs.localeIdentifier == rhs.localeIdentifier
-    }
-}
-
-// MARK: - Day Detail
-
-struct DayDetailSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var languageManager: LanguageManager
-    @Environment(\.modelContext) private var context
-
-    let date: Date
-    let classes: [SchoolClass]
-    let selectedClass: SchoolClass?
-    let diaryEntries: [ClassDiaryEntry]
-    let events: [CalendarEvent]
-    let onSaveEntry: (ClassDiaryEntry) -> Void
-    let onSaveEvent: (CalendarEvent) -> Void
-
-    @State private var showingNewEntry = false
-    @State private var showingNewEvent = false
-    @State private var entryToDelete: ClassDiaryEntry?
-    @State private var eventToDelete: CalendarEvent?
-    @State private var showingDeleteEntryAlert = false
-    @State private var showingDeleteEventAlert = false
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: PlatformSpacing.sectionSpacing) {
-                    headerCard
-
-                    diarySection
-
-                    eventsSection
-                }
-                .padding()
-            }
-            .appSheetBackground(tint: .blue)
-            .navigationTitle(dayTitle(date))
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close".localized) { dismiss() }
-                }
-            }
-            .alert("Delete Entry?".localized, isPresented: $showingDeleteEntryAlert) {
-                Button("Cancel".localized, role: .cancel) {
-                    entryToDelete = nil
-                }
-                Button("Delete".localized, role: .destructive) {
-                    if let entryToDelete {
-                        Task {
-                            await PersistenceWriteCoordinator.shared.perform(
-                                context: context,
-                                reason: "Delete calendar diary entry"
-                            ) {
-                                context.delete(entryToDelete)
-                            }
-                        }
-                    }
-                    entryToDelete = nil
-                }
-            } message: {
-                Text("Are you sure you want to delete this diary entry?".localized)
-            }
-            .alert("Delete Event?".localized, isPresented: $showingDeleteEventAlert) {
-                Button("Cancel".localized, role: .cancel) {
-                    eventToDelete = nil
-                }
-                Button("Delete".localized, role: .destructive) {
-                    if let eventToDelete {
-                        Task {
-                            await PersistenceWriteCoordinator.shared.perform(
-                                context: context,
-                                reason: "Delete calendar event"
-                            ) {
-                                context.delete(eventToDelete)
-                            }
-                        }
-                    }
-                    eventToDelete = nil
-                }
-            } message: {
-                Text("Are you sure you want to delete this event?".localized)
-            }
-        }
-    }
-
-    var headerCard: some View {
-        HStack {
-            Image(systemName: "calendar")
-                .font(.title)
-                .foregroundColor(.blue)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(dayTitle(date))
-                    .font(AppTypography.sectionTitle)
-                Text(longDate(date))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-        }
-        .padding()
-        .appCardStyle(
-            cornerRadius: 12,
-            borderColor: Color.blue.opacity(0.14),
-            tint: .blue
-        )
-    }
-
-    var diarySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Class Diary".localized)
-                    .font(AppTypography.cardTitle)
-                Spacer()
-                Button {
-                    showingNewEntry = true
-                } label: {
-                    Label("Add Entry".localized, systemImage: "plus.circle.fill")
-                        .foregroundColor(.blue)
-                }
-                .buttonStyle(.plain)
-            }
-
-            if diaryEntriesForDay.isEmpty {
-                Text("No diary entries for this day".localized)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
-                ForEach(diaryEntriesForDay, id: \.id) { entry in
-                    diaryCard(entry)
-                }
-            }
-        }
-        .padding()
-        .appCardStyle(
-            cornerRadius: 14,
-            borderColor: Color.blue.opacity(0.10),
-            tint: .blue
-        )
-        .sheet(isPresented: $showingNewEntry) {
-            DiaryEntryEditor(
-                date: date,
-                classes: classes,
-                selectedClass: selectedClass,
-                onSave: onSaveEntry
-            )
-        }
-    }
-
-    var eventsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Events & Alerts".localized)
-                    .font(AppTypography.cardTitle)
-                Spacer()
-                Button {
-                    showingNewEvent = true
-                } label: {
-                    Label("Add Event".localized, systemImage: "bell.badge.fill")
-                        .foregroundColor(.orange)
-                }
-                .buttonStyle(.plain)
-            }
-
-            if eventsForDay.isEmpty {
-                Text("No events for this day".localized)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
-                ForEach(eventsForDay, id: \.id) { event in
-                    eventCard(event)
-                }
-            }
-        }
-        .padding()
-        .appCardStyle(
-            cornerRadius: 14,
-            borderColor: Color.orange.opacity(0.10),
-            tint: .orange
-        )
-        .sheet(isPresented: $showingNewEvent) {
-            EventEditor(
-                date: date,
-                classes: classes,
-                selectedClass: selectedClass,
-                onSave: onSaveEvent
-            )
-        }
-    }
-
-    func diaryCard(_ entry: ClassDiaryEntry) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(entry.schoolClass?.name ?? "All Classes".localized)
-                        .font(AppTypography.cardTitle)
-                    if let time = timeRangeText(start: entry.startTime, end: entry.endTime) {
-                        Text(time)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    HStack(spacing: 6) {
-                        if let subject = entry.subject {
-                            tag(subject.name, color: .blue)
-                        }
-                        if let unit = entry.unit {
-                            tag(unit.name, color: .blue.opacity(0.7))
-                        }
-                    }
-                }
-                Spacer()
-                Button {
-                    entryToDelete = entry
-                    showingDeleteEntryAlert = true
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
-                        .padding(8)
-                        .background(
-                            Circle()
-                                .fill(Color.red.opacity(0.10))
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-
-            if !entry.plan.isEmpty {
-                labeledBody("Plan".localized, entry.plan)
-            }
-            if !entry.objectives.isEmpty {
-                labeledBody("Objectives".localized, entry.objectives)
-            }
-            if !entry.materials.isEmpty {
-                labeledBody("Materials".localized, entry.materials)
-            }
-            if !entry.notes.isEmpty {
-                labeledBody("Notes".localized, entry.notes)
-            }
-        }
-        .padding(16)
-        .appCardStyle(
-            cornerRadius: 14,
-            borderColor: Color.blue.opacity(0.15),
-            tint: .blue
-        )
-    }
-
-    func eventCard(_ event: CalendarEvent) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(event.title)
-                    .font(AppTypography.cardTitle)
-                Spacer()
-                Button {
-                    eventToDelete = event
-                    showingDeleteEventAlert = true
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
-                        .padding(8)
-                        .background(
-                            Circle()
-                                .fill(Color.red.opacity(0.10))
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-
-            if let timeText = eventTimeText(event) {
-                Text(timeText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Text(shortDate(event.date))
-                .font(.caption2)
-                .foregroundColor(.secondary)
-
-            if let schoolClass = event.schoolClass {
-                tag(schoolClass.name, color: .orange)
-            }
-
-            if !event.details.isEmpty {
-                Text(event.details)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(16)
-        .appCardStyle(
-            cornerRadius: 14,
-            borderColor: Color.orange.opacity(0.18),
-            tint: .orange
-        )
-    }
-
-    func tag(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.caption2)
-            .foregroundColor(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(color.opacity(0.12))
-            )
-    }
-
-    func labeledBody(_ title: String, _ body: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(AppTypography.eyebrow)
-                .foregroundColor(.secondary)
-                .textCase(.uppercase)
-            Text(body)
-                .font(.subheadline)
-                .foregroundColor(.primary)
-        }
-    }
-
-    func timeRangeText(start: Date?, end: Date?) -> String? {
-        guard let start, let end else { return nil }
-        return "\(start.appTimeString(systemStyle: .short)) – \(end.appTimeString(systemStyle: .short))"
-    }
-
-    func eventTimeText(_ event: CalendarEvent) -> String? {
-        if event.isAllDay {
-            return "All Day".localized
-        }
-        return timeRangeText(start: event.startTime, end: event.endTime)
-    }
-
-    func shortDate(_ date: Date) -> String {
-        date.appDateString(systemStyle: .medium)
-    }
-
-    var diaryEntriesForDay: [ClassDiaryEntry] {
-        diaryEntries
-    }
-
-    var eventsForDay: [CalendarEvent] {
-        events
-    }
-
-    func dayTitle(_ date: Date) -> String {
-        CalendarLocalizedFormatting.shortWeekday(
-            date,
-            localeIdentifier: languageManager.currentLanguage.localeIdentifier
-        )
-    }
-
-    func longDate(_ date: Date) -> String {
-        CalendarLocalizedFormatting.longDate(
-            date,
-            localeIdentifier: languageManager.currentLanguage.localeIdentifier
-        )
-    }
-
-    func merge(date: Date, time: Date) -> Date {
-        let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: time)
-        let minute = calendar.component(.minute, from: time)
-        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
-    }
-
-    func defaultTime(hour: Int, minute: Int) -> Date {
-        Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()
     }
 }
 
@@ -1387,7 +918,7 @@ struct EventEditor: View {
     }
 }
 
-private enum CalendarLocalizedFormatting {
+enum CalendarLocalizedFormatting {
     private static var formatterCache: [String: DateFormatter] = [:]
     private static let cacheLock = NSLock()
 

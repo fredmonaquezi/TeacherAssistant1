@@ -4,27 +4,39 @@ import XCTest
 @testable import TeacherAssistant
 
 final class TeacherAssistantPerformanceTests: XCTestCase {
+    private enum PerformanceRegressionBudget {
+        static let runningRecordsDeriveMilliseconds: Double = 180
+        static let calendarDeriveMilliseconds: Double = 140
+        static let calendarDayLookupMilliseconds: Double = 140
+        static let studentDetailDeriveMilliseconds: Double = 220
+        static let studentProgressDeriveMilliseconds: Double = 260
+    }
+
     @MainActor
     func testRunningRecordsDeriveCompletesWithinBudget() {
         let fixture = makeRunningRecordsFixture(classCount: 12, studentsPerClass: 20, recordsPerStudent: 4)
 
-        let start = ContinuousClock().now
-        let derived = RunningRecordsStore.derive(
-            allStudents: fixture.students,
-            allRunningRecords: fixture.records,
-            selectedClass: fixture.classes.first,
-            selectedStudent: nil,
-            filterLevel: .instructional,
-            selectedDateRange: .last90Days,
-            customDateStart: Date().addingTimeInterval(-60 * 60 * 24 * 90),
-            customDateEnd: Date(),
-            sortOption: .dateDescending,
-            searchText: "record"
-        )
-        let elapsed = start.duration(to: ContinuousClock().now)
-        let elapsedMilliseconds = milliseconds(from: elapsed)
+        let measurement = measureMedianMilliseconds {
+            RunningRecordsStore.derive(
+                allStudents: fixture.students,
+                allRunningRecords: fixture.records,
+                selectedClass: fixture.classes.first,
+                selectedStudent: nil,
+                filterLevel: .instructional,
+                selectedDateRange: .last90Days,
+                customDateStart: Date().addingTimeInterval(-60 * 60 * 24 * 90),
+                customDateEnd: Date(),
+                sortOption: .dateDescending,
+                searchText: "record"
+            )
+        }
 
-        XCTAssertLessThan(elapsedMilliseconds, ViewBudget.keyScreenInteractiveMilliseconds)
+        assertWithinRegressionThreshold(
+            measurement.elapsedMilliseconds,
+            threshold: PerformanceRegressionBudget.runningRecordsDeriveMilliseconds,
+            operationName: "RunningRecordsStore.derive"
+        )
+        let derived = measurement.result
         XCTAssertFalse(derived.classOptions.isEmpty)
     }
 
@@ -57,17 +69,21 @@ final class TeacherAssistantPerformanceTests: XCTestCase {
             )
         }
 
-        let start = ContinuousClock().now
-        let derived = CalendarStore.derive(
-            classes: [schoolClass],
-            diaryEntries: entries,
-            events: events,
-            selectedClassID: schoolClass.persistentModelID
-        )
-        let elapsed = start.duration(to: ContinuousClock().now)
-        let elapsedMilliseconds = milliseconds(from: elapsed)
+        let measurement = measureMedianMilliseconds {
+            CalendarStore.derive(
+                classes: [schoolClass],
+                diaryEntries: entries,
+                events: events,
+                selectedClassID: schoolClass.persistentModelID
+            )
+        }
 
-        XCTAssertLessThan(elapsedMilliseconds, ViewBudget.keyScreenInteractiveMilliseconds)
+        assertWithinRegressionThreshold(
+            measurement.elapsedMilliseconds,
+            threshold: PerformanceRegressionBudget.calendarDeriveMilliseconds,
+            operationName: "CalendarStore.derive"
+        )
+        let derived = measurement.result
         XCTAssertEqual(derived.filteredEvents.count, events.count)
         XCTAssertEqual(derived.filteredDiaryEntries.count, entries.count)
     }
@@ -128,18 +144,22 @@ final class TeacherAssistantPerformanceTests: XCTestCase {
             calendar.date(byAdding: .day, value: offset, to: startDay)
         }
 
-        let start = ContinuousClock().now
-        var totalItemsResolved = 0
-        for day in visibleDays {
-            let normalizedDay = calendar.startOfDay(for: day)
-            totalItemsResolved += derived.diaryEntriesByDay[normalizedDay]?.count ?? 0
-            totalItemsResolved += derived.eventsByDay[normalizedDay]?.count ?? 0
+        let measurement = measureMedianMilliseconds {
+            var resolvedCount = 0
+            for day in visibleDays {
+                let normalizedDay = calendar.startOfDay(for: day)
+                resolvedCount += derived.diaryEntriesByDay[normalizedDay]?.count ?? 0
+                resolvedCount += derived.eventsByDay[normalizedDay]?.count ?? 0
+            }
+            return resolvedCount
         }
-        let elapsed = start.duration(to: ContinuousClock().now)
-        let elapsedMilliseconds = milliseconds(from: elapsed)
 
-        XCTAssertLessThan(elapsedMilliseconds, ViewBudget.keyScreenInteractiveMilliseconds)
-        XCTAssertEqual(totalItemsResolved, entries.count + events.count)
+        assertWithinRegressionThreshold(
+            measurement.elapsedMilliseconds,
+            threshold: PerformanceRegressionBudget.calendarDayLookupMilliseconds,
+            operationName: "CalendarStore day map lookup"
+        )
+        XCTAssertEqual(measurement.result, entries.count + events.count)
     }
 
     @MainActor
@@ -156,17 +176,21 @@ final class TeacherAssistantPerformanceTests: XCTestCase {
             scoreRevisionsPerCriterion: 2
         )
 
-        let start = ContinuousClock().now
-        let derived = StudentDetailStore.derive(
-            student: fixture.targetStudent,
-            allResults: fixture.allResults,
-            allAttendanceSessions: fixture.allAttendanceSessions,
-            allScores: fixture.allDevelopmentScores
-        )
-        let elapsed = start.duration(to: ContinuousClock().now)
-        let elapsedMilliseconds = milliseconds(from: elapsed)
+        let measurement = measureMedianMilliseconds {
+            StudentDetailStore.derive(
+                student: fixture.targetStudent,
+                allResults: fixture.allResults,
+                allAttendanceSessions: fixture.allAttendanceSessions,
+                allScores: fixture.allDevelopmentScores
+            )
+        }
 
-        XCTAssertLessThan(elapsedMilliseconds, ViewBudget.keyScreenInteractiveMilliseconds)
+        assertWithinRegressionThreshold(
+            measurement.elapsedMilliseconds,
+            threshold: PerformanceRegressionBudget.studentDetailDeriveMilliseconds,
+            operationName: "StudentDetailStore.derive"
+        )
+        let derived = measurement.result
         XCTAssertEqual(derived.subjectSummaries.count, 6)
         XCTAssertFalse(derived.recentResults.isEmpty)
     }
@@ -185,20 +209,62 @@ final class TeacherAssistantPerformanceTests: XCTestCase {
             scoreRevisionsPerCriterion: 2
         )
 
-        let start = ContinuousClock().now
-        let derived = StudentProgressStore.derive(
-            student: fixture.targetStudent,
-            allResults: fixture.allResults,
-            allAttendanceSessions: fixture.allAttendanceSessions,
-            allDevelopmentScores: fixture.allDevelopmentScores
-        )
-        let elapsed = start.duration(to: ContinuousClock().now)
-        let elapsedMilliseconds = milliseconds(from: elapsed)
+        let measurement = measureMedianMilliseconds {
+            StudentProgressStore.derive(
+                student: fixture.targetStudent,
+                allResults: fixture.allResults,
+                allAttendanceSessions: fixture.allAttendanceSessions,
+                allDevelopmentScores: fixture.allDevelopmentScores
+            )
+        }
 
-        XCTAssertLessThan(elapsedMilliseconds, ViewBudget.keyScreenInteractiveMilliseconds)
+        assertWithinRegressionThreshold(
+            measurement.elapsedMilliseconds,
+            threshold: PerformanceRegressionBudget.studentProgressDeriveMilliseconds,
+            operationName: "StudentProgressStore.derive"
+        )
+        let derived = measurement.result
         XCTAssertEqual(derived.subjectSummaries.count, 6)
         XCTAssertEqual(derived.runningRecordsDescending.count, 10)
         XCTAssertFalse(derived.groupedLatestDevelopmentScores.isEmpty)
+    }
+
+    private func measureMedianMilliseconds<T>(
+        sampleCount: Int = 7,
+        operation: () -> T
+    ) -> (elapsedMilliseconds: Double, result: T) {
+        precondition(sampleCount > 0, "sampleCount must be greater than zero")
+
+        // Warm up paths before collecting timings to reduce first-hit noise.
+        var latestResult = operation()
+        var samples: [Double] = []
+        samples.reserveCapacity(sampleCount)
+
+        for _ in 0..<sampleCount {
+            let start = ContinuousClock().now
+            latestResult = operation()
+            let elapsed = start.duration(to: ContinuousClock().now)
+            samples.append(milliseconds(from: elapsed))
+        }
+
+        let medianMilliseconds = samples.sorted()[sampleCount / 2]
+        return (medianMilliseconds, latestResult)
+    }
+
+    private func assertWithinRegressionThreshold(
+        _ elapsedMilliseconds: Double,
+        threshold: Double,
+        operationName: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertLessThan(
+            elapsedMilliseconds,
+            threshold,
+            "\(operationName) regression threshold exceeded: \(elapsedMilliseconds)ms > \(threshold)ms",
+            file: file,
+            line: line
+        )
     }
 
     private func milliseconds(from duration: Duration) -> Double {

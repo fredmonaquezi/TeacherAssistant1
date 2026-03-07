@@ -310,7 +310,8 @@ struct UsefulLinksView: View {
             context.insert(newLink)
         }
 
-        guard saveContext() else { return }
+        let saveReason = isEditing ? "Save useful link edits" : "Create useful link"
+        guard saveChanges(reason: saveReason) else { return }
         showingEditorSheet = false
         resetForm()
     }
@@ -343,7 +344,7 @@ struct UsefulLinksView: View {
         let remainingLinks = usefulLinks.filter { $0.id != link.id }
         context.delete(link)
         resequence(remainingLinks)
-        _ = saveContext()
+        _ = saveChanges(reason: "Delete useful link")
 
         if editingLinkID == pendingDeleteLinkID {
             showingEditorSheet = false
@@ -362,7 +363,7 @@ struct UsefulLinksView: View {
         var reorderedLinks = usefulLinks
         reorderedLinks.swapAt(currentIndex, targetIndex)
         resequence(reorderedLinks)
-        _ = saveContext()
+        _ = saveChanges(reason: "Reorder useful links")
     }
 
     private func resequence(_ links: [UsefulLink]) {
@@ -389,14 +390,11 @@ struct UsefulLinksView: View {
         formDescription = ""
     }
 
-    private func saveContext() -> Bool {
-        do {
-            try context.save()
-            return true
-        } catch {
-            presentError(error.localizedDescription)
-            return false
-        }
+    private func saveChanges(reason: String) -> Bool {
+        SaveCoordinator.save(
+            context: context,
+            reason: reason
+        )
     }
 
     private func presentError(_ message: String) {

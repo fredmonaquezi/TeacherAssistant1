@@ -3,11 +3,20 @@ import SwiftData
 
 extension Notification.Name {
     static let persistenceSaveFailed = Notification.Name("PersistenceSaveFailed")
+    static let persistenceDidSave = Notification.Name("PersistenceDidSave")
 }
 
 enum SaveFailureNotificationKeys {
     static let message = "message"
     static let errorDescription = "errorDescription"
+    static let reason = "reason"
+    static let appErrorCategory = "appErrorCategory"
+    static let appErrorCode = "appErrorCode"
+    static let appErrorSeverity = "appErrorSeverity"
+    static let appErrorTechnicalDetails = "appErrorTechnicalDetails"
+}
+
+enum SaveSuccessNotificationKeys {
     static let reason = "reason"
 }
 
@@ -50,6 +59,13 @@ enum SaveCoordinator {
 
         do {
             try context.save()
+            NotificationCenter.default.post(
+                name: .persistenceDidSave,
+                object: nil,
+                userInfo: [
+                    SaveSuccessNotificationKeys.reason: reason
+                ]
+            )
             SnapshotManager.shared.scheduleDebouncedSnapshot(
                 context: context,
                 reason: reason
@@ -72,21 +88,34 @@ enum SaveCoordinator {
         userMessage: String,
         error: Error
     ) -> SaveResult {
-        SecureLogger.operationFailed("Save (\(reason))", error: error)
+        let appError = AppError.persistenceSave(
+            reason: reason,
+            userMessage: userMessage,
+            underlyingError: error
+        )
+
+        SecureLogger.operationFailed(
+            "Save (\(reason)) [\(appError.code)]",
+            error: error
+        )
 
         NotificationCenter.default.post(
             name: .persistenceSaveFailed,
             object: nil,
             userInfo: [
-                SaveFailureNotificationKeys.message: userMessage,
-                SaveFailureNotificationKeys.errorDescription: error.localizedDescription,
+                SaveFailureNotificationKeys.message: appError.userMessage,
+                SaveFailureNotificationKeys.errorDescription: appError.technicalDetails ?? "",
                 SaveFailureNotificationKeys.reason: reason,
+                SaveFailureNotificationKeys.appErrorCategory: appError.category.rawValue,
+                SaveFailureNotificationKeys.appErrorCode: appError.code,
+                SaveFailureNotificationKeys.appErrorSeverity: appError.severity.rawValue,
+                SaveFailureNotificationKeys.appErrorTechnicalDetails: appError.technicalDetails ?? "",
             ]
         )
 
         return SaveResult.failure(
             reason: reason,
-            errorDescription: error.localizedDescription
+            errorDescription: appError.technicalDetails
         )
     }
 }

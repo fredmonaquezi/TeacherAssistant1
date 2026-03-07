@@ -76,29 +76,28 @@ enum RunningRecordsStore {
         let normalizedRange = normalizedCustomRange(start: customDateStart, end: customDateEnd)
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        let computation = await Task.detached(priority: .userInitiated) {
-            computeRecordDerivation(
-                snapshots: snapshots,
-                selectedClassKey: selectedClassKey,
-                selectedStudentUUID: selectedStudentUUID,
-                filterLevel: filterLevel,
-                selectedDateRange: selectedDateRange,
-                normalizedCustomRange: normalizedRange,
-                sortOption: sortOption,
-                trimmedQuery: trimmedQuery
+        return await DerivationRunner.runAsync(
+            compute: {
+                computeRecordDerivation(
+                    snapshots: snapshots,
+                    selectedClassKey: selectedClassKey,
+                    selectedStudentUUID: selectedStudentUUID,
+                    filterLevel: filterLevel,
+                    selectedDateRange: selectedDateRange,
+                    normalizedCustomRange: normalizedRange,
+                    sortOption: sortOption,
+                    trimmedQuery: trimmedQuery
+                )
+            },
+            cancelledResult: .empty
+        ) { computation in
+            makeDerivedData(
+                classOptions: classOptions,
+                studentOptions: studentOptions,
+                allRunningRecords: allRunningRecords,
+                computation: computation
             )
-        }.value
-
-        if Task.isCancelled {
-            return .empty
         }
-
-        return makeDerivedData(
-            classOptions: classOptions,
-            studentOptions: studentOptions,
-            allRunningRecords: allRunningRecords,
-            computation: computation
-        )
     }
 
     private static func normalizedCustomRange(start: Date, end: Date) -> (start: Date, end: Date) {

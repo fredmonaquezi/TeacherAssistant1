@@ -76,27 +76,26 @@ enum LibraryStore {
         let folderSnapshots = makeFolderSnapshots(allFolders)
         let fileSnapshots = makeFileSnapshots(allFiles)
 
-        let computation = await Task.detached(priority: .userInitiated) {
-            computeLibraryDerivation(
-                folderSnapshots: folderSnapshots,
-                fileSnapshots: fileSnapshots,
-                folderID: folderID,
-                normalizedSearch: normalizedSearch
+        return await DerivationRunner.runAsync(
+            compute: {
+                computeLibraryDerivation(
+                    folderSnapshots: folderSnapshots,
+                    fileSnapshots: fileSnapshots,
+                    folderID: folderID,
+                    normalizedSearch: normalizedSearch
+                )
+            },
+            cancelledResult: .empty
+        ) { computation in
+            makeDerivedData(
+                folder: folder,
+                folderByID: folderByID,
+                fileByID: fileByID,
+                fileCountByParent: fileCountByParent,
+                subfolderCountByParent: subfolderCountByParent,
+                computation: computation
             )
-        }.value
-
-        if Task.isCancelled {
-            return .empty
         }
-
-        return makeDerivedData(
-            folder: folder,
-            folderByID: folderByID,
-            fileByID: fileByID,
-            fileCountByParent: fileCountByParent,
-            subfolderCountByParent: subfolderCountByParent,
-            computation: computation
-        )
     }
 
     private static func makeFolderSnapshots(_ folders: [LibraryFolder]) -> [LibraryFolderSnapshot] {

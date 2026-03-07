@@ -173,14 +173,10 @@ struct ContentView: View {
         .frame(minWidth: 900, minHeight: 650)
         #endif
         .onChange(of: timerManager.isRunning) { _, isRunning in
-            if !isRunning {
-                selectedSection = .timer
-            }
+            handleTimerRouteChange(isRunning: isRunning, isExpanded: timerManager.isExpanded)
         }
         .onChange(of: timerManager.isExpanded) { _, isExpanded in
-            if !isExpanded && timerManager.isRunning {
-                selectedSection = .dashboard
-            }
+            handleTimerRouteChange(isRunning: timerManager.isRunning, isExpanded: isExpanded)
         }
         .onAppear {
             macNavigationState.reset()
@@ -195,7 +191,10 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 List(selection: $selectedSection) {
                     ForEach(AppSection.allCases) { section in
-                        Label(languageManager.localized(section.rawValue), systemImage: icon(for: section))
+                        Label(
+                            languageManager.localized(section.rawValue),
+                            systemImage: ContentSectionCoordinator.icon(for: section)
+                        )
                             .tag(section)
                     }
                 }
@@ -217,79 +216,24 @@ struct ContentView: View {
             columnVisibility = .detailOnly
         }
         .onChange(of: timerManager.isRunning) { _, isRunning in
-            if !isRunning {
-                selectedSection = .timer
-            }
+            handleTimerRouteChange(isRunning: isRunning, isExpanded: timerManager.isExpanded)
         }
         .onChange(of: timerManager.isExpanded) { _, isExpanded in
-            if !isExpanded && timerManager.isRunning {
-                selectedSection = .dashboard
-            }
+            handleTimerRouteChange(isRunning: timerManager.isRunning, isExpanded: isExpanded)
         }
     }
     
     @ViewBuilder
     private var detailView: some View {
-        switch selectedSection {
-        case .dashboard:
-            DashboardView(
-                timerManager: timerManager,
-                backupReminderManager: backupReminderManager,
-                selectedSection: $selectedSection
-            )
-            .macNavigationRoot()
-
-        case .classes:
-            ClassesView()
-                .macNavigationRoot()
-            
-        case .library:
-            Text(languageManager.localized("Library is currently disabled."))
-                .macNavigationRoot()
-
-        case .attendance:
-            ClassPickerView(tool: .attendance)
-                .macNavigationRoot()
-
-        case .gradebook:
-            ClassPickerView(tool: .gradebook)
-                .macNavigationRoot()
-            
-        case .rubrics:
-            RubricTemplateManagerView()
-                .macNavigationRoot()
-
-        case .groups:
-            ClassPickerView(tool: .groups)
-                .macNavigationRoot()
-
-        case .randomPicker:
-            ClassPickerView(tool: .randomPicker)
-                .macNavigationRoot()
-
-        case .timer:
-            TimerPickerView(timer: timerManager)
-                .macNavigationRoot()
-        
-        case .runningRecords:
-            RunningRecordsView()
-                .macNavigationRoot()
-
-        case .usefulLinks:
-            UsefulLinksView()
-                .macNavigationRoot()
-            
-        case .calendar:
-            CalendarRootView()
-                .macNavigationRoot()
-
-        case .none:
-            Text(languageManager.localized("Select a section"))
-                .macNavigationRoot()
-        }
+        ContentSectionCoordinator.destination(
+            for: selectedSection,
+            timerManager: timerManager,
+            backupReminderManager: backupReminderManager,
+            selectedSection: $selectedSection
+        )
     }
 
-    // MARK: - Sidebar Icons
+    // MARK: - Sidebar Navigation
 
     private func goBack() {
         #if os(macOS)
@@ -299,21 +243,14 @@ struct ContentView: View {
         #endif
     }
 
-    func icon(for section: AppSection) -> String {
-        switch section {
-        case .dashboard: return "house"
-        case .library: return "books.vertical"
-        case .classes: return "person.3.fill"
-        case .attendance: return "checklist"
-        case .gradebook: return "tablecells"
-        case .rubrics: return "doc.text.fill"
-        case .groups: return "person.2.fill"
-        case .randomPicker: return "die.face.5.fill"
-        case .timer: return "timer"
-        case .runningRecords: return "doc.text.magnifyingglass"
-        case .usefulLinks: return "link"
-        case .calendar: return "calendar"
+    private func handleTimerRouteChange(isRunning: Bool, isExpanded: Bool) {
+        guard let forcedSection = ContentSectionCoordinator.forcedSectionForTimerState(
+            isRunning: isRunning,
+            isExpanded: isExpanded
+        ) else {
+            return
         }
+        selectedSection = forcedSection
     }
 
     private func handleBackupRestoreCompleted() {
@@ -336,10 +273,11 @@ struct ContentView: View {
     private func handlePersistenceSaveFailed(_ notification: Notification) {
         let fallbackMessage = "Your latest changes could not be saved. Please try again.".localized
         let message = (notification.userInfo?[SaveFailureNotificationKeys.message] as? String)?.localized ?? fallbackMessage
-        let errorDescription = notification.userInfo?[SaveFailureNotificationKeys.errorDescription] as? String
+        let technicalDetails = (notification.userInfo?[SaveFailureNotificationKeys.appErrorTechnicalDetails] as? String)
+            ?? (notification.userInfo?[SaveFailureNotificationKeys.errorDescription] as? String)
 
-        if let errorDescription, !errorDescription.isEmpty {
-            saveFailureMessage = "\(message)\n\n\(errorDescription)"
+        if let technicalDetails, !technicalDetails.isEmpty {
+            saveFailureMessage = "\(message)\n\n\(technicalDetails)"
         } else {
             saveFailureMessage = message
         }

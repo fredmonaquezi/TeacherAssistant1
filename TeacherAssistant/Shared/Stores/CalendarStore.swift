@@ -87,27 +87,26 @@ enum CalendarStore {
         let eventSnapshots = makeEventSnapshots(events)
         let todayStart = Calendar.current.startOfDay(for: Date())
 
-        let computation = await Task.detached(priority: .userInitiated) {
-            computeDerivation(
-                selectedClassKey: selectedClassKey,
-                classSnapshots: classSnapshots,
-                diarySnapshots: diarySnapshots,
+        return await DerivationRunner.runAsync(
+            compute: {
+                computeDerivation(
+                    selectedClassKey: selectedClassKey,
+                    classSnapshots: classSnapshots,
+                    diarySnapshots: diarySnapshots,
+                    eventSnapshots: eventSnapshots,
+                    todayStart: todayStart
+                )
+            },
+            cancelledResult: .empty
+        ) { computation in
+            makeDerivedData(
+                classes: classes,
+                diaryEntries: diaryEntries,
+                events: events,
                 eventSnapshots: eventSnapshots,
-                todayStart: todayStart
+                computation: computation
             )
-        }.value
-
-        if Task.isCancelled {
-            return .empty
         }
-
-        return makeDerivedData(
-            classes: classes,
-            diaryEntries: diaryEntries,
-            events: events,
-            eventSnapshots: eventSnapshots,
-            computation: computation
-        )
     }
 
     private static func makeClassSnapshots(_ classes: [SchoolClass]) -> [CalendarClassSnapshot] {

@@ -23,6 +23,7 @@ struct StudentProgressView: View {
     @State private var showConfirmation = false
     @State private var selectedTab: ProgressTab = .overview
     @State private var derivedData: StudentProgressDerivedData = .empty
+    @State private var saveRefreshRevision: Int = 0
     
     enum ProgressTab: String, CaseIterable {
         case overview = "Overview"
@@ -138,16 +139,39 @@ struct StudentProgressView: View {
             String(allAttendanceSessions.count),
             String(allDevelopmentScores.count),
             String(describing: student.id),
+            String(saveRefreshRevision),
         ].joined(separator: "|")
+    }
+
+    private var actionCoordinator: StudentProgressActionCoordinator {
+        StudentProgressActionCoordinator(
+            onSelectTab: { tab in
+                withAnimation(.spring(response: 0.3)) {
+                    selectedTab = tab
+                }
+            },
+            onExportFullReport: {
+                exportToPDF()
+            },
+            onExportCurrentTab: {
+                exportCurrentTabToPDF()
+            }
+        )
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Hero Header
-            heroHeader
-            
-            // MARK: - Tab Picker
-            tabPicker
+            StudentProgressHeroHeaderSectionView(
+                studentName: student.name,
+                overallAverageScore: overallAverageScore,
+                scoredResultsCount: scoredResultsForStudent.count,
+                attendancePercentage: attendancePercentage
+            )
+
+            StudentProgressTabPickerSectionView(
+                selectedTab: selectedTab,
+                actionCoordinator: actionCoordinator
+            )
             
             // MARK: - Content
             ScrollView {
@@ -176,13 +200,13 @@ struct StudentProgressView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button {
-                        exportToPDF()
+                        actionCoordinator.exportFullReport()
                     } label: {
                         Label("Export Full Report".localized, systemImage: "doc.fill")
                     }
                     
                     Button {
-                        exportCurrentTabToPDF()
+                        actionCoordinator.exportCurrentTab()
                     } label: {
                         Label(String(format: "Export %@ Only".localized, selectedTab.localizedName), systemImage: "doc.text.fill")
                     }
@@ -212,6 +236,9 @@ struct StudentProgressView: View {
             Button("OK".localized) { }
         } message: {
             Text("Student progress report has been generated successfully!".localized)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
+            saveRefreshRevision &+= 1
         }
         .task(id: refreshToken) {
             do {
@@ -1504,128 +1531,12 @@ struct StudentProgressView: View {
     }
     #endif
     
-    // MARK: - Original Components Continue Below
-    
-    // MARK: - Hero Header
-    
-    var heroHeader: some View {
-        VStack(spacing: 16) {
-            // Student Avatar
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue, Color.blue.opacity(0.6)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 80, height: 80)
-                
-                Text(student.name.prefix(1).uppercased())
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            
-            // Student Name
-            Text(student.name)
-                .font(.title)
-                .fontWeight(.bold)
-            
-            // Quick Stats
-            HStack(spacing: 24) {
-                quickStat(
-                    value: String(format: "%.1f", overallAverageScore),
-                    label: "Average".localized,
-                    color: averageColor(overallAverageScore)
-                )
-                
-                Divider()
-                    .frame(height: 40)
-                
-                quickStat(
-                    value: "\(scoredResultsForStudent.count)",
-                    label: "Assessments".localized,
-                    color: .blue
-                )
-                
-                Divider()
-                    .frame(height: 40)
-                
-                quickStat(
-                    value: String(format: "%.0f%%", attendancePercentage),
-                    label: "Attendance".localized,
-                    color: .green
-                )
-            }
-            .padding(.horizontal)
-        }
-        .padding(.vertical, 24)
-        .frame(maxWidth: .infinity)
-        .background(
-            LinearGradient(
-                colors: [Color.blue.opacity(0.1), Color.blue.opacity(0.05), Color.clear],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-    
-    func quickStat(value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(color)
-            
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-    
+    // MARK: - Shared Helpers
+
     func averageColor(_ average: Double) -> Color {
         if average >= 7.0 { return .green }
         if average >= 5.0 { return .orange }
         return .red
-    }
-    
-    // MARK: - Tab Picker
-    
-    var tabPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(ProgressTab.allCases, id: \.self) { tab in
-                    tabButton(tab)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-        }
-        .background(Color.gray.opacity(0.05))
-    }
-    
-    func tabButton(_ tab: ProgressTab) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.3)) {
-                selectedTab = tab
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: tab.icon)
-                    .font(.subheadline)
-                
-                Text(tab.localizedName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(selectedTab == tab ? tab.color : Color.gray.opacity(0.1))
-            .foregroundColor(selectedTab == tab ? .white : .primary)
-            .cornerRadius(20)
-        }
-        .buttonStyle(.plain)
     }
     
     // MARK: - Overview Tab

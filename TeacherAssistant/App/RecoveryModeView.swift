@@ -86,7 +86,11 @@ struct RecoveryModeView: View {
                 guard let url = urls.first else { return }
                 coordinator.importBackup(from: url)
             case .failure(let error):
-                coordinator.recoveryMessage = error.localizedDescription
+                let appError = AppError.recovery(
+                    action: .selectBackupFile,
+                    underlyingError: error
+                )
+                coordinator.recoveryMessage = appError.messageForAlert
             }
         }
         .confirmationDialog(

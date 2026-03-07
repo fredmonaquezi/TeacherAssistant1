@@ -11,6 +11,7 @@ struct StudentDetailView: View {
     @State private var isEditingInfo = false
     @State private var showingDevelopmentTracker = false  // ← ADD THIS
     @State private var derivedData: StudentDetailDerivedData = .empty
+    @State private var saveRefreshRevision = 0
     
     @Query var allResults: [StudentResult]
     @Query var allAttendanceSessions: [AttendanceSession]
@@ -51,6 +52,7 @@ struct StudentDetailView: View {
             String(allAttendanceSessions.count),
             String(allScores.count),
             String(describing: student.id),
+            String(saveRefreshRevision),
         ].joined(separator: "|")
     }
 
@@ -123,6 +125,9 @@ struct StudentDetailView: View {
         }
         .sheet(item: $selectedSubject) { subject in
             unitPickerSheet(for: subject)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
+            saveRefreshRevision &+= 1
         }
         .task(id: refreshToken) {
             do {

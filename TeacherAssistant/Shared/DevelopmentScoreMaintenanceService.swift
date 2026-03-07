@@ -30,6 +30,19 @@ struct DevelopmentScoreMaintenanceReport {
     }
 }
 
+enum DevelopmentScoreMaintenanceError: LocalizedError {
+    private static let fallbackMessage = "Your latest changes could not be saved. Please try again."
+
+    case saveFailed(details: String?)
+
+    var errorDescription: String? {
+        switch self {
+        case let .saveFailed(details):
+            return details ?? Self.fallbackMessage
+        }
+    }
+}
+
 @MainActor
 enum DevelopmentScoreMaintenanceService {
     static func run(context: ModelContext) throws -> DevelopmentScoreMaintenanceReport {
@@ -65,7 +78,14 @@ enum DevelopmentScoreMaintenanceService {
         }
 
         if context.hasChanges {
-            try context.save()
+            let saveResult = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Run development score maintenance"
+            )
+
+            if !saveResult.didSave {
+                throw DevelopmentScoreMaintenanceError.saveFailed(details: saveResult.errorDescription)
+            }
         }
 
         return DevelopmentScoreMaintenanceReport(

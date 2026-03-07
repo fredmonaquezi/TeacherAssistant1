@@ -6,6 +6,7 @@ APP_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROJECT_PATH="${PROJECT_PATH:-$APP_DIR/../TeacherAssistant.xcodeproj}"
 MODULE_CACHE="${MODULE_CACHE:-/tmp/swift-module-cache}"
 ALLOWLIST_FILE="${WARNING_ALLOWLIST_FILE:-$SCRIPT_DIR/health_warning_allowlist.txt}"
+DIRECT_SAVE_ALLOWLIST_FILE="${DIRECT_SAVE_ALLOWLIST_FILE:-$SCRIPT_DIR/direct_save_allowlist.txt}"
 WORK_DIR="$(mktemp -d /tmp/teacherassistant-health.XXXXXX)"
 
 cleanup() {
@@ -94,6 +95,26 @@ if [[ -s "$WORK_DIR/warnings.final" ]]; then
   FAIL_COUNT=$((FAIL_COUNT + 1))
 else
   echo "PASS: warning scan"
+  PASS_COUNT=$((PASS_COUNT + 1))
+fi
+
+log_step "Direct save guard"
+rg -n --glob '*.swift' '\b(?:try\s+)?context\.save\(\)' . > "$WORK_DIR/direct_saves.raw" || true
+
+if [[ -s "$DIRECT_SAVE_ALLOWLIST_FILE" ]]; then
+  rg -v -f "$DIRECT_SAVE_ALLOWLIST_FILE" "$WORK_DIR/direct_saves.raw" > "$WORK_DIR/direct_saves.final" || true
+else
+  cp "$WORK_DIR/direct_saves.raw" "$WORK_DIR/direct_saves.final"
+fi
+
+DIRECT_SAVE_COUNT=0
+if [[ -s "$WORK_DIR/direct_saves.final" ]]; then
+  DIRECT_SAVE_COUNT=$(wc -l < "$WORK_DIR/direct_saves.final" | tr -d ' ')
+  echo "FAIL: direct save guard ($DIRECT_SAVE_COUNT unauthorized direct saves)"
+  tail -n 50 "$WORK_DIR/direct_saves.final" || true
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+else
+  echo "PASS: direct save guard"
   PASS_COUNT=$((PASS_COUNT + 1))
 fi
 
