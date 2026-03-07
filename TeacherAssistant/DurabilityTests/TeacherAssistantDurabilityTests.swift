@@ -167,13 +167,13 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         )
         try sourceContext.save()
 
-        try await waitForBackupManagerRateLimitWindow()
-        let backupURL = try BackupManager.exportBackup(context: sourceContext)
+        let backupURL = try await exportBackupRetryingRateLimit(context: sourceContext)
         defer { try? FileManager.default.removeItem(at: backupURL) }
 
-        try await waitForBackupManagerRateLimitWindow()
-
-        try BackupManager.importBackup(from: backupURL, context: destinationContainer.mainContext)
+        try await importBackupRetryingRateLimit(
+            from: backupURL,
+            context: destinationContainer.mainContext
+        )
 
         let restoredClasses = try destinationContainer.mainContext.fetch(FetchDescriptor<SchoolClass>())
         XCTAssertEqual(restoredClasses.count, 1)
@@ -192,8 +192,7 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
     func testLegacyBackupFixtureRestoresIntoPersistentStore() async throws {
         let destinationContainer = try makePersistentContainer(named: "legacy-fixture")
 
-        try await waitForBackupManagerRateLimitWindow()
-        try BackupManager.importBackup(
+        try await importBackupRetryingRateLimit(
             from: fixtureURL(named: "legacy-backup-v1.backup"),
             context: destinationContainer.mainContext
         )
@@ -255,8 +254,7 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         ])
         defer { restoreUserDefaults(preservedDefaults) }
 
-        try await waitForBackupManagerRateLimitWindow()
-        try BackupManager.importBackup(
+        try await importBackupRetryingRateLimit(
             from: fixtureURL(named: "versioned-backup-v5.backup"),
             context: destinationContainer.mainContext
         )
@@ -326,8 +324,41 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
             .appendingPathComponent(name)
     }
 
-    private func waitForBackupManagerRateLimitWindow() async throws {
-        try await BackupOperationTestThrottler.shared.waitForNextOperation()
+    @MainActor
+    private func exportBackupRetryingRateLimit(context: ModelContext) async throws -> URL {
+        try await performBackupOperationWithRetry {
+            try BackupManager.exportBackup(context: context)
+        }
+    }
+
+    @MainActor
+    private func importBackupRetryingRateLimit(from url: URL, context: ModelContext) async throws {
+        _ = try await performBackupOperationWithRetry {
+            try BackupManager.importBackup(from: url, context: context)
+            return ()
+        }
+    }
+
+    @MainActor
+    private func performBackupOperationWithRetry<T>(
+        maxAttempts: Int = 4,
+        operation: () throws -> T
+    ) async throws -> T {
+        precondition(maxAttempts > 0, "maxAttempts must be greater than zero")
+        var attempt = 1
+
+        while true {
+            do {
+                return try operation()
+            } catch BackupError.rateLimited(let remainingSeconds) where attempt < maxAttempts {
+                attempt += 1
+                let retryDelaySeconds = max(remainingSeconds + 1, 1)
+                let nanoseconds = UInt64(retryDelaySeconds) * 1_000_000_000
+                try await Task.sleep(nanoseconds: nanoseconds)
+            } catch {
+                throw error
+            }
+        }
     }
 
     private func preserveUserDefaults(for keys: [String]) -> [String: Any?] {
@@ -348,24 +379,6 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
                 defaults.removeObject(forKey: key)
             }
         }
-    }
-}
-
-private actor BackupOperationTestThrottler {
-    static let shared = BackupOperationTestThrottler()
-
-    private let minimumInterval: TimeInterval = 5.1
-    private var nextAllowedStart = Date.distantPast
-
-    func waitForNextOperation() async throws {
-        let now = Date()
-        if now < nextAllowedStart {
-            let delay = nextAllowedStart.timeIntervalSince(now)
-            let nanoseconds = UInt64(delay * 1_000_000_000)
-            try await Task.sleep(nanoseconds: nanoseconds)
-        }
-
-        nextAllowedStart = Date().addingTimeInterval(minimumInterval)
     }
 }
 #endif
