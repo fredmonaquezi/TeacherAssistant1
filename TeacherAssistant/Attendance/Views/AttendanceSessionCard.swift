@@ -1,7 +1,70 @@
 import SwiftUI
 
+struct AttendanceSessionStats {
+    let presentCount: Int
+    let absentCount: Int
+    let lateCount: Int
+    let leftEarlyCount: Int
+    let totalCount: Int
+
+    init(records: [AttendanceRecord]) {
+        var present = 0
+        var absent = 0
+        var late = 0
+        var leftEarly = 0
+
+        for record in records {
+            switch record.status {
+            case .present:
+                present += 1
+            case .absent:
+                absent += 1
+            case .late:
+                late += 1
+            case .leftEarly:
+                leftEarly += 1
+            }
+        }
+
+        self.init(
+            presentCount: present,
+            absentCount: absent,
+            lateCount: late,
+            leftEarlyCount: leftEarly,
+            totalCount: records.count
+        )
+    }
+
+    init(
+        presentCount: Int,
+        absentCount: Int,
+        lateCount: Int,
+        leftEarlyCount: Int,
+        totalCount: Int
+    ) {
+        self.presentCount = presentCount
+        self.absentCount = absentCount
+        self.lateCount = lateCount
+        self.leftEarlyCount = leftEarlyCount
+        self.totalCount = totalCount
+    }
+
+    var attendanceRate: Int {
+        guard totalCount > 0 else { return 0 }
+        return Int((Double(presentCount) / Double(totalCount)) * 100)
+    }
+
+    var rateColor: Color {
+        let rate = attendanceRate
+        if rate >= 90 { return .green }
+        if rate >= 75 { return .orange }
+        return .red
+    }
+}
+
 struct AttendanceSessionCard: View {
     let session: AttendanceSession
+    let stats: AttendanceSessionStats
     let onDelete: () -> Void
     
     @EnvironmentObject var languageManager: LanguageManager
@@ -48,28 +111,28 @@ struct AttendanceSessionCard: View {
                 attendanceStat(
                     icon: "checkmark.circle.fill",
                     label: languageManager.localized("Present"),
-                    count: presentCount,
+                    count: stats.presentCount,
                     color: .green
                 )
                 
                 attendanceStat(
                     icon: "xmark.circle.fill",
                     label: languageManager.localized("Absent"),
-                    count: absentCount,
+                    count: stats.absentCount,
                     color: .red
                 )
                 
                 attendanceStat(
                     icon: "clock.fill",
                     label: languageManager.localized("Late"),
-                    count: lateCount,
+                    count: stats.lateCount,
                     color: .orange
                 )
                 
                 attendanceStat(
                     icon: "arrow.left.circle.fill",
                     label: languageManager.localized("Left Early"),
-                    count: leftEarlyCount,
+                    count: stats.leftEarlyCount,
                     color: .yellow
                 )
             }
@@ -83,31 +146,23 @@ struct AttendanceSessionCard: View {
                     
                     Spacer()
                     
-                    Text("\(attendanceRate)%")
+                    Text("\(stats.attendanceRate)%")
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundColor(rateColor)
+                        .foregroundColor(stats.rateColor)
                 }
                 
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(AppChrome.elevatedBackground)
-                            .frame(height: 6)
-                        
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(rateColor)
-                            .frame(width: geometry.size.width * (Double(attendanceRate) / 100.0), height: 6)
-                    }
-                }
-                .frame(height: 6)
+                ProgressView(value: Double(stats.attendanceRate), total: 100)
+                    .progressViewStyle(.linear)
+                    .tint(stats.rateColor)
+                    .scaleEffect(y: 1.2)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .appCardStyle(
-            borderColor: rateColor.opacity(0.16),
-            tint: rateColor
+            borderColor: stats.rateColor.opacity(0.16),
+            tint: stats.rateColor
         )
         .alert(languageManager.localized("Delete Session?"), isPresented: $showingDeleteAlert) {
             Button(languageManager.localized("Cancel"), role: .cancel) {}
@@ -141,35 +196,6 @@ struct AttendanceSessionCard: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(AppChrome.elevatedBackground)
         )
-    }
-    
-    var presentCount: Int {
-        session.records.filter { $0.status == .present }.count
-    }
-    
-    var absentCount: Int {
-        session.records.filter { $0.status == .absent }.count
-    }
-    
-    var lateCount: Int {
-        session.records.filter { $0.status == .late }.count
-    }
-    
-    var leftEarlyCount: Int {
-        session.records.filter { $0.status == .leftEarly }.count
-    }
-    
-    var attendanceRate: Int {
-        let total = session.records.count
-        guard total > 0 else { return 0 }
-        return Int((Double(presentCount) / Double(total)) * 100)
-    }
-    
-    var rateColor: Color {
-        let rate = attendanceRate
-        if rate >= 90 { return .green }
-        if rate >= 75 { return .orange }
-        return .red
     }
     
     var relativeDate: String {

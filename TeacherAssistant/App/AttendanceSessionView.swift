@@ -5,11 +5,13 @@ struct AttendanceSessionView: View {
     @Bindable var session: AttendanceSession
     
     var body: some View {
+        let stats = AttendanceSessionStats(records: session.records)
+
         ScrollView {
             VStack(spacing: 20) {
                 
                 // Header card with summary
-                summaryCard
+                summaryCard(stats: stats)
                 
                 // Students section
                 VStack(alignment: .leading, spacing: 16) {
@@ -19,7 +21,7 @@ struct AttendanceSessionView: View {
                         .padding(.horizontal)
                     
                     LazyVStack(spacing: 12) {
-                        ForEach($session.records) { $record in
+                        ForEach($session.records, id: \.id) { $record in
                             StudentAttendanceCard(record: $record)
                         }
                     }
@@ -36,7 +38,7 @@ struct AttendanceSessionView: View {
     
     // MARK: - Summary Card
     
-    var summaryCard: some View {
+    func summaryCard(stats: AttendanceSessionStats) -> some View {
         VStack(spacing: 16) {
             // Icon and title
             HStack(spacing: 12) {
@@ -59,28 +61,28 @@ struct AttendanceSessionView: View {
             HStack(spacing: 12) {
                 summaryBox(
                     title: "Present".localized,
-                    count: presentCount,
+                    count: stats.presentCount,
                     icon: "checkmark.circle.fill",
                     color: .green
                 )
                 
                 summaryBox(
                     title: "Absent".localized,
-                    count: absentCount,
+                    count: stats.absentCount,
                     icon: "xmark.circle.fill",
                     color: .red
                 )
                 
                 summaryBox(
                     title: "Late".localized,
-                    count: lateCount,
+                    count: stats.lateCount,
                     icon: "clock.fill",
                     color: .orange
                 )
                 
                 summaryBox(
                     title: "Left Early".localized,
-                    count: leftEarlyCount,
+                    count: stats.leftEarlyCount,
                     icon: "arrow.right.circle.fill",
                     color: .yellow
                 )
@@ -117,31 +119,12 @@ struct AttendanceSessionView: View {
         .background(color.opacity(0.1))
         .cornerRadius(8)
     }
-    
-    // MARK: - Computed Properties
-    
-    var presentCount: Int {
-        session.records.filter { $0.status == .present }.count
-    }
-    
-    var absentCount: Int {
-        session.records.filter { $0.status == .absent }.count
-    }
-    
-    var lateCount: Int {
-        session.records.filter { $0.status == .late }.count
-    }
-    
-    var leftEarlyCount: Int {
-        session.records.filter { $0.status == .leftEarly }.count
-    }
 }
 
 // MARK: - Student Attendance Card
 
 struct StudentAttendanceCard: View {
     @Binding var record: AttendanceRecord
-    @State private var isExpanded = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -201,7 +184,9 @@ struct StudentAttendanceCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(statusColor.opacity(0.3), lineWidth: 1.5)
         )
+        #if os(macOS)
         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+        #endif
     }
     
     @ViewBuilder
@@ -209,9 +194,7 @@ struct StudentAttendanceCard: View {
         let isSelected = record.status == status
         
         Button(action: {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                record.status = status
-            }
+            record.status = status
         }) {
             ZStack {
                 Circle()

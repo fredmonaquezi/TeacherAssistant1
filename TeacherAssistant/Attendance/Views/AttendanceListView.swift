@@ -30,19 +30,25 @@ struct AttendanceListView: View {
     }
 
     var content: some View {
-        ScrollView {
+        let sessions = sortedSessions
+        let overallStats = aggregateStats(for: sessions)
+
+        return ScrollView {
             VStack(spacing: PlatformSpacing.sectionSpacing) {
                 #if os(macOS)
                 attendanceActionsRow
                 #endif
                 
                 // Statistics card
-                if !sortedSessions.isEmpty {
-                    statisticsCard
+                if !sessions.isEmpty {
+                    statisticsCard(
+                        totalSessions: sessions.count,
+                        overallStats: overallStats
+                    )
                 }
                 
                 // Sessions section
-                sessionsSection
+                sessionsSection(sessions: sessions)
                 
             }
             .padding(.vertical, 20)
@@ -95,7 +101,7 @@ struct AttendanceListView: View {
     
     // MARK: - Statistics Card
     
-    var statisticsCard: some View {
+    func statisticsCard(totalSessions: Int, overallStats: AttendanceSessionStats) -> some View {
         VStack(spacing: 16) {
             Text(languageManager.localized("Attendance Overview"))
                 .font(AppTypography.cardTitle)
@@ -104,7 +110,7 @@ struct AttendanceListView: View {
             HStack(spacing: 16) {
                 statBox(
                     title: languageManager.localized("Total Sessions"),
-                    value: "\(sortedSessions.count)",
+                    value: "\(totalSessions)",
                     icon: "calendar.badge.clock",
                     color: .blue
                 )
@@ -118,9 +124,9 @@ struct AttendanceListView: View {
                 
                 statBox(
                     title: languageManager.localized("Attendance Rate"),
-                    value: "\(attendanceRate)%",
+                    value: "\(overallStats.attendanceRate)%",
                     icon: "chart.bar.fill",
-                    color: attendanceRateColor
+                    color: overallStats.rateColor
                 )
             }
         }
@@ -160,44 +166,31 @@ struct AttendanceListView: View {
         )
     }
     
-    var attendanceRate: Int {
-        guard !sortedSessions.isEmpty else { return 0 }
-        
-        let allRecords = sortedSessions.flatMap { $0.records }
-        let presentCount = allRecords.filter { $0.status == .present }.count
-        
-        guard !allRecords.isEmpty else { return 0 }
-        return Int((Double(presentCount) / Double(allRecords.count)) * 100)
-    }
-    
-    var attendanceRateColor: Color {
-        let rate = attendanceRate
-        if rate >= 90 { return .green }
-        if rate >= 75 { return .orange }
-        return .red
-    }
-    
     // MARK: - Sessions Section
     
-    var sessionsSection: some View {
+    func sessionsSection(sessions: [AttendanceSession]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(languageManager.localized("Attendance Sessions"))
                 .font(AppTypography.sectionTitle)
                 .padding(.horizontal)
             
-            if sortedSessions.isEmpty {
+            if sessions.isEmpty {
                 emptyStateView
             } else {
                 LazyVGrid(columns: [
                     GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)
                 ], spacing: 16) {
-                    ForEach(sortedSessions, id: \.id) { session in
+                    ForEach(sessions, id: \.id) { session in
                         NavigationLink {
                             AttendanceSessionView(session: session)
                         } label: {
-                            AttendanceSessionCard(session: session, onDelete: {
+                            AttendanceSessionCard(
+                                session: session,
+                                stats: AttendanceSessionStats(records: session.records),
+                                onDelete: {
                                 deleteSession(session)
-                            })
+                                }
+                            )
                         }
                         .buttonStyle(.plain)
                     }
@@ -348,6 +341,38 @@ struct AttendanceListView: View {
         #if os(macOS)
         .frame(minWidth: 500, minHeight: 650)
         #endif
+    }
+
+    func aggregateStats(for sessions: [AttendanceSession]) -> AttendanceSessionStats {
+        var present = 0
+        var absent = 0
+        var late = 0
+        var leftEarly = 0
+        var total = 0
+
+        for session in sessions {
+            for record in session.records {
+                total += 1
+                switch record.status {
+                case .present:
+                    present += 1
+                case .absent:
+                    absent += 1
+                case .late:
+                    late += 1
+                case .leftEarly:
+                    leftEarly += 1
+                }
+            }
+        }
+
+        return AttendanceSessionStats(
+            presentCount: present,
+            absentCount: absent,
+            lateCount: late,
+            leftEarlyCount: leftEarly,
+            totalCount: total
+        )
     }
     
     // MARK: - Logic
