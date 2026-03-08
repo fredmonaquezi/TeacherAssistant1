@@ -3,6 +3,20 @@ import SwiftData
 
 struct AttendanceSessionView: View {
     @Bindable var session: AttendanceSession
+
+    private var sortedRecordIDs: [PersistentIdentifier] {
+        session.records
+            .sorted { lhs, rhs in
+                let lhsName = normalizedStudentName(for: lhs)
+                let rhsName = normalizedStudentName(for: rhs)
+                let nameOrder = lhsName.localizedStandardCompare(rhsName)
+                if nameOrder == .orderedSame {
+                    return String(describing: lhs.id) < String(describing: rhs.id)
+                }
+                return nameOrder == .orderedAscending
+            }
+            .map(\.id)
+    }
     
     var body: some View {
         let stats = AttendanceSessionStats(records: session.records)
@@ -21,8 +35,10 @@ struct AttendanceSessionView: View {
                         .padding(.horizontal)
                     
                     LazyVStack(spacing: 12) {
-                        ForEach($session.records, id: \.id) { $record in
-                            StudentAttendanceCard(record: $record)
+                        ForEach(sortedRecordIDs, id: \.self) { recordID in
+                            if let recordBinding = bindingForRecord(withID: recordID) {
+                                StudentAttendanceCard(record: recordBinding)
+                            }
                         }
                     }
                     .padding(.horizontal)
@@ -34,6 +50,21 @@ struct AttendanceSessionView: View {
         .navigationTitle(session.date.appDateString)
         #endif
         .macNavigationDepth()
+    }
+
+    private func normalizedStudentName(for record: AttendanceRecord) -> String {
+        let trimmedName = record.student?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmedName.isEmpty {
+            return "zzz_unknown_student"
+        }
+        return trimmedName
+    }
+
+    private func bindingForRecord(withID recordID: PersistentIdentifier) -> Binding<AttendanceRecord>? {
+        guard let index = session.records.firstIndex(where: { $0.id == recordID }) else {
+            return nil
+        }
+        return $session.records[index]
     }
     
     // MARK: - Summary Card
