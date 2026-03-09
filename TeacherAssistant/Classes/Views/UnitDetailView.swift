@@ -3,6 +3,7 @@ import SwiftData
 
 struct UnitDetailView: View {
     @Bindable var unit: Unit
+    @Environment(\.modelContext) private var context
     
     @Query private var allSubjectsInDB: [Subject]
 
@@ -101,6 +102,9 @@ struct UnitDetailView: View {
                 copyStep: $copyStep
             )
             .frame(width: 500, height: 500)
+        }
+        .onAppear {
+            normalizeAssessmentResults()
         }
         .macNavigationDepth()
     }
@@ -366,9 +370,35 @@ struct UnitDetailView: View {
         let students = studentsInCurrentClass()
         guard !students.isEmpty else { return }
 
-        let existingStudentIDs = Set(assessment.results.compactMap { $0.student?.id })
-        for student in students where !existingStudentIDs.contains(student.id) {
-            assessment.results.append(StudentResult(student: student, assessment: assessment))
+        _ = assessment.collapseDuplicateResults(context: context)
+        for student in students {
+            _ = assessment.ensureCanonicalResult(for: student, context: context)
+        }
+
+        if context.hasChanges {
+            _ = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Normalize unit assessment results"
+            )
+        }
+    }
+
+    func normalizeAssessmentResults() {
+        let students = studentsInCurrentClass()
+        guard !students.isEmpty else { return }
+
+        for assessment in unit.assessments {
+            _ = assessment.collapseDuplicateResults(context: context)
+            for student in students {
+                _ = assessment.ensureCanonicalResult(for: student, context: context)
+            }
+        }
+
+        if context.hasChanges {
+            _ = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Normalize unit results on open"
+            )
         }
     }
     

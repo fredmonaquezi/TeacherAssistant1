@@ -4,6 +4,7 @@ import SwiftData
 struct AddStudentView: View {
     
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     
     @Bindable var schoolClass: SchoolClass
     
@@ -246,11 +247,16 @@ struct AddStudentView: View {
         for subject in sortedSubjects {
             for unit in subject.units.sorted(by: { $0.sortOrder < $1.sortOrder }) {
                 for assessment in unit.assessments {
-                    let existingStudentIDs = Set(assessment.results.compactMap { $0.student?.id })
-                    guard !existingStudentIDs.contains(student.id) else { continue }
-                    assessment.results.append(StudentResult(student: student, assessment: assessment))
+                    _ = assessment.ensureCanonicalResult(for: student, context: context)
                 }
             }
+        }
+
+        if context.hasChanges {
+            _ = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Sync new student assessment rows"
+            )
         }
     }
 }

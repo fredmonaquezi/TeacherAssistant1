@@ -7,8 +7,6 @@ struct UnitGradebookView: View {
     
     @Bindable var unit: Unit
     
-    @Query private var allResults: [StudentResult]
-    
     @State private var selectedResult: StudentResult?
     
     // MARK: - Data
@@ -246,21 +244,11 @@ struct UnitGradebookView: View {
     // MARK: - Helpers
     
     func findResult(student: Student, assessment: Assessment) -> StudentResult? {
-        allResults.first {
-            $0.student?.id == student.id &&
-            $0.assessment?.id == assessment.id
-        }
-    }
-    
-    func createResult(student: Student, assessment: Assessment) -> StudentResult {
-        let newResult = StudentResult(student: student, score: 0, notes: "")
-        newResult.assessment = assessment
-        context.insert(newResult)
-        return newResult
+        assessment.canonicalResult(for: student)
     }
 
     func openScoreEntry(student: Student, assessment: Assessment) {
-        let result = findResult(student: student, assessment: assessment) ?? createResult(student: student, assessment: assessment)
+        let result = assessment.ensureCanonicalResult(for: student, context: context)
         selectedResult = result
     }
 
@@ -308,7 +296,11 @@ struct UnitGradebookView: View {
     }
     
     var unitAveragePercent: Double {
-        let allResults = assessments.flatMap { $0.results }
+        let allResults = assessments.flatMap { assessment in
+            studentsInThisUnit.compactMap { student in
+                assessment.canonicalResult(for: student)
+            }
+        }
         return allResults.averagePercent
     }
 
@@ -317,10 +309,17 @@ struct UnitGradebookView: View {
         guard !students.isEmpty else { return }
 
         for assessment in assessments {
-            let existingStudentIDs = Set(assessment.results.compactMap { $0.student?.id })
-            for student in students where !existingStudentIDs.contains(student.id) {
-                assessment.results.append(StudentResult(student: student, assessment: assessment))
+            _ = assessment.collapseDuplicateResults(context: context)
+            for student in students {
+                _ = assessment.ensureCanonicalResult(for: student, context: context)
             }
+        }
+
+        if context.hasChanges {
+            _ = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Normalize unit gradebook results"
+            )
         }
     }
     

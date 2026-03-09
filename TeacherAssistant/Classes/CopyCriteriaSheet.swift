@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct CopyCriteriaSheet: View {
+    @Environment(\.modelContext) private var context
     
     let step: UnitDetailView.CopyStep
     let unit: Unit
@@ -441,10 +442,16 @@ struct CopyCriteriaSheet: View {
             newAssessment.sortOrder = existingCount + index
             unit.assessments.append(newAssessment)
 
-            let existingStudentIDs = Set(newAssessment.results.compactMap { $0.student?.id })
-            for student in classStudents where !existingStudentIDs.contains(student.id) {
-                newAssessment.results.append(StudentResult(student: student, assessment: newAssessment))
+            for student in classStudents {
+                _ = newAssessment.ensureCanonicalResult(for: student, context: context)
             }
+        }
+
+        if context.hasChanges {
+            _ = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Copy assessment criteria with canonical results"
+            )
         }
     }
     

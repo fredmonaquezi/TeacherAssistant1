@@ -3,6 +3,7 @@ import SwiftData
 
 struct AssessmentDetailView: View {
     @Bindable var assessment: Assessment
+    @Environment(\.modelContext) private var context
     @EnvironmentObject var languageManager: LanguageManager
     @State private var selectedResult: StudentResult?
 
@@ -206,8 +207,8 @@ struct AssessmentDetailView: View {
                 
                 Spacer()
                 
-                let gradedCount = assessment.results.filter(\.isScored).count
-                let totalCount = assessment.results.count
+                let gradedCount = sortedResults.filter(\.isScored).count
+                let totalCount = sortedResults.count
                 
                 Text("\(gradedCount) / \(totalCount) " + "graded".localized)
                     .font(.body)  // ← Changed from .subheadline
@@ -261,12 +262,21 @@ struct AssessmentDetailView: View {
     // MARK: - Sorted Results
     
     var sortedResults: [StudentResult] {
-        let results: [StudentResult] = assessment.results.sorted { result1, result2 in
+        var uniqueStudentsByID: [PersistentIdentifier: Student] = [:]
+        for student in assessment.results.compactMap(\.student) {
+            uniqueStudentsByID[student.id] = student
+        }
+
+        var uniqueResults = uniqueStudentsByID.values.compactMap { student in
+            assessment.canonicalResult(for: student)
+        }
+        uniqueResults.append(contentsOf: assessment.results.filter { $0.student == nil })
+
+        return uniqueResults.sorted { result1, result2 in
             let name1 = result1.student?.name ?? ""
             let name2 = result2.student?.name ?? ""
             return name1 < name2
         }
-        return results
     }
 
     // MARK: - Data bootstrap
@@ -277,13 +287,17 @@ struct AssessmentDetailView: View {
               let schoolClass = subject.schoolClass
         else { return }
 
-        let existingStudentIDs = Set(assessment.results.compactMap { $0.student?.id })
+        _ = assessment.collapseDuplicateResults(context: context)
 
         for student in schoolClass.students.sorted(by: { $0.sortOrder < $1.sortOrder }) {
-            if existingStudentIDs.contains(student.id) { continue }
-            let result = StudentResult(student: student)
-            result.assessment = assessment
-            assessment.results.append(result)
+            _ = assessment.ensureCanonicalResult(for: student, context: context)
+        }
+
+        if context.hasChanges {
+            _ = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Normalize assessment results"
+            )
         }
     }
 }

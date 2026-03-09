@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftUI
 import SwiftData
 
 struct StudentUnitEvaluationView: View {
@@ -49,6 +48,9 @@ struct StudentUnitEvaluationView: View {
                 ScorePickerSheet(studentResult: result)
             }
         }
+        .onAppear {
+            collapseDuplicateResultsInUnit()
+        }
     }
     
     // MARK: - UI Components
@@ -72,7 +74,7 @@ struct StudentUnitEvaluationView: View {
                         .foregroundColor(.secondary)
                     
                     Button {
-                        let finalResult = result ?? createResult(assessment: assessment)
+                        let finalResult = assessment.ensureCanonicalResult(for: student, context: context)
                         selectedResult = finalResult
                     } label: {
                         HStack {
@@ -111,7 +113,7 @@ struct StudentUnitEvaluationView: View {
                     TextEditor(text: Binding(
                         get: { result?.notes ?? "" },
                         set: { newValue in
-                            let finalResult = result ?? createResult(assessment: assessment)
+                            let finalResult = assessment.ensureCanonicalResult(for: student, context: context)
                             finalResult.notes = newValue
                         }
                     ))
@@ -135,14 +137,20 @@ struct StudentUnitEvaluationView: View {
     // MARK: - Helpers
     
     func findResult(assessment: Assessment) -> StudentResult? {
-        assessment.results.first { $0.student?.id == student.id }
+        assessment.canonicalResult(for: student)
     }
-    
-    func createResult(assessment: Assessment) -> StudentResult {
-        let newResult = StudentResult(student: student, score: 0, notes: "")
-        newResult.assessment = assessment
-        context.insert(newResult)
-        return newResult
+
+    func collapseDuplicateResultsInUnit() {
+        for assessment in unit.assessments {
+            _ = assessment.collapseDuplicateResults(context: context)
+        }
+
+        if context.hasChanges {
+            _ = SaveCoordinator.saveResult(
+                context: context,
+                reason: "Normalize student unit evaluation results"
+            )
+        }
     }
     
     func labelForScore(_ value: Int) -> String {

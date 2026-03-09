@@ -622,6 +622,62 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
     }
 
     @MainActor
+    func testAssessmentCanonicalResultCollapsesDuplicateRowsPerStudent() throws {
+        let container = try makePersistentContainer(named: "assessment-result-canonical")
+        let context = container.mainContext
+
+        let schoolClass = SchoolClass(name: "Year 6", grade: "6")
+        let subject = Subject(name: "Math")
+        let unit = Unit(name: "Fractions")
+        let assessment = Assessment(title: "Quiz 1")
+        let student = Student(name: "Carlos Eduardo")
+
+        schoolClass.students.append(student)
+        schoolClass.subjects.append(subject)
+        subject.schoolClass = schoolClass
+        subject.units.append(unit)
+        unit.subject = subject
+        unit.assessments.append(assessment)
+        assessment.unit = unit
+
+        let firstResult = StudentResult(
+            student: student,
+            score: 6,
+            notes: "First observation",
+            hasScore: true
+        )
+        firstResult.assessment = assessment
+        assessment.results.append(firstResult)
+
+        let duplicateResult = StudentResult(
+            student: student,
+            score: 8,
+            notes: "Second observation",
+            hasScore: true
+        )
+        duplicateResult.assessment = assessment
+        assessment.results.append(duplicateResult)
+
+        context.insert(schoolClass)
+        if context.hasChanges {
+            try context.save()
+        }
+
+        let collapsedCount = assessment.collapseDuplicateResults(context: context)
+        XCTAssertGreaterThanOrEqual(collapsedCount, 1)
+
+        let canonical = assessment.ensureCanonicalResult(for: student, context: context)
+        let studentRows = assessment.results.filter { $0.student?.id == student.id }
+
+        XCTAssertEqual(studentRows.count, 1)
+        XCTAssertEqual(studentRows.first?.id, canonical.id)
+        XCTAssertEqual(canonical.score, 8)
+        XCTAssertTrue(canonical.hasScore)
+        XCTAssertTrue(canonical.notes.contains("First observation"))
+        XCTAssertTrue(canonical.notes.contains("Second observation"))
+    }
+
+    @MainActor
     private func makePersistentContainer(named suffix: String) throws -> ModelContainer {
         let configuration = ModelConfiguration(
             "TeacherAssistantDurabilityTests-\(suffix)-\(UUID().uuidString)",
