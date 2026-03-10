@@ -622,6 +622,57 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
     }
 
     @MainActor
+    func testAttendanceSessionNormalizationRepairsCollapsedStudentReferences() throws {
+        let container = try makePersistentContainer(named: "attendance-collapsed-repair")
+        let context = container.mainContext
+
+        let schoolClass = SchoolClass(name: "Year 6", grade: "6")
+        let students = [
+            Student(name: "Carlos Eduardo"),
+            Student(name: "Ana Souza"),
+            Student(name: "Bruno Lima"),
+            Student(name: "Davi Rocha")
+        ]
+
+        for (index, student) in students.enumerated() {
+            student.sortOrder = index
+            schoolClass.students.append(student)
+        }
+
+        let session = AttendanceSession(date: Date())
+        session.records = [
+            AttendanceRecord(student: students[0], status: .present),
+            AttendanceRecord(student: students[0], status: .absent, notes: "Family trip"),
+            AttendanceRecord(student: students[0], status: .late, notes: "Bus delay"),
+            AttendanceRecord(student: students[0], status: .leftEarly, notes: "Doctor appointment")
+        ]
+        schoolClass.attendanceSessions.append(session)
+
+        context.insert(schoolClass)
+        try context.save()
+
+        let repairedCount = session.normalizeRecordsIfNeeded(
+            for: schoolClass.students,
+            context: context
+        )
+
+        XCTAssertGreaterThanOrEqual(repairedCount, 3)
+        XCTAssertEqual(session.records.count, 4)
+        XCTAssertEqual(Set(session.records.compactMap { $0.student?.id }).count, 4)
+
+        for student in students {
+            XCTAssertEqual(session.records.filter { $0.student?.id == student.id }.count, 1)
+        }
+
+        let statusCounts = Dictionary(grouping: session.records.map(\.status), by: { $0 })
+            .mapValues(\.count)
+        XCTAssertEqual(statusCounts[.present], 1)
+        XCTAssertEqual(statusCounts[.absent], 1)
+        XCTAssertEqual(statusCounts[.late], 1)
+        XCTAssertEqual(statusCounts[.leftEarly], 1)
+    }
+
+    @MainActor
     func testAssessmentCanonicalResultCollapsesDuplicateRowsPerStudent() throws {
         let container = try makePersistentContainer(named: "assessment-result-canonical")
         let context = container.mainContext

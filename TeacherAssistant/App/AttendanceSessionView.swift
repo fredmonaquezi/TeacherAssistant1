@@ -3,9 +3,12 @@ import SwiftData
 
 struct AttendanceSessionView: View {
     @Bindable var session: AttendanceSession
+    @Bindable var schoolClass: SchoolClass
+    @Environment(\.modelContext) private var context
 
     private var sortedRecordIDs: [PersistentIdentifier] {
-        session.records
+        var seen: Set<PersistentIdentifier> = []
+        return session.records
             .sorted { lhs, rhs in
                 let lhsName = normalizedStudentName(for: lhs)
                 let rhsName = normalizedStudentName(for: rhs)
@@ -15,6 +18,7 @@ struct AttendanceSessionView: View {
                 }
                 return nameOrder == .orderedAscending
             }
+            .filter { seen.insert($0.id).inserted }
             .map(\.id)
     }
     
@@ -50,6 +54,9 @@ struct AttendanceSessionView: View {
         .navigationTitle(session.date.appDateString)
         #endif
         .macNavigationDepth()
+        .onAppear {
+            normalizeSessionRecordsIfNeeded()
+        }
     }
 
     private func normalizedStudentName(for record: AttendanceRecord) -> String {
@@ -65,6 +72,19 @@ struct AttendanceSessionView: View {
             return nil
         }
         return $session.records[index]
+    }
+
+    private func normalizeSessionRecordsIfNeeded() {
+        let changedRecords = session.normalizeRecordsIfNeeded(
+            for: schoolClass.students,
+            context: context
+        )
+        guard changedRecords > 0 else { return }
+
+        _ = SaveCoordinator.saveResult(
+            context: context,
+            reason: "Normalize attendance records"
+        )
     }
     
     // MARK: - Summary Card

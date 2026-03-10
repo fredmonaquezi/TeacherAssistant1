@@ -182,7 +182,10 @@ struct AttendanceListView: View {
                 ], spacing: 16) {
                     ForEach(sessions, id: \.id) { session in
                         NavigationLink {
-                            AttendanceSessionView(session: session)
+                            AttendanceSessionView(
+                                session: session,
+                                schoolClass: schoolClass
+                            )
                         } label: {
                             AttendanceSessionCard(
                                 session: session,
