@@ -37,6 +37,7 @@ struct UnitDetailView: View {
     @State private var showingAddAssessmentDialog = false
     @State private var newAssessmentName = ""
     @State private var newAssessmentMaxScore = "10"
+    @State private var showingAddAssignmentSheet = false
     
     var body: some View {
         ScrollView {
@@ -49,6 +50,9 @@ struct UnitDetailView: View {
                 
                 // MARK: - Assessments Section
                 assessmentsSection
+
+                // MARK: - Assignments Section
+                assignmentsSection
                 
             }
             .padding(.vertical, 20)
@@ -102,6 +106,14 @@ struct UnitDetailView: View {
                 copyStep: $copyStep
             )
             .frame(width: 500, height: 500)
+        }
+        .sheet(isPresented: $showingAddAssignmentSheet) {
+            if let schoolClass = unit.subject?.schoolClass {
+                AddAssignmentSheet(
+                    schoolClass: schoolClass,
+                    presetUnit: unit
+                )
+            }
         }
         .onAppear {
             normalizeAssessmentResults()
@@ -221,6 +233,37 @@ struct UnitDetailView: View {
                 .cornerRadius(12)
             }
             .buttonStyle(.plain)
+
+            Button {
+                showingAddAssignmentSheet = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "list.clipboard")
+                        .font(.title2)
+                        .foregroundColor(.teal)
+                        .frame(width: 40)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Assignments".localized)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+
+                        Text("Create and track homework for this unit".localized)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .background(Color.teal.opacity(0.1))
+                .cornerRadius(12)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal)
     }
@@ -311,6 +354,113 @@ struct UnitDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(40)
+    }
+
+    var assignmentsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Assignments".localized)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal)
+
+                Spacer()
+
+                Button {
+                    showingAddAssignmentSheet = true
+                } label: {
+                    Label("Add Assignment".localized, systemImage: "plus.circle.fill")
+                        .font(.subheadline)
+                        .foregroundColor(.teal)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal)
+            }
+
+            if unit.assignments.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "list.clipboard")
+                        .font(.system(size: 42))
+                        .foregroundColor(.secondary)
+
+                    Text("No assignments yet".localized)
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+
+                    Text("Create homework or independent work items for this unit.".localized)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(32)
+                .padding(.horizontal)
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(unit.assignments.sorted(by: { lhs, rhs in
+                        if lhs.dueDate != rhs.dueDate {
+                            return lhs.dueDate < rhs.dueDate
+                        }
+                        return lhs.sortOrder < rhs.sortOrder
+                    }), id: \.persistentModelID) { assignment in
+                        NavigationLink {
+                            AssignmentDetailView(assignment: assignment)
+                        } label: {
+                            unitAssignmentRow(assignment)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+
+    func unitAssignmentRow(_ assignment: Assignment) -> some View {
+        let progress = assignment.progressSummary()
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(assignment.title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text(assignment.dueDate.appDateString)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Text("\(progress.completedCount + progress.lateCount)/\(progress.totalCount)")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(progress.missingCount > 0 ? .red : (progress.pendingCount > 0 ? .orange : .green))
+            }
+
+            HStack(spacing: 10) {
+                assignmentPill(text: "\(progress.pendingCount) " + "pending".localized, color: .orange)
+                if progress.missingCount > 0 {
+                    assignmentPill(text: "\(progress.missingCount) " + "missing".localized, color: .red)
+                }
+                assignmentPill(text: "\(progress.completedCount + progress.lateCount) " + "done".localized, color: .green)
+            }
+        }
+        .padding()
+        .background(Color.teal.opacity(0.08))
+        .cornerRadius(12)
+    }
+
+    func assignmentPill(text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(color.opacity(0.12))
+            )
+            .foregroundColor(color)
     }
     
     // MARK: - Actions

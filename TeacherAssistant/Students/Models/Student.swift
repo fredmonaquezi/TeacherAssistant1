@@ -34,6 +34,18 @@ class Student {
     
     @Relationship(deleteRule: .cascade)
     var runningRecords: [RunningRecord] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \StudentAssignment.student)
+    var assignmentEntries: [StudentAssignment] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \Intervention.student)
+    var interventions: [Intervention] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \ParticipationEvent.student)
+    var participationEvents: [ParticipationEvent] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \BehaviorSupportEvent.student)
+    var behaviorSupportEvents: [BehaviorSupportEvent] = []
     
     // Computed property for easier access
     var genderEnum: StudentGender {

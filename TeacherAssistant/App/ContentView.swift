@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 #if os(macOS)
 import AppKit
 import Combine
@@ -6,7 +7,7 @@ import Combine
 import UIKit
 #endif
 
-enum AppSection: String, CaseIterable, Identifiable {
+enum AppSection: String, CaseIterable, Identifiable, Codable {
     case dashboard = "Dashboard"
     case classes = "Classes"
     case library = "Library"
@@ -53,15 +54,22 @@ struct ContentView: View {
     @AppStorage(AppPreferencesKeys.defaultLandingSection) private var defaultLandingSectionRawValue: String = AppSection.dashboard.rawValue
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Query private var allAssessments: [Assessment]
+    @Query private var allAssignments: [Assignment]
+    @Query private var allInterventions: [Intervention]
+    @Query private var allStudents: [Student]
     @State private var selectedSection: AppSection?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var navigationStackResetID = UUID()
     @State private var appViewResetID = UUID()
     @StateObject private var macNavigationState = MacNavigationState()
     @State private var saveFailureMessage: String?
+    @State private var activeNotificationRoute: AttentionNotificationRoute?
+    @State private var handledAttentionMutationIDs: Set<UUID> = []
     
     @StateObject var timerManager = ClassroomTimerManager()
     @StateObject var backupReminderManager = BackupReminderManager()
+    @StateObject private var attentionNotificationManager = AttentionNotificationManager.shared
     
     @EnvironmentObject var languageManager: LanguageManager
 
@@ -103,8 +111,17 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .persistenceSaveFailed)) { notification in
             handlePersistenceSaveFailed(notification)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .attentionNotificationRouteRequested)) { notification in
+            handleAttentionNotificationRoute(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .attentionNotificationMutationRequested)) { notification in
+            handleAttentionNotificationMutation(notification)
+        }
         .onChange(of: scenePhase) { _, newValue in
             handleScenePhaseChanged(newValue)
+        }
+        .onChange(of: allInterventions.count) { _, _ in
+            handlePendingAttentionNotificationMutationIfNeeded()
         }
         .onChange(of: defaultLandingSectionRawValue) { _, newValue in
             if selectedSection == nil {
@@ -127,6 +144,12 @@ struct ContentView: View {
             Button("OK".localized, role: .cancel) { }
         } message: {
             Text(saveFailureMessage ?? "")
+        }
+        .sheet(item: $activeNotificationRoute) { route in
+            notificationDestinationSheet(for: route)
+        }
+        .task {
+            handlePendingAttentionNotificationMutationIfNeeded()
         }
     }
     
@@ -162,7 +185,7 @@ struct ContentView: View {
             )
 
             NavigationStack {
-                detailView
+                detailContainer
             }
             .id(navigationStackResetID)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -210,7 +233,7 @@ struct ContentView: View {
             }
             .navigationTitle(languageManager.localized("Teacher Assistant"))
         } detail: {
-            detailView
+            detailContainer
         }
         .onChange(of: selectedSection) { _, _ in
             columnVisibility = .detailOnly
@@ -231,6 +254,14 @@ struct ContentView: View {
             backupReminderManager: backupReminderManager,
             selectedSection: $selectedSection
         )
+    }
+
+    private var detailContainer: some View {
+        VStack(spacing: 0) {
+            AttentionNotificationScheduler(notificationManager: attentionNotificationManager)
+            AttentionReminderBanner(selectedSection: $selectedSection)
+            detailView
+        }
     }
 
     // MARK: - Sidebar Navigation
@@ -283,6 +314,165 @@ struct ContentView: View {
         }
     }
 
+    private func handleAttentionNotificationRoute(_ notification: Notification) {
+        let route = notification.userInfo?["route"] as? AttentionNotificationRoute
+        let rawValue = notification.userInfo?["routeSection"] as? String
+        let section = route?.section ?? AppSection.availableSection(from: rawValue)
+        selectedSection = section
+        navigationStackResetID = UUID()
+        #if os(macOS)
+        macNavigationState.reset()
+        #endif
+        activeNotificationRoute = route
+    }
+
+    private func handleAttentionNotificationMutation(_ notification: Notification) {
+        guard let request = notification.userInfo?["mutationRequest"] as? AttentionNotificationMutationRequest else { return }
+        applyAttentionMutation(request)
+    }
+
+    private func handlePendingAttentionNotificationMutationIfNeeded() {
+        guard let request = attentionNotificationManager.consumePendingMutationRequest() else { return }
+        applyAttentionMutation(request)
+    }
+
+    private func applyAttentionMutation(_ request: AttentionNotificationMutationRequest) {
+        guard handledAttentionMutationIDs.insert(request.id).inserted else { return }
+
+        switch request.action {
+        case .reviewAssignmentForToday:
+            guard let assignmentID = request.route.assignmentID else {
+                handledAttentionMutationIDs.remove(request.id)
+                return
+            }
+
+            attentionNotificationManager.clearPendingMutationRequest()
+            AttentionAssignmentReviewStore.markReviewedToday(assignmentID: assignmentID)
+
+        case .markFollowUpInProgress, .resolveFollowUp:
+            guard let interventionID = request.route.interventionID,
+                  let intervention = allInterventions.first(where: { $0.id == interventionID }) else {
+                handledAttentionMutationIDs.remove(request.id)
+                return
+            }
+
+            attentionNotificationManager.clearPendingMutationRequest()
+
+            Task {
+                await PersistenceWriteCoordinator.shared.perform(
+                    context: modelContext,
+                    reason: attentionMutationReason(for: request.action)
+                ) {
+                    switch request.action {
+                    case .markFollowUpInProgress:
+                        intervention.status = .inProgress
+                        intervention.updatedAt = Date()
+                    case .resolveFollowUp:
+                        intervention.status = .resolved
+                        intervention.followUpDate = nil
+                        intervention.updatedAt = Date()
+                    case .reviewAssignmentForToday:
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    private func attentionMutationReason(for action: AttentionNotificationMutationAction) -> String {
+        switch action {
+        case .markFollowUpInProgress:
+            return "Notification follow-up marked in progress"
+        case .resolveFollowUp:
+            return "Notification follow-up resolved"
+        case .reviewAssignmentForToday:
+            return "Assignment reminder reviewed for today"
+        }
+    }
+
+    @ViewBuilder
+    private func notificationDestinationSheet(for route: AttentionNotificationRoute) -> some View {
+        switch route.destinationKind {
+        case .assessment:
+            if let assessment = resolvedAssessment(for: route) {
+                NavigationStack {
+                    AssessmentDetailView(assessment: assessment)
+                }
+            } else {
+                unresolvedRouteView
+            }
+        case .assignment:
+            if let assignment = resolvedAssignment(for: route) {
+                NavigationStack {
+                    AssignmentDetailView(assignment: assignment)
+                }
+            } else {
+                unresolvedRouteView
+            }
+        case .studentOverview:
+            if let student = resolvedStudent(for: route) {
+                NavigationStack {
+                    StudentDetailView(student: student)
+                }
+            } else {
+                unresolvedRouteView
+            }
+        case .studentFollowUp:
+            if let student = resolvedStudent(for: route) {
+                NavigationStack {
+                    StudentDetailView(student: student, initiallyShowingInterventions: true)
+                }
+            } else {
+                unresolvedRouteView
+            }
+        }
+    }
+
+    private var unresolvedRouteView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 34))
+                .foregroundColor(.orange)
+
+            Text("Item Not Found".localized)
+                .font(.headline)
+
+            Text("The linked item could not be opened. It may have been deleted or changed since the reminder was scheduled.".localized)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(minWidth: 320, minHeight: 220)
+    }
+
+    private func resolvedAssessment(for route: AttentionNotificationRoute) -> Assessment? {
+        allAssessments.first { assessment in
+            guard assessment.title == route.assessmentTitle else { return false }
+
+            if let routeDate = route.assessmentDate,
+               !Calendar.current.isDate(assessment.date, inSameDayAs: routeDate) {
+                return false
+            }
+
+            if let routeUnitID = route.unitID {
+                return assessment.unit?.id == routeUnitID
+            }
+
+            return true
+        }
+    }
+
+    private func resolvedAssignment(for route: AttentionNotificationRoute) -> Assignment? {
+        guard let assignmentID = route.assignmentID else { return nil }
+        return allAssignments.first { $0.id == assignmentID }
+    }
+
+    private func resolvedStudent(for route: AttentionNotificationRoute) -> Student? {
+        guard let studentUUID = route.studentUUID else { return nil }
+        return allStudents.first { $0.uuid == studentUUID }
+    }
+
     private func handleScenePhaseChanged(_ newPhase: ScenePhase) {
         switch newPhase {
         case .inactive:
@@ -296,7 +486,7 @@ struct ContentView: View {
                 trigger: "scene-background"
             )
         case .active:
-            break
+            handlePendingAttentionNotificationMutationIfNeeded()
         @unknown default:
             break
         }

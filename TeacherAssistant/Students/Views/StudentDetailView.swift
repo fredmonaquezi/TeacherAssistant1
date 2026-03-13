@@ -10,6 +10,7 @@ struct StudentDetailView: View {
     @State private var selectedUnitForEvaluation: Unit?
     @State private var isEditingInfo = false
     @State private var showingDevelopmentTracker = false  // ← ADD THIS
+    @State private var showingInterventions = false
     @State private var derivedData: StudentDetailDerivedData = .empty
     @State private var saveRefreshRevision = 0
     
@@ -18,6 +19,11 @@ struct StudentDetailView: View {
     @Query var allScores: [DevelopmentScore]
     
     @EnvironmentObject var languageManager: LanguageManager
+
+    init(student: Student, initiallyShowingInterventions: Bool = false) {
+        self.student = student
+        _showingInterventions = State(initialValue: initiallyShowingInterventions)
+    }
     
     // MARK: - Computed Data
     
@@ -95,6 +101,8 @@ struct StudentDetailView: View {
                 // MARK: - Actions
                 actionsSection
 
+                interventionSummarySection
+
                 // MARK: - Development Tracking
                 developmentTrackingSection
 
@@ -122,6 +130,9 @@ struct StudentDetailView: View {
         }
         .sheet(isPresented: $showingSubjectPicker) {
             subjectPickerSheet
+        }
+        .sheet(isPresented: $showingInterventions) {
+            StudentInterventionsSheet(student: student)
         }
         .sheet(item: $selectedSubject) { subject in
             unitPickerSheet(for: subject)
@@ -539,6 +550,67 @@ struct StudentDetailView: View {
                     .cornerRadius(10)
             }
             .buttonStyle(.plain)
+
+            Button {
+                showingInterventions = true
+            } label: {
+                Label("Manage Interventions".localized, systemImage: "cross.case.fill")
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.orange.opacity(0.16))
+                    .foregroundColor(.orange)
+                    .cornerRadius(10)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal)
+    }
+
+    var interventionSummarySection: some View {
+        let orderedInterventions = student.interventions.sorted { lhs, rhs in
+            lhs.updatedAt > rhs.updatedAt
+        }
+        let activeCount = orderedInterventions.filter { $0.status != .resolved }.count
+        let resolvedCount = orderedInterventions.filter { $0.status == .resolved }.count
+        let overdueCount = orderedInterventions.filter(\.needsFollowUp).count
+
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "cross.case.fill")
+                    .foregroundColor(.orange)
+                Text("Support Tracking".localized)
+                    .font(.headline)
+
+                Spacer()
+
+                Button("Open".localized) {
+                    showingInterventions = true
+                }
+                .font(.caption.weight(.semibold))
+            }
+
+            HStack(spacing: 12) {
+                statCard(
+                    title: "Active".localized,
+                    value: "\(activeCount)",
+                    icon: "exclamationmark.circle.fill",
+                    color: activeCount > 0 ? .orange : .green
+                )
+
+                statCard(
+                    title: "Follow-Up".localized,
+                    value: "\(overdueCount)",
+                    icon: "calendar.badge.exclamationmark",
+                    color: overdueCount > 0 ? .red : .green
+                )
+
+                statCard(
+                    title: "Resolved".localized,
+                    value: "\(resolvedCount)",
+                    icon: "checkmark.seal.fill",
+                    color: .green
+                )
+            }
         }
         .padding(.horizontal)
     }

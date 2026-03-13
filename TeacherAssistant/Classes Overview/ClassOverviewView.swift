@@ -10,6 +10,9 @@ struct ClassOverviewView: View {
     @Query private var allScores: [DevelopmentScore]
     
     @State private var selectedSubject: Subject?
+    @State private var exportURL: URL?
+    @State private var showingEmptyExportAlert = false
+    @State private var showingExportFailedAlert = false
     
     var students: [Student] {
         schoolClass.students.sorted { $0.sortOrder < $1.sortOrder }
@@ -74,6 +77,16 @@ struct ClassOverviewView: View {
         let sum = classScores.reduce(0.0) { $0 + Double($1.rating) }
         return sum / Double(classScores.count)
     }
+
+    var gradingStatusSummary: ClassGradingStatusSummary {
+        ClassGradingStatusSummary(
+            totalCount: filteredResults.count,
+            scoredCount: filteredResults.filter(\.isScored).count,
+            resolvedCount: filteredResults.filter(\.isResolved).count,
+            absentCount: filteredResults.filter { $0.status == .absent }.count,
+            excusedCount: filteredResults.filter { $0.status == .excused }.count
+        )
+    }
     
     var topPerformers: [(student: Student, average: Double)] {
         students.compactMap { student in
@@ -87,28 +100,70 @@ struct ClassOverviewView: View {
         .map { $0 }
     }
     
-    var studentsNeedingAttention: [(student: Student, average: Double, flags: [String])] {
+    var studentsNeedingAttention: [ClassWatchlistItem] {
         students.compactMap { student in
             let studentResults = scoredFilteredResults.filter { $0.student?.id == student.id }
-            guard !studentResults.isEmpty else { return nil }
-            let avg = studentResults.averagePercent
-            
-            guard avg < AssessmentPercentMetrics.satisfactoryThresholdPercent else { return nil }
-            
             var flags: [String] = []
+            let average = studentResults.isEmpty ? nil : studentResults.averagePercent
+
+            if let average, average < AssessmentPercentMetrics.satisfactoryThresholdPercent {
+                flags.append("Low Average".localized)
+            }
             if student.needsHelp { flags.append("Needs Help".localized) }
             if student.missingHomework { flags.append("Missing HW".localized) }
-            
+
             let studentAttendance = allAttendanceSessions
                 .flatMap { $0.records }
                 .filter { $0.student?.id == student.id }
-            
-            let absentCount = studentAttendance.filter { $0.status == .absent }.count
-            if absentCount > 3 { flags.append("Absent often".localized) }
-            
-            return (student, avg, flags)
+            if !studentAttendance.isEmpty {
+                let presentCount = studentAttendance.filter { $0.status == .present }.count
+                let attendanceRate = (Double(presentCount) / Double(studentAttendance.count)) * 100
+                if attendanceRate < 90 {
+                    flags.append("Low Attendance".localized)
+                }
+            }
+
+            let missingAssignments = student.assignmentEntries.filter { entry in
+                guard let assignment = entry.assignment else { return false }
+                return entry.trackingState(relativeTo: assignment.dueDate) == .missing
+            }.count
+            if missingAssignments > 0 {
+                flags.append(String(format: "%d missing work".localized, missingAssignments))
+            }
+
+            let activeInterventions = student.interventions.filter { $0.status != .resolved }.count
+            if activeInterventions > 0 {
+                flags.append(String(format: "%d active plans".localized, activeInterventions))
+            }
+
+            guard !flags.isEmpty else { return nil }
+
+            return ClassWatchlistItem(
+                student: student,
+                average: average,
+                flags: flags,
+                activeInterventions: activeInterventions,
+                missingAssignments: missingAssignments
+            )
         }
-        .sorted { $0.average < $1.average }
+        .sorted { lhs, rhs in
+            if lhs.activeInterventions != rhs.activeInterventions {
+                return lhs.activeInterventions > rhs.activeInterventions
+            }
+            if lhs.missingAssignments != rhs.missingAssignments {
+                return lhs.missingAssignments > rhs.missingAssignments
+            }
+            switch (lhs.average, rhs.average) {
+            case let (lhsAverage?, rhsAverage?):
+                return lhsAverage < rhsAverage
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            case (.none, .none):
+                return lhs.student.name.localizedCaseInsensitiveCompare(rhs.student.name) == .orderedAscending
+            }
+        }
     }
     
     var gradeDistribution: (excellent: Int, good: Int, needsWork: Int) {
@@ -139,6 +194,9 @@ struct ClassOverviewView: View {
                 
                 // Key Stats Cards
                 keyStatsSection
+
+                // Grading Status
+                gradingStatusSection
                 
                 // Performance Distribution
                 distributionSection
@@ -162,6 +220,35 @@ struct ClassOverviewView: View {
         #if !os(macOS)
         .navigationTitle(String(format: "Gradebook - %@".localized, schoolClass.name))
         #endif
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    exportCSV()
+                } label: {
+                    Label("Export CSV", systemImage: "square.and.arrow.up")
+                }
+            }
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { exportURL != nil },
+                set: { if !$0 { exportURL = nil } }
+            )
+        ) {
+            if let url = exportURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+        .alert("Nothing to Export", isPresented: $showingEmptyExportAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("There are no students available for this export.")
+        }
+        .alert("Export Failed", isPresented: $showingExportFailedAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("The export file could not be created. Please try again.")
+        }
         .macNavigationDepth()
     }
     
@@ -241,7 +328,47 @@ struct ClassOverviewView: View {
             }
         }
     }
-    
+
+    var gradingStatusSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Grading Status".localized)
+                .font(.headline)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 12)], spacing: 12) {
+                statusCard(
+                    title: "Scored".localized,
+                    value: "\(gradingStatusSummary.scoredCount)",
+                    icon: "number.circle.fill",
+                    color: .blue
+                )
+
+                statusCard(
+                    title: "Pending".localized,
+                    value: "\(gradingStatusSummary.pendingCount)",
+                    icon: "tray.full.fill",
+                    color: gradingStatusSummary.pendingCount > 0 ? .orange : .green
+                )
+
+                statusCard(
+                    title: "Absent".localized,
+                    value: "\(gradingStatusSummary.absentCount)",
+                    icon: "person.crop.circle.badge.xmark",
+                    color: gradingStatusSummary.absentCount > 0 ? .red : .secondary
+                )
+
+                statusCard(
+                    title: "Excused".localized,
+                    value: "\(gradingStatusSummary.excusedCount)",
+                    icon: "checkmark.seal.fill",
+                    color: gradingStatusSummary.excusedCount > 0 ? .teal : .secondary
+                )
+            }
+        }
+        .padding()
+        .background(sectionBackgroundColor)
+        .cornerRadius(12)
+    }
+
     func statCard(title: String, value: String, icon: String, color: Color) -> some View {
         VStack(spacing: 12) {
             Image(systemName: icon)
@@ -257,6 +384,26 @@ struct ClassOverviewView: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .padding()
+        .background(color.opacity(0.1))
+        .cornerRadius(12)
+    }
+
+    func statusCard(title: String, value: String, icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(color)
+
+            Text(value)
+                .font(.title.weight(.bold))
+                .foregroundColor(color)
+
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(color.opacity(0.1))
         .cornerRadius(12)
@@ -396,7 +543,7 @@ struct ClassOverviewView: View {
             HStack {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundColor(.red)
-                Text("Needs Attention".localized)
+                Text("Watchlist".localized)
                     .font(.headline)
                 
                 Spacer()
@@ -408,37 +555,42 @@ struct ClassOverviewView: View {
             
             VStack(spacing: 8) {
                 ForEach(studentsNeedingAttention, id: \.student.id) { item in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.student.name)
-                                .font(.body)
-                                .fontWeight(.medium)
-                            
-                            if !item.flags.isEmpty {
-                                HStack(spacing: 6) {
-                                    ForEach(item.flags, id: \.self) { flag in
-                                        Text(flag)
-                                            .font(.caption)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 2)
-                                            .background(Color.orange.opacity(0.2))
-                                            .foregroundColor(.orange)
-                                            .cornerRadius(4)
+                    NavigationLink {
+                        StudentProgressView(student: item.student)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.student.name)
+                                    .font(.body)
+                                    .fontWeight(.medium)
+
+                                if !item.flags.isEmpty {
+                                    HStack(spacing: 6) {
+                                        ForEach(item.flags, id: \.self) { flag in
+                                            Text(flag)
+                                                .font(.caption)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 2)
+                                                .background(Color.orange.opacity(0.2))
+                                                .foregroundColor(.orange)
+                                                .cornerRadius(4)
+                                        }
                                     }
                                 }
                             }
+                            
+                            Spacer()
+                            
+                            Text(item.average.map { String(format: "%.1f%%", $0) } ?? "—")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(item.average.map(averageColor(_:)) ?? .secondary)
                         }
-                        
-                        Spacer()
-                        
-                        Text(String(format: "%.1f%%", item.average))
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .foregroundColor(averageColor(item.average))
+                        .padding()
+                        .background(Color.red.opacity(0.05))
+                        .cornerRadius(8)
                     }
-                    .padding()
-                    .background(Color.red.opacity(0.05))
-                    .cornerRadius(8)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -521,5 +673,45 @@ struct ClassOverviewView: View {
         #else
         return Color(UIColor.secondarySystemGroupedBackground)
         #endif
+    }
+
+    func exportCSV() {
+        guard !students.isEmpty else {
+            showingEmptyExportAlert = true
+            return
+        }
+
+        guard let url = GradebookExportUtility.exportClassSummaryCSV(
+            schoolClass: schoolClass,
+            students: students,
+            selectedSubject: selectedSubject,
+            filteredResults: filteredResults,
+            allAttendanceSessions: allAttendanceSessions
+        ) else {
+            showingExportFailedAlert = true
+            return
+        }
+
+        exportURL = url
+    }
+}
+
+struct ClassWatchlistItem {
+    let student: Student
+    let average: Double?
+    let flags: [String]
+    let activeInterventions: Int
+    let missingAssignments: Int
+}
+
+struct ClassGradingStatusSummary {
+    let totalCount: Int
+    let scoredCount: Int
+    let resolvedCount: Int
+    let absentCount: Int
+    let excusedCount: Int
+
+    var pendingCount: Int {
+        max(totalCount - resolvedCount, 0)
     }
 }

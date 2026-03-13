@@ -40,6 +40,9 @@ struct BackupClass: Codable {
     var students: [BackupStudent]
     var categories: [BackupAssessmentCategory]
     var attendanceSessions: [BackupAttendanceSession]
+    var seatingChart: BackupSeatingChart?
+    var participationEvents: [BackupParticipationEvent]
+    var behaviorSupportEvents: [BackupBehaviorSupportEvent]
     var subjects: [BackupSubject]
 
     init(
@@ -50,6 +53,9 @@ struct BackupClass: Codable {
         students: [BackupStudent],
         categories: [BackupAssessmentCategory] = [],
         attendanceSessions: [BackupAttendanceSession] = [],
+        seatingChart: BackupSeatingChart? = nil,
+        participationEvents: [BackupParticipationEvent] = [],
+        behaviorSupportEvents: [BackupBehaviorSupportEvent] = [],
         subjects: [BackupSubject]
     ) {
         self.name = name
@@ -59,6 +65,9 @@ struct BackupClass: Codable {
         self.students = students
         self.categories = categories
         self.attendanceSessions = attendanceSessions
+        self.seatingChart = seatingChart
+        self.participationEvents = participationEvents
+        self.behaviorSupportEvents = behaviorSupportEvents
         self.subjects = subjects
     }
 
@@ -70,6 +79,9 @@ struct BackupClass: Codable {
         case students
         case categories
         case attendanceSessions
+        case seatingChart
+        case participationEvents
+        case behaviorSupportEvents
         case subjects
     }
 
@@ -93,8 +105,47 @@ struct BackupClass: Codable {
         students = try container.decodeIfPresent([BackupStudent].self, forKey: .students) ?? []
         categories = try container.decodeIfPresent([BackupAssessmentCategory].self, forKey: .categories) ?? []
         attendanceSessions = try container.decodeIfPresent([BackupAttendanceSession].self, forKey: .attendanceSessions) ?? []
+        seatingChart = try container.decodeIfPresent(BackupSeatingChart.self, forKey: .seatingChart)
+        participationEvents = try container.decodeIfPresent([BackupParticipationEvent].self, forKey: .participationEvents) ?? []
+        behaviorSupportEvents = try container.decodeIfPresent([BackupBehaviorSupportEvent].self, forKey: .behaviorSupportEvents) ?? []
         subjects = try container.decodeIfPresent([BackupSubject].self, forKey: .subjects) ?? []
     }
+}
+
+struct BackupSeatingChart: Codable {
+    var id: UUID
+    var title: String
+    var rows: Int
+    var columns: Int
+    var createdAt: Date
+    var updatedAt: Date
+    var placements: [BackupSeatPlacement]
+}
+
+struct BackupSeatPlacement: Codable {
+    var id: UUID
+    var row: Int
+    var column: Int
+    var studentUUID: UUID?
+    var studentName: String
+}
+
+struct BackupParticipationEvent: Codable {
+    var id: UUID
+    var createdAt: Date
+    var kindRaw: String
+    var note: String
+    var studentUUID: UUID?
+    var studentName: String
+}
+
+struct BackupBehaviorSupportEvent: Codable {
+    var id: UUID
+    var createdAt: Date
+    var kindRaw: String
+    var note: String
+    var studentUUID: UUID?
+    var studentName: String
 }
 
 struct BackupStudent: Codable {
@@ -110,6 +161,7 @@ struct BackupStudent: Codable {
     var missingHomework: Bool
     var separationList: String
     var assessmentScores: [BackupAssessmentScore]
+    var interventions: [BackupInterventionItem]
 
     init(
         uuid: UUID = UUID(),
@@ -123,7 +175,8 @@ struct BackupStudent: Codable {
         needsHelp: Bool,
         missingHomework: Bool,
         separationList: String = "",
-        assessmentScores: [BackupAssessmentScore] = []
+        assessmentScores: [BackupAssessmentScore] = [],
+        interventions: [BackupInterventionItem] = []
     ) {
         self.uuid = uuid
         self.name = name
@@ -137,6 +190,7 @@ struct BackupStudent: Codable {
         self.missingHomework = missingHomework
         self.separationList = separationList
         self.assessmentScores = assessmentScores
+        self.interventions = interventions
     }
 
     enum CodingKeys: String, CodingKey {
@@ -152,6 +206,7 @@ struct BackupStudent: Codable {
         case missingHomework
         case separationList
         case assessmentScores
+        case interventions
     }
 
     init(from decoder: Decoder) throws {
@@ -168,7 +223,19 @@ struct BackupStudent: Codable {
         missingHomework = try container.decodeIfPresent(Bool.self, forKey: .missingHomework) ?? false
         separationList = try container.decodeIfPresent(String.self, forKey: .separationList) ?? ""
         assessmentScores = try container.decodeIfPresent([BackupAssessmentScore].self, forKey: .assessmentScores) ?? []
+        interventions = try container.decodeIfPresent([BackupInterventionItem].self, forKey: .interventions) ?? []
     }
+}
+
+struct BackupInterventionItem: Codable {
+    var id: UUID
+    var title: String
+    var notes: String
+    var categoryRaw: String
+    var statusRaw: String
+    var createdAt: Date
+    var updatedAt: Date
+    var followUpDate: Date?
 }
 
 struct BackupAssessmentScore: Codable {
@@ -209,19 +276,28 @@ struct BackupUnit: Codable {
     var name: String
     var sortOrder: Int
     var assessments: [BackupAssessment]
+    var assignments: [BackupAssignmentItem]
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case sortOrder
         case assessments
+        case assignments
     }
 
-    init(id: UUID = UUID(), name: String, sortOrder: Int, assessments: [BackupAssessment]) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        sortOrder: Int,
+        assessments: [BackupAssessment],
+        assignments: [BackupAssignmentItem] = []
+    ) {
         self.id = id
         self.name = name
         self.sortOrder = sortOrder
         self.assessments = assessments
+        self.assignments = assignments
     }
 
     init(from decoder: Decoder) throws {
@@ -230,6 +306,78 @@ struct BackupUnit: Codable {
         name = try container.decode(String.self, forKey: .name)
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         assessments = try container.decodeIfPresent([BackupAssessment].self, forKey: .assessments) ?? []
+        assignments = try container.decodeIfPresent([BackupAssignmentItem].self, forKey: .assignments) ?? []
+    }
+}
+
+struct BackupAssignmentItem: Codable {
+    var id: UUID
+    var title: String
+    var details: String
+    var dueDate: Date
+    var createdAt: Date
+    var sortOrder: Int
+    var entries: [BackupStudentAssignmentEntry]
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        details: String = "",
+        dueDate: Date = Date(),
+        createdAt: Date = Date(),
+        sortOrder: Int,
+        entries: [BackupStudentAssignmentEntry]
+    ) {
+        self.id = id
+        self.title = title
+        self.details = details
+        self.dueDate = dueDate
+        self.createdAt = createdAt
+        self.sortOrder = sortOrder
+        self.entries = entries
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case details
+        case dueDate
+        case createdAt
+        case sortOrder
+        case entries
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        title = try container.decode(String.self, forKey: .title)
+        details = try container.decodeIfPresent(String.self, forKey: .details) ?? ""
+        dueDate = try container.decodeIfPresent(Date.self, forKey: .dueDate) ?? Date()
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? dueDate
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        entries = try container.decodeIfPresent([BackupStudentAssignmentEntry].self, forKey: .entries) ?? []
+    }
+}
+
+struct BackupStudentAssignmentEntry: Codable {
+    var studentUUID: UUID?
+    var studentName: String
+    var statusRaw: String
+    var submittedAt: Date?
+    var notes: String
+
+    init(
+        studentUUID: UUID? = nil,
+        studentName: String,
+        statusRaw: String,
+        submittedAt: Date? = nil,
+        notes: String = ""
+    ) {
+        self.studentUUID = studentUUID
+        self.studentName = studentName
+        self.statusRaw = statusRaw
+        self.submittedAt = submittedAt
+        self.notes = notes
     }
 }
 
@@ -282,13 +430,22 @@ struct BackupResult: Codable {
     var studentName: String
     var score: Double
     var hasScore: Bool?
+    var statusRaw: String?
     var notes: String
 
-    init(studentUUID: UUID? = nil, studentName: String, score: Double, hasScore: Bool? = nil, notes: String) {
+    init(
+        studentUUID: UUID? = nil,
+        studentName: String,
+        score: Double,
+        hasScore: Bool? = nil,
+        statusRaw: String? = nil,
+        notes: String
+    ) {
         self.studentUUID = studentUUID
         self.studentName = studentName
         self.score = score
         self.hasScore = hasScore
+        self.statusRaw = statusRaw
         self.notes = notes
     }
 }
@@ -361,6 +518,7 @@ struct BackupCalendarEvent: Codable {
     var isAllDay: Bool
     var className: String?
     var classGrade: String?
+    var assignmentID: UUID?
 }
 
 struct BackupClassDiaryEntry: Codable {
@@ -375,6 +533,7 @@ struct BackupClassDiaryEntry: Codable {
     var classGrade: String?
     var subjectID: UUID?
     var unitID: UUID?
+    var assignmentID: UUID?
 }
 
 struct BackupLibraryFolder: Codable {
@@ -405,6 +564,10 @@ struct BackupAppSettings: Codable {
     var dateFormat: String
     var timeFormat: String
     var defaultLandingSection: String
+    var attentionRemindersEnabled: Bool
+    var attentionNotificationsEnabled: Bool
+    var attentionNotificationHour: Int
+    var attentionNotificationMinute: Int
     var timerCustomMinutes: Int
     var timerCustomSeconds: Int
     var timerCustomChecklistText: String
@@ -420,6 +583,10 @@ struct BackupAppSettings: Codable {
         dateFormat: String,
         timeFormat: String,
         defaultLandingSection: String,
+        attentionRemindersEnabled: Bool,
+        attentionNotificationsEnabled: Bool,
+        attentionNotificationHour: Int,
+        attentionNotificationMinute: Int,
         timerCustomMinutes: Int,
         timerCustomSeconds: Int,
         timerCustomChecklistText: String
@@ -434,6 +601,10 @@ struct BackupAppSettings: Codable {
         self.dateFormat = dateFormat
         self.timeFormat = timeFormat
         self.defaultLandingSection = defaultLandingSection
+        self.attentionRemindersEnabled = attentionRemindersEnabled
+        self.attentionNotificationsEnabled = attentionNotificationsEnabled
+        self.attentionNotificationHour = attentionNotificationHour
+        self.attentionNotificationMinute = attentionNotificationMinute
         self.timerCustomMinutes = timerCustomMinutes
         self.timerCustomSeconds = timerCustomSeconds
         self.timerCustomChecklistText = timerCustomChecklistText
@@ -450,6 +621,10 @@ struct BackupAppSettings: Codable {
         case dateFormat
         case timeFormat
         case defaultLandingSection
+        case attentionRemindersEnabled
+        case attentionNotificationsEnabled
+        case attentionNotificationHour
+        case attentionNotificationMinute
         case timerCustomMinutes
         case timerCustomSeconds
         case timerCustomChecklistText
@@ -467,6 +642,10 @@ struct BackupAppSettings: Codable {
         dateFormat = try container.decodeIfPresent(String.self, forKey: .dateFormat) ?? AppDateFormatPreference.system.rawValue
         timeFormat = try container.decodeIfPresent(String.self, forKey: .timeFormat) ?? AppTimeFormatPreference.system.rawValue
         defaultLandingSection = try container.decodeIfPresent(String.self, forKey: .defaultLandingSection) ?? AppSection.dashboard.rawValue
+        attentionRemindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .attentionRemindersEnabled) ?? true
+        attentionNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .attentionNotificationsEnabled) ?? false
+        attentionNotificationHour = try container.decodeIfPresent(Int.self, forKey: .attentionNotificationHour) ?? 7
+        attentionNotificationMinute = try container.decodeIfPresent(Int.self, forKey: .attentionNotificationMinute) ?? 30
         timerCustomMinutes = try container.decodeIfPresent(Int.self, forKey: .timerCustomMinutes) ?? 5
         timerCustomSeconds = try container.decodeIfPresent(Int.self, forKey: .timerCustomSeconds) ?? 0
         timerCustomChecklistText = try container.decodeIfPresent(String.self, forKey: .timerCustomChecklistText) ?? ""

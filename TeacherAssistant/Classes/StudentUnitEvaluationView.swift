@@ -74,17 +74,29 @@ struct StudentUnitEvaluationView: View {
                         .foregroundColor(.secondary)
                     
                     Button {
-                        let finalResult = assessment.ensureCanonicalResult(for: student, context: context)
-                        selectedResult = finalResult
-                    } label: {
-                        HStack {
-                            if let result, result.isScored {
-                                Text("\(Int(result.score))")
-                                    .font(.title)
-                                    .bold()
-                                
-                                Text("– \(labelForScore(Int(result.score)))")
-                                    .foregroundColor(.secondary)
+                            let finalResult = assessment.ensureCanonicalResult(for: student, context: context)
+                            selectedResult = finalResult
+                        } label: {
+                            HStack {
+                            if let result {
+                                switch result.status {
+                                case .scored:
+                                    Text("\(Int(result.score))")
+                                        .font(.title)
+                                        .bold()
+                                    
+                                    Text("– \(labelForScore(Int(result.score)))")
+                                        .foregroundColor(.secondary)
+                                case .absent:
+                                    Text("Absent".localized)
+                                        .foregroundColor(.orange)
+                                case .excused:
+                                    Text("Excused".localized)
+                                        .foregroundColor(.purple)
+                                case .ungraded:
+                                    Text("Not evaluated".localized)
+                                        .foregroundColor(.secondary)
+                                }
                             } else {
                                 Text("Not evaluated".localized)
                                     .foregroundColor(.secondary)

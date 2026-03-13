@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct ClassesView: View {
+    @ObservedObject var timerManager: ClassroomTimerManager
     
     @Environment(\.modelContext) private var context
     @EnvironmentObject var languageManager: LanguageManager
@@ -39,7 +40,10 @@ struct ClassesView: View {
                     ], spacing: 24) {
                         ForEach(classes.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { schoolClass in
                             NavigationLink {
-                                ClassDetailView(schoolClass: schoolClass)
+                                ClassDetailView(
+                                    schoolClass: schoolClass,
+                                    timerManager: timerManager
+                                )
                             } label: {
                                 ClassCardView(schoolClass: schoolClass, onDelete: {
                                     classToDelete = schoolClass
@@ -73,7 +77,10 @@ struct ClassesView: View {
                     ], spacing: 20) {
                         ForEach(classes.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { schoolClass in
                             NavigationLink {
-                                ClassDetailView(schoolClass: schoolClass)
+                                ClassDetailView(
+                                    schoolClass: schoolClass,
+                                    timerManager: timerManager
+                                )
                             } label: {
                                 ClassCardView(schoolClass: schoolClass, onDelete: {
                                     classToDelete = schoolClass

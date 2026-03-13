@@ -69,7 +69,7 @@ struct ScorePickerSheet: View {
         
         return Button {
             studentResult.score = Double(value)
-            studentResult.hasScore = true
+            studentResult.status = .scored
             dismiss()
         } label: {
             HStack(spacing: 16) {

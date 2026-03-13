@@ -207,10 +207,10 @@ struct AssessmentDetailView: View {
                 
                 Spacer()
                 
-                let gradedCount = sortedResults.filter(\.isScored).count
+                let gradedCount = sortedResults.filter(\.isResolved).count
                 let totalCount = sortedResults.count
                 
-                Text("\(gradedCount) / \(totalCount) " + "graded".localized)
+                Text("\(gradedCount) / \(totalCount) " + "resolved".localized)
                     .font(.body)  // ← Changed from .subheadline
                     .foregroundColor(.secondary)
             }
@@ -346,19 +346,19 @@ struct StudentGradeCard: View {
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(scoreColor.opacity(0.3), lineWidth: result.isScored ? 2 : 1)
+                .stroke(scoreColor.opacity(0.3), lineWidth: result.isResolved ? 2 : 1)
         )
     }
     
     @ViewBuilder
     var scoreField: some View {
         HStack(spacing: 10) {
-            Text("Score:".localized)
+            Text("Status:".localized)
                 .font(.body)  // ← Bigger label
                 .foregroundColor(.secondary)
 
             HStack(spacing: 6) {
-                Text(result.isScored ? ScoreEntrySheet.formatScore(result.score) : "—")
+                Text(scoreLabelText)
                     .frame(minWidth: 42, alignment: .trailing)
 
                 Image(systemName: "square.and.pencil")
@@ -369,7 +369,7 @@ struct StudentGradeCard: View {
             .background(Color.gray.opacity(0.1))
             .cornerRadius(6)
             .font(.system(size: 24, weight: .bold))
-            .foregroundColor(result.isScored ? scoreColor : .secondary)
+            .foregroundColor(result.isResolved ? scoreColor : .secondary)
 
             if result.isScored {
                 Text(String(format: "%.1f%%", assessment.scorePercent(result.score)))
@@ -380,8 +380,29 @@ struct StudentGradeCard: View {
     }
     
     var scoreColor: Color {
-        guard result.isScored else { return .gray }
-        return AssessmentPercentMetrics.color(for: assessment.scorePercent(result.score))
+        switch result.status {
+        case .ungraded:
+            return .gray
+        case .scored:
+            return AssessmentPercentMetrics.color(for: assessment.scorePercent(result.score))
+        case .absent:
+            return .orange
+        case .excused:
+            return .purple
+        }
+    }
+
+    var scoreLabelText: String {
+        switch result.status {
+        case .ungraded:
+            return "—"
+        case .scored:
+            return ScoreEntrySheet.formatScore(result.score)
+        case .absent:
+            return "Absent".localized
+        case .excused:
+            return "Excused".localized
+        }
     }
     
     var cardBackgroundColor: Color {

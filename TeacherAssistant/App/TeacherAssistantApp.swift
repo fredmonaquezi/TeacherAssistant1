@@ -6,6 +6,10 @@ struct TeacherAssistantApp: App {
     @StateObject private var languageManager = LanguageManager()
     @StateObject private var bootstrapCoordinator = AppBootstrapCoordinator()
 
+    init() {
+        _ = AttentionNotificationManager.shared
+    }
+
     var body: some Scene {
         WindowGroup {
             rootView

@@ -60,11 +60,11 @@ struct AssessmentCardView: View {
                         .foregroundColor(.secondary)
                 }
 
-                let gradedCount = assessment.results.filter(\.isScored).count
+                let gradedCount = assessment.results.filter(\.isResolved).count
                 let totalCount = assessment.results.count
 
                 statsCard(stackAlignment: .trailing, frameAlignment: .trailing) {
-                    Text("Grades")
+                    Text("Resolved")
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
@@ -83,7 +83,7 @@ struct AssessmentCardView: View {
             
             // Progress bar
             if !assessment.results.isEmpty {
-                let gradedCount = assessment.results.filter(\.isScored).count
+                let gradedCount = assessment.results.filter(\.isResolved).count
                 let totalCount = assessment.results.count
                 let progress = totalCount > 0 ? Double(gradedCount) / Double(totalCount) : 0
                 

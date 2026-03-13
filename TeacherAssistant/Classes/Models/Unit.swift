@@ -11,6 +11,9 @@ class Unit: Hashable {
     
     @Relationship(deleteRule: .cascade, inverse: \Assessment.unit)
     var assessments: [Assessment] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \Assignment.unit)
+    var assignments: [Assignment] = []
     
     @Relationship(deleteRule: .nullify)
     var linkedFiles: [LibraryFile] = []  // ← ADD THIS

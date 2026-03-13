@@ -17,6 +17,15 @@ class SchoolClass {
     
     @Relationship(deleteRule: .cascade, inverse: \Subject.schoolClass)
     var subjects: [Subject] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \SeatingChart.schoolClass)
+    var seatingChart: SeatingChart?
+
+    @Relationship(deleteRule: .cascade, inverse: \ParticipationEvent.schoolClass)
+    var participationEvents: [ParticipationEvent] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \BehaviorSupportEvent.schoolClass)
+    var behaviorSupportEvents: [BehaviorSupportEvent] = []
     
     var sortOrder: Int
     
@@ -28,7 +37,10 @@ class SchoolClass {
         students: [Student] = [],
         categories: [AssessmentCategory] = [],
         attendanceSessions: [AttendanceSession] = [],
-        subjects: [Subject] = []
+        subjects: [Subject] = [],
+        seatingChart: SeatingChart? = nil,
+        participationEvents: [ParticipationEvent] = [],
+        behaviorSupportEvents: [BehaviorSupportEvent] = []
     ) {
         self.name = name
         self.grade = grade
@@ -37,6 +49,9 @@ class SchoolClass {
         self.categories = categories
         self.attendanceSessions = attendanceSessions
         self.subjects = subjects
+        self.seatingChart = seatingChart
+        self.participationEvents = participationEvents
+        self.behaviorSupportEvents = behaviorSupportEvents
         self.sortOrder = sortOrder
     }
 }

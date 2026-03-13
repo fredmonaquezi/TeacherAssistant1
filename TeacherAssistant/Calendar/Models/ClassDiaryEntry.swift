@@ -14,6 +14,7 @@ class ClassDiaryEntry {
     var schoolClass: SchoolClass?
     var subject: Subject?
     var unit: Unit?
+    var assignment: Assignment?
 
     init(
         date: Date,
@@ -25,7 +26,8 @@ class ClassDiaryEntry {
         notes: String = "",
         schoolClass: SchoolClass? = nil,
         subject: Subject? = nil,
-        unit: Unit? = nil
+        unit: Unit? = nil,
+        assignment: Assignment? = nil
     ) {
         self.date = date
         self.startTime = startTime
@@ -37,5 +39,6 @@ class ClassDiaryEntry {
         self.schoolClass = schoolClass
         self.subject = subject
         self.unit = unit
+        self.assignment = assignment
     }
 }

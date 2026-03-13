@@ -4,6 +4,11 @@ enum AppPreferencesKeys {
     static let dateFormat = "preferences.dateFormat"
     static let timeFormat = "preferences.timeFormat"
     static let defaultLandingSection = "preferences.defaultLandingSection"
+    static let attentionRemindersEnabled = "preferences.attentionRemindersEnabled"
+    static let attentionRemindersLastDismissedDay = "preferences.attentionRemindersLastDismissedDay"
+    static let attentionNotificationsEnabled = "preferences.attentionNotificationsEnabled"
+    static let attentionNotificationHour = "preferences.attentionNotificationHour"
+    static let attentionNotificationMinute = "preferences.attentionNotificationMinute"
     static let offDeviceBackupBookmark = "preferences.offDeviceBackupBookmark"
     static let offDeviceBackupPath = "preferences.offDeviceBackupPath"
 }

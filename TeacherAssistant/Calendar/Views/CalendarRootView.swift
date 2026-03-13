@@ -477,6 +477,7 @@ struct DiaryEntryEditor: View {
     @State private var selectedClassID: PersistentIdentifier?
     @State private var selectedSubject: Subject?
     @State private var selectedUnit: Unit?
+    @State private var selectedAssignmentID: UUID?
 
     @State private var startTime: Date = Date()
     @State private var endTime: Date = Date()
@@ -524,7 +525,8 @@ struct DiaryEntryEditor: View {
                             notes: SecurityHelpers.sanitizeNotes(notes),
                             schoolClass: selectedClassObject,
                             subject: selectedSubject,
-                            unit: selectedUnit
+                            unit: selectedUnit,
+                            assignment: selectedAssignmentObject
                         )
                         onSave(entry)
                         dismiss()
@@ -540,9 +542,20 @@ struct DiaryEntryEditor: View {
         .onChange(of: selectedClassID) { _, _ in
             selectedSubject = nil
             selectedUnit = nil
+            if !assignmentsForSelection.contains(where: { $0.id == selectedAssignmentID }) {
+                selectedAssignmentID = nil
+            }
         }
         .onChange(of: selectedSubject) { _, _ in
             selectedUnit = nil
+            if !assignmentsForSelection.contains(where: { $0.id == selectedAssignmentID }) {
+                selectedAssignmentID = nil
+            }
+        }
+        .onChange(of: selectedUnit) { _, _ in
+            if !assignmentsForSelection.contains(where: { $0.id == selectedAssignmentID }) {
+                selectedAssignmentID = nil
+            }
         }
     }
 
@@ -552,6 +565,34 @@ struct DiaryEntryEditor: View {
 
     var unitsForSelectedSubject: [Unit] {
         selectedSubject?.units.sorted { $0.sortOrder < $1.sortOrder } ?? []
+    }
+
+    var assignmentsForSelection: [Assignment] {
+        let scopedAssignments: [Assignment]
+        if let selectedUnit {
+            scopedAssignments = selectedUnit.assignments
+        } else if let selectedClassObject {
+            scopedAssignments = selectedClassObject.subjects.flatMap { subject in
+                subject.units.flatMap(\.assignments)
+            }
+        } else {
+            scopedAssignments = []
+        }
+
+        return scopedAssignments.sorted { lhs, rhs in
+            if lhs.dueDate != rhs.dueDate {
+                return lhs.dueDate < rhs.dueDate
+            }
+            if lhs.sortOrder != rhs.sortOrder {
+                return lhs.sortOrder < rhs.sortOrder
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+    }
+
+    var selectedAssignmentObject: Assignment? {
+        guard let selectedAssignmentID else { return nil }
+        return assignmentsForSelection.first(where: { $0.id == selectedAssignmentID })
     }
 
     var headerCard: some View {
@@ -621,6 +662,16 @@ struct DiaryEntryEditor: View {
                     Text("None".localized).tag(Unit?.none)
                     ForEach(unitsForSelectedSubject, id: \.id) { unit in
                         Text(unit.name).tag(Optional(unit))
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            pickerRow(label: "Assignment".localized) {
+                Picker("Assignment".localized, selection: $selectedAssignmentID) {
+                    Text("None".localized).tag(UUID?.none)
+                    ForEach(assignmentsForSelection, id: \.id) { assignment in
+                        Text(assignmentPickerLabel(for: assignment)).tag(UUID?.some(assignment.id))
                     }
                 }
                 .pickerStyle(.menu)
@@ -698,6 +749,11 @@ struct DiaryEntryEditor: View {
         date.appDateString(systemStyle: .full)
     }
 
+    func assignmentPickerLabel(for assignment: Assignment) -> String {
+        let unitName = assignment.unit?.name ?? ""
+        return unitName.isEmpty ? assignment.title : "\(assignment.title) • \(unitName)"
+    }
+
     func merge(date: Date, time: Date) -> Date {
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: time)
@@ -723,12 +779,35 @@ struct EventEditor: View {
     @State private var details = ""
     @State private var isAllDay = true
     @State private var selectedClassID: PersistentIdentifier?
+    @State private var selectedAssignmentID: UUID?
     @State private var startTime: Date = Date()
     @State private var endTime: Date = Date()
     
     private var selectedClassObject: SchoolClass? {
         guard let selectedClassID else { return nil }
         return classes.first(where: { $0.persistentModelID == selectedClassID })
+    }
+
+    private var assignmentsForSelectedClass: [Assignment] {
+        guard let selectedClassObject else { return [] }
+        return selectedClassObject.subjects
+            .flatMap { subject in
+                subject.units.flatMap(\.assignments)
+            }
+            .sorted { lhs, rhs in
+                if lhs.dueDate != rhs.dueDate {
+                    return lhs.dueDate < rhs.dueDate
+                }
+                if lhs.sortOrder != rhs.sortOrder {
+                    return lhs.sortOrder < rhs.sortOrder
+                }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+    }
+
+    private var selectedAssignmentObject: Assignment? {
+        guard let selectedAssignmentID else { return nil }
+        return assignmentsForSelectedClass.first(where: { $0.id == selectedAssignmentID })
     }
 
     var body: some View {
@@ -757,7 +836,8 @@ struct EventEditor: View {
                             endTime: isAllDay ? nil : merge(date: date, time: endTime),
                             details: SecurityHelpers.sanitizeNotes(details),
                             isAllDay: isAllDay,
-                            schoolClass: selectedClassObject
+                            schoolClass: selectedClassObject,
+                            assignment: selectedAssignmentObject
                         )
                         onSave(event)
                         dismiss()
@@ -770,6 +850,11 @@ struct EventEditor: View {
             selectedClassID = selectedClass?.persistentModelID
             startTime = merge(date: date, time: defaultTime(hour: 8, minute: 30))
             endTime = merge(date: date, time: defaultTime(hour: 9, minute: 30))
+        }
+        .onChange(of: selectedClassID) { _, _ in
+            if !assignmentsForSelectedClass.contains(where: { $0.id == selectedAssignmentID }) {
+                selectedAssignmentID = nil
+            }
         }
     }
 
@@ -865,6 +950,21 @@ struct EventEditor: View {
                 .pickerStyle(.menu)
                 Spacer()
             }
+
+            HStack(spacing: 12) {
+                Text("Assignment".localized)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .frame(width: 70, alignment: .leading)
+                Picker("Assignment".localized, selection: $selectedAssignmentID) {
+                    Text("None".localized).tag(UUID?.none)
+                    ForEach(assignmentsForSelectedClass, id: \.id) { assignment in
+                        Text(assignmentPickerLabel(for: assignment)).tag(UUID?.some(assignment.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                Spacer()
+            }
         }
         .padding()
         .appCardStyle(
@@ -904,6 +1004,11 @@ struct EventEditor: View {
 
     func longDate(_ date: Date) -> String {
         date.appDateString(systemStyle: .full)
+    }
+
+    func assignmentPickerLabel(for assignment: Assignment) -> String {
+        let unitName = assignment.unit?.name ?? ""
+        return unitName.isEmpty ? assignment.title : "\(assignment.title) • \(unitName)"
     }
 
     func merge(date: Date, time: Date) -> Date {

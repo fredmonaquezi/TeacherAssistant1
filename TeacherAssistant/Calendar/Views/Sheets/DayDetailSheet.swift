@@ -205,6 +205,9 @@ struct DayDetailSheet: View {
                         if let unit = entry.unit {
                             tag(unit.name, color: .blue.opacity(0.7))
                         }
+                        if let assignment = entry.assignment {
+                            tag(assignment.title, color: .teal)
+                        }
                     }
                 }
                 Spacer()
@@ -275,8 +278,13 @@ struct DayDetailSheet: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
 
-            if let schoolClass = event.schoolClass {
-                tag(schoolClass.name, color: .orange)
+            HStack(spacing: 6) {
+                if let schoolClass = event.schoolClass {
+                    tag(schoolClass.name, color: .orange)
+                }
+                if let assignment = event.assignment {
+                    tag(assignment.title, color: .teal)
+                }
             }
 
             if !event.details.isEmpty {

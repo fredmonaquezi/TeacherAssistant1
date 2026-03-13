@@ -2,7 +2,7 @@ import SwiftData
 import Foundation
 
 /// Current backup schema version for compatibility checking
-private let currentBackupSchemaVersion = 6
+private let currentBackupSchemaVersion = 12
 
 extension Notification.Name {
     static let backupRestoreDidComplete = Notification.Name("BackupRestoreDidComplete")
@@ -198,6 +198,18 @@ final class BackupManager {
                             BackupAssessmentScore(
                                 value: SecurityHelpers.validateCount(score.value, min: 0, max: 10)
                             )
+                        },
+                        interventions: s.interventions.map { intervention in
+                            BackupInterventionItem(
+                                id: intervention.id,
+                                title: intervention.title,
+                                notes: SecurityHelpers.sanitizeNotes(intervention.notes),
+                                categoryRaw: intervention.category.rawValue,
+                                statusRaw: intervention.status.rawValue,
+                                createdAt: intervention.createdAt,
+                                updatedAt: intervention.updatedAt,
+                                followUpDate: intervention.followUpDate
+                            )
                         }
                     )
                 )
@@ -224,6 +236,59 @@ final class BackupManager {
                     }
                 )
             }
+
+            let backupSeatingChart = schoolClass.seatingChart.map { chart in
+                BackupSeatingChart(
+                    id: chart.id,
+                    title: chart.title,
+                    rows: SecurityHelpers.validateCount(chart.rows, min: 1, max: 20),
+                    columns: SecurityHelpers.validateCount(chart.columns, min: 1, max: 20),
+                    createdAt: chart.createdAt,
+                    updatedAt: chart.updatedAt,
+                    placements: chart.placements
+                        .sorted {
+                            if $0.row != $1.row {
+                                return $0.row < $1.row
+                            }
+                            return $0.column < $1.column
+                        }
+                        .map { placement in
+                            BackupSeatPlacement(
+                                id: placement.id,
+                                row: SecurityHelpers.validateCount(placement.row, min: 0, max: 100),
+                                column: SecurityHelpers.validateCount(placement.column, min: 0, max: 100),
+                                studentUUID: placement.studentUUID,
+                                studentName: placement.studentNameSnapshot
+                            )
+                        }
+                )
+            }
+
+            let backupParticipationEvents = schoolClass.participationEvents
+                .sorted { $0.createdAt > $1.createdAt }
+                .map { event in
+                    BackupParticipationEvent(
+                        id: event.id,
+                        createdAt: event.createdAt,
+                        kindRaw: event.kind.rawValue,
+                        note: SecurityHelpers.sanitizeNotes(event.note),
+                        studentUUID: event.studentUUID,
+                        studentName: event.studentNameSnapshot
+                    )
+                }
+
+            let backupBehaviorSupportEvents = schoolClass.behaviorSupportEvents
+                .sorted { $0.createdAt > $1.createdAt }
+                .map { event in
+                    BackupBehaviorSupportEvent(
+                        id: event.id,
+                        createdAt: event.createdAt,
+                        kindRaw: event.kind.rawValue,
+                        note: SecurityHelpers.sanitizeNotes(event.note),
+                        studentUUID: event.studentUUID,
+                        studentName: event.studentNameSnapshot
+                    )
+                }
             
             var backupSubjects: [BackupSubject] = []
             
@@ -232,6 +297,7 @@ final class BackupManager {
                 
                 for unit in subject.units {
                     var backupAssessments: [BackupAssessment] = []
+                    var backupAssignments: [BackupAssignmentItem] = []
                     
                     for assessment in unit.assessments {
                         var backupResults: [BackupResult] = []
@@ -247,6 +313,7 @@ final class BackupManager {
                                         max: assessment.safeMaxScore
                                     ),
                                     hasScore: result.isScored,
+                                    statusRaw: result.status.rawValue,
                                     notes: SecurityHelpers.sanitizeNotes(result.notes)
                                 )
                             )
@@ -265,13 +332,38 @@ final class BackupManager {
                             )
                         )
                     }
+
+                    for assignment in unit.assignments {
+                        let backupEntries = assignment.entries.map { entry in
+                            BackupStudentAssignmentEntry(
+                                studentUUID: entry.student?.uuid,
+                                studentName: entry.student?.name ?? "",
+                                statusRaw: entry.status.rawValue,
+                                submittedAt: entry.submittedAt,
+                                notes: SecurityHelpers.sanitizeNotes(entry.notes)
+                            )
+                        }
+
+                        backupAssignments.append(
+                            BackupAssignmentItem(
+                                id: assignment.id,
+                                title: assignment.title,
+                                details: SecurityHelpers.sanitizeNotes(assignment.details),
+                                dueDate: assignment.dueDate,
+                                createdAt: assignment.createdAt,
+                                sortOrder: SecurityHelpers.validateCount(assignment.sortOrder, min: 0, max: 10000),
+                                entries: backupEntries
+                            )
+                        )
+                    }
                     
                     backupUnits.append(
                         BackupUnit(
                             id: unit.id,
                             name: unit.name,
                             sortOrder: SecurityHelpers.validateCount(unit.sortOrder, min: 0, max: 10000),
-                            assessments: backupAssessments
+                            assessments: backupAssessments,
+                            assignments: backupAssignments
                         )
                     )
                 }
@@ -295,6 +387,9 @@ final class BackupManager {
                     students: backupStudents,
                     categories: backupCategories,
                     attendanceSessions: backupAttendanceSessions,
+                    seatingChart: backupSeatingChart,
+                    participationEvents: backupParticipationEvents,
+                    behaviorSupportEvents: backupBehaviorSupportEvents,
                     subjects: backupSubjects
                 )
             )
@@ -371,7 +466,8 @@ final class BackupManager {
                 details: SecurityHelpers.sanitizeNotes(event.details),
                 isAllDay: event.isAllDay,
                 className: event.schoolClass?.name,
-                classGrade: event.schoolClass?.grade
+                classGrade: event.schoolClass?.grade,
+                assignmentID: event.assignment?.id
             )
         }
 
@@ -387,7 +483,8 @@ final class BackupManager {
                 className: entry.schoolClass?.name,
                 classGrade: entry.schoolClass?.grade,
                 subjectID: entry.subject?.id,
-                unitID: entry.unit?.id
+                unitID: entry.unit?.id,
+                assignmentID: entry.assignment?.id
             )
         }
 
@@ -457,6 +554,10 @@ final class BackupManager {
             dateFormat: defaults.string(forKey: AppPreferencesKeys.dateFormat) ?? AppDateFormatPreference.system.rawValue,
             timeFormat: defaults.string(forKey: AppPreferencesKeys.timeFormat) ?? AppTimeFormatPreference.system.rawValue,
             defaultLandingSection: defaults.string(forKey: AppPreferencesKeys.defaultLandingSection) ?? AppSection.dashboard.rawValue,
+            attentionRemindersEnabled: defaults.object(forKey: AppPreferencesKeys.attentionRemindersEnabled) as? Bool ?? true,
+            attentionNotificationsEnabled: defaults.object(forKey: AppPreferencesKeys.attentionNotificationsEnabled) as? Bool ?? false,
+            attentionNotificationHour: defaults.object(forKey: AppPreferencesKeys.attentionNotificationHour) as? Int ?? 7,
+            attentionNotificationMinute: defaults.object(forKey: AppPreferencesKeys.attentionNotificationMinute) as? Int ?? 30,
             timerCustomMinutes: defaults.object(forKey: TimerPreferenceKeys.customMinutes) as? Int ?? 5,
             timerCustomSeconds: defaults.object(forKey: TimerPreferenceKeys.customSeconds) as? Int ?? 0,
             timerCustomChecklistText: defaults.string(forKey: TimerPreferenceKeys.customChecklistText) ?? ""
@@ -765,6 +866,10 @@ final class BackupManager {
         defaults.set(settings.dateFormat, forKey: AppPreferencesKeys.dateFormat)
         defaults.set(settings.timeFormat, forKey: AppPreferencesKeys.timeFormat)
         defaults.set(settings.defaultLandingSection, forKey: AppPreferencesKeys.defaultLandingSection)
+        defaults.set(settings.attentionRemindersEnabled, forKey: AppPreferencesKeys.attentionRemindersEnabled)
+        defaults.set(settings.attentionNotificationsEnabled, forKey: AppPreferencesKeys.attentionNotificationsEnabled)
+        defaults.set(settings.attentionNotificationHour, forKey: AppPreferencesKeys.attentionNotificationHour)
+        defaults.set(settings.attentionNotificationMinute, forKey: AppPreferencesKeys.attentionNotificationMinute)
         defaults.set(settings.timerCustomMinutes, forKey: TimerPreferenceKeys.customMinutes)
         defaults.set(settings.timerCustomSeconds, forKey: TimerPreferenceKeys.customSeconds)
         defaults.set(settings.timerCustomChecklistText, forKey: TimerPreferenceKeys.customChecklistText)

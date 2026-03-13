@@ -121,6 +121,7 @@ enum BackupPayloadApplyService {
         var studentByUUID: [UUID: Student] = [:]
         var subjectByID: [UUID: Subject] = [:]
         var unitByID: [UUID: Unit] = [:]
+        var assignmentByID: [UUID: Assignment] = [:]
         var classByKey: [String: SchoolClass] = [:]
 
         for backupClass in payload.classes {
@@ -167,6 +168,19 @@ enum BackupPayloadApplyService {
                         value: SecurityHelpers.validateCount(backupScore.value, min: 0, max: 10)
                     )
                 }
+                student.interventions = studentBackup.interventions.map { interventionBackup in
+                    Intervention(
+                        id: interventionBackup.id,
+                        title: SecurityHelpers.sanitizeName(interventionBackup.title) ?? "Intervention".localized,
+                        notes: SecurityHelpers.sanitizeNotes(interventionBackup.notes),
+                        category: InterventionCategory(rawValue: interventionBackup.categoryRaw) ?? .other,
+                        status: InterventionStatus(rawValue: interventionBackup.statusRaw) ?? .open,
+                        createdAt: interventionBackup.createdAt,
+                        updatedAt: interventionBackup.updatedAt,
+                        followUpDate: interventionBackup.followUpDate,
+                        student: student
+                    )
+                }
                 newClass.students.append(student)
                 studentByUUID[student.uuid] = student
             }
@@ -184,6 +198,111 @@ enum BackupPayloadApplyService {
                         student.scores.append(AssessmentScore(value: 0))
                     }
                 }
+            }
+
+            if let backupSeatingChart = backupClass.seatingChart {
+                let seatingChart = SeatingChart(
+                    id: backupSeatingChart.id,
+                    title: SecurityHelpers.sanitizeName(backupSeatingChart.title) ?? "Main Layout",
+                    rows: SecurityHelpers.validateCount(backupSeatingChart.rows, min: 1, max: 20),
+                    columns: SecurityHelpers.validateCount(backupSeatingChart.columns, min: 1, max: 20),
+                    createdAt: backupSeatingChart.createdAt,
+                    updatedAt: backupSeatingChart.updatedAt
+                )
+                seatingChart.schoolClass = newClass
+                newClass.seatingChart = seatingChart
+                context.insert(seatingChart)
+
+                var seenStudentUUIDs: Set<UUID> = []
+                var seenCoordinates: Set<String> = []
+
+                for placementBackup in backupSeatingChart.placements {
+                    guard placementBackup.row >= 0,
+                          placementBackup.column >= 0,
+                          placementBackup.row < seatingChart.rows,
+                          placementBackup.column < seatingChart.columns else {
+                        continue
+                    }
+
+                    guard let student = resolveStudent(
+                        studentUUID: placementBackup.studentUUID,
+                        studentName: placementBackup.studentName,
+                        classStudents: newClass.students,
+                        studentByUUID: studentByUUID
+                    ) else {
+                        continue
+                    }
+
+                    guard seenStudentUUIDs.insert(student.uuid).inserted else {
+                        continue
+                    }
+
+                    let coordinateKey = "\(placementBackup.row)-\(placementBackup.column)"
+                    guard seenCoordinates.insert(coordinateKey).inserted else {
+                        continue
+                    }
+
+                    let placement = SeatingPlacement(
+                        id: placementBackup.id,
+                        row: placementBackup.row,
+                        column: placementBackup.column,
+                        studentUUID: student.uuid,
+                        studentNameSnapshot: student.name,
+                        chart: seatingChart
+                    )
+                    seatingChart.placements.append(placement)
+                    context.insert(placement)
+                }
+            }
+
+            for eventBackup in backupClass.participationEvents {
+                guard let student = resolveStudent(
+                    studentUUID: eventBackup.studentUUID,
+                    studentName: eventBackup.studentName,
+                    classStudents: newClass.students,
+                    studentByUUID: studentByUUID
+                ) else {
+                    continue
+                }
+
+                let event = ParticipationEvent(
+                    id: eventBackup.id,
+                    createdAt: eventBackup.createdAt,
+                    kind: ParticipationEventKind(rawValue: eventBackup.kindRaw) ?? .contribution,
+                    note: SecurityHelpers.sanitizeNotes(eventBackup.note),
+                    studentUUID: student.uuid,
+                    studentNameSnapshot: student.name,
+                    student: student,
+                    schoolClass: newClass
+                )
+                newClass.participationEvents.append(event)
+                student.participationEvents.append(event)
+                context.insert(event)
+            }
+
+            for eventBackup in backupClass.behaviorSupportEvents {
+                guard let student = resolveStudent(
+                    studentUUID: eventBackup.studentUUID,
+                    studentName: eventBackup.studentName,
+                    classStudents: newClass.students,
+                    studentByUUID: studentByUUID
+                ) else {
+                    continue
+                }
+
+                let event = BehaviorSupportEvent(
+                    id: eventBackup.id,
+                    createdAt: eventBackup.createdAt,
+                    kind: BehaviorSupportEventKind(rawValue: eventBackup.kindRaw) ?? .supportCheckIn,
+                    note: SecurityHelpers.sanitizeNotes(eventBackup.note),
+                    studentUUID: student.uuid,
+                    studentNameSnapshot: student.name,
+                    student: student,
+                    schoolClass: newClass
+                )
+                newClass.behaviorSupportEvents.append(event)
+                student.behaviorSupportEvents.append(event)
+                context.insert(event)
             }
 
             for subjectBackup in backupClass.subjects {
@@ -247,11 +366,55 @@ enum BackupPayloadApplyService {
                                         max: assessment.safeMaxScore
                                     ),
                                     notes: SecurityHelpers.sanitizeNotes(resultBackup.notes),
-                                    hasScore: resultBackup.hasScore ?? (resultBackup.score > 0)
+                                    hasScore: resultBackup.hasScore ?? (resultBackup.score > 0),
+                                    status: AssessmentResultStatus(rawValue: resultBackup.statusRaw ?? "")
+                                        ?? ((resultBackup.hasScore ?? (resultBackup.score > 0)) ? .scored : .ungraded)
                                 )
                                 result.assessment = assessment
                                 context.insert(result)
                             }
+                        }
+                    }
+
+                    for assignmentBackup in unitBackup.assignments {
+                        guard let sanitizedTitle = SecurityHelpers.sanitizeName(assignmentBackup.title) else {
+                            SecureLogger.warning("Skipping assignment with invalid title")
+                            continue
+                        }
+
+                        let assignment = Assignment(id: assignmentBackup.id, title: sanitizedTitle)
+                        assignment.details = SecurityHelpers.sanitizeNotes(assignmentBackup.details)
+                        assignment.dueDate = assignmentBackup.dueDate
+                        assignment.createdAt = assignmentBackup.createdAt
+                        assignment.sortOrder = SecurityHelpers.validateCount(
+                            assignmentBackup.sortOrder,
+                            min: 0,
+                            max: 10000
+                        )
+                        assignment.unit = unit
+                        unit.assignments.append(assignment)
+                        assignmentByID[assignment.id] = assignment
+
+                        for entryBackup in assignmentBackup.entries {
+                            guard let student = resolveStudent(
+                                studentUUID: entryBackup.studentUUID,
+                                studentName: entryBackup.studentName,
+                                classStudents: newClass.students,
+                                studentByUUID: studentByUUID
+                            ) else {
+                                continue
+                            }
+
+                            let entry = StudentAssignment(
+                                student: student,
+                                assignment: assignment,
+                                status: AssignmentEntryStatus(rawValue: entryBackup.statusRaw) ?? .pending,
+                                submittedAt: entryBackup.submittedAt,
+                                notes: SecurityHelpers.sanitizeNotes(entryBackup.notes)
+                            )
+                            assignment.entries.append(entry)
+                            student.assignmentEntries.append(entry)
+                            context.insert(entry)
                         }
                     }
                 }
@@ -404,7 +567,8 @@ enum BackupPayloadApplyService {
                 endTime: backupEvent.endTime,
                 details: SecurityHelpers.sanitizeNotes(backupEvent.details),
                 isAllDay: backupEvent.isAllDay,
-                schoolClass: linkedClass
+                schoolClass: linkedClass,
+                assignment: backupEvent.assignmentID.flatMap { assignmentByID[$0] }
             )
             context.insert(event)
         }
@@ -425,7 +589,8 @@ enum BackupPayloadApplyService {
                 notes: SecurityHelpers.sanitizeNotes(backupEntry.notes),
                 schoolClass: linkedClass,
                 subject: backupEntry.subjectID.flatMap { subjectByID[$0] },
-                unit: backupEntry.unitID.flatMap { unitByID[$0] }
+                unit: backupEntry.unitID.flatMap { unitByID[$0] },
+                assignment: backupEntry.assignmentID.flatMap { assignmentByID[$0] }
             )
             context.insert(diaryEntry)
         }

@@ -10,6 +10,7 @@ class CalendarEvent {
     var details: String
     var isAllDay: Bool
     var schoolClass: SchoolClass?
+    var assignment: Assignment?
 
     init(
         title: String,
@@ -18,7 +19,8 @@ class CalendarEvent {
         endTime: Date? = nil,
         details: String = "",
         isAllDay: Bool = true,
-        schoolClass: SchoolClass? = nil
+        schoolClass: SchoolClass? = nil,
+        assignment: Assignment? = nil
     ) {
         self.title = title
         self.date = date
@@ -27,5 +29,6 @@ class CalendarEvent {
         self.details = details
         self.isAllDay = isAllDay
         self.schoolClass = schoolClass
+        self.assignment = assignment
     }
 }

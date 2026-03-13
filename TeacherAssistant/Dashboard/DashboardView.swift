@@ -22,6 +22,7 @@ struct DashboardView: View {
     @State private var showingErrorAlert = false
     @State private var errorMessage = ""
     @State private var showingPreferences = false
+    @ObservedObject var attentionNotificationManager = AttentionNotificationManager.shared
 
     var body: some View {
         #if os(macOS)
@@ -37,88 +38,14 @@ struct DashboardView: View {
     
     var dashboardContent: some View {
         ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 160), spacing: 16)],
-                spacing: 16
-            ) {
+            VStack(spacing: PlatformSpacing.sectionSpacing) {
+                TodayDashboardCard(
+                    timerManager: timerManager,
+                    selectedSection: $selectedSection
+                )
 
-                DashboardButton(title: "Classes".localized, systemImage: "person.3.fill", color: .blue) {
-                    selectedSection = .classes
-                }
-
-                DashboardButton(title: "Calendar".localized, systemImage: "calendar", color: .teal) {
-                    selectedSection = .calendar
-                }
-
-                DashboardButton(title: "Attendance".localized, systemImage: "checklist", color: .green) {
-                    selectedSection = .attendance
-                }
-
-                DashboardButton(title: "Gradebook".localized, systemImage: "tablecells", color: .orange) {
-                    selectedSection = .gradebook
-                }
-                
-                DashboardButton(title: "Manage Rubrics".localized, systemImage: "doc.text.fill", color: .purple) {
-                    selectedSection = .rubrics
-                }
-
-                DashboardButton(title: "Groups".localized, systemImage: "person.2.fill", color: .purple) {
-                    selectedSection = .groups
-                }
-
-                DashboardButton(title: "Random Picker".localized, systemImage: "die.face.5.fill", color: .pink) {
-                    selectedSection = .randomPicker
-                }
-
-                DashboardButton(title: "Timer".localized, systemImage: "timer", color: .red) {
-                    selectedSection = .timer
-                }
-
-                DashboardButton(title: "Running Records".localized, systemImage: "doc.text.magnifyingglass", color: .cyan) {
-                    selectedSection = .runningRecords
-                }
-
-                DashboardButton(title: "Useful Links".localized, systemImage: "link", color: .mint) {
-                    selectedSection = .usefulLinks
-                }
-
-                DashboardButton(title: "Preferences".localized, systemImage: "gearshape.fill", color: .indigo) {
-                    showingPreferences = true
-                }
-
-                // MARK: - Backup
-
-                DashboardButton(title: "Backup".localized, systemImage: "externaldrive.fill", color: .gray) {
-#if os(macOS)
-                    Task { @MainActor in
-                        MacBackupManager.backup(context: context)
-                    }
-#else
-                    do {
-                        exportURL = try BackupManager.exportBackup(context: context)
-                        showingExporter = true
-                    } catch {
-                        let appError = AppError.backup(stage: .export, underlyingError: error)
-                        errorMessage = appError.messageForAlert
-                        showingErrorAlert = true
-                    }
-#endif
-                }
-
-                // MARK: - Restore
-
-                DashboardButton(title: "Restore".localized, systemImage: "arrow.clockwise.icloud", color: .gray) {
-#if os(macOS)
-                    Task { @MainActor in
-                        MacBackupManager.restore(context: context)
-                    }
-#else
-                    showingImporter = true
-#endif
-                }
-
+                workspacePanels
             }
-            .padding()
             
             // MARK: - Backup Reminder Banner
             
@@ -134,7 +61,7 @@ struct DashboardView: View {
             backupReminderManager.checkIfReminderNeeded()
         }
         .sheet(isPresented: $showingPreferences) {
-            PreferencesView()
+            PreferencesView(attentionNotificationManager: attentionNotificationManager)
         }
 
         // MARK: - iOS Exporter
@@ -228,5 +155,269 @@ struct DashboardView: View {
         } message: {
             Text(errorMessage)
         }
+    }
+
+    private var workspacePanels: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Workspaces".localized)
+                    .font(AppTypography.sectionTitle)
+
+                Text("Daily priorities stay in Today. These panels keep the rest of the app close without crowding the dashboard.".localized)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16)], spacing: 16) {
+                workspaceCard(
+                    title: "Planning & Classes".localized,
+                    subtitle: "Move into the class, schedule, and grading views you use most.".localized,
+                    tint: .blue
+                ) {
+                    dashboardActionRow(
+                        title: "Classes".localized,
+                        subtitle: "subjects, units, assignments".localized,
+                        icon: "person.3.fill",
+                        tint: .blue
+                    ) {
+                        selectedSection = .classes
+                    }
+
+                    dashboardActionRow(
+                        title: "Calendar".localized,
+                        subtitle: "events and class diary".localized,
+                        icon: "calendar",
+                        tint: .teal
+                    ) {
+                        selectedSection = .calendar
+                    }
+
+                    dashboardActionRow(
+                        title: "Attendance".localized,
+                        subtitle: "daily sessions and rosters".localized,
+                        icon: "checklist",
+                        tint: .green
+                    ) {
+                        selectedSection = .attendance
+                    }
+
+                    dashboardActionRow(
+                        title: "Gradebook".localized,
+                        subtitle: "assessments and bulk grading".localized,
+                        icon: "tablecells",
+                        tint: .orange
+                    ) {
+                        selectedSection = .gradebook
+                    }
+                }
+
+                workspaceCard(
+                    title: "Classroom Tools".localized,
+                    subtitle: "Live lesson tools that support grouping, pacing, and participation.".localized,
+                    tint: .pink
+                ) {
+                    dashboardActionRow(
+                        title: "Groups".localized,
+                        subtitle: "saved and generated groups".localized,
+                        icon: "person.2.fill",
+                        tint: .purple
+                    ) {
+                        selectedSection = .groups
+                    }
+
+                    dashboardActionRow(
+                        title: "Random Picker".localized,
+                        subtitle: "choose the next student".localized,
+                        icon: "die.face.5.fill",
+                        tint: .pink
+                    ) {
+                        selectedSection = .randomPicker
+                    }
+
+                    dashboardActionRow(
+                        title: "Timer".localized,
+                        subtitle: "lesson pacing and countdowns".localized,
+                        icon: "timer",
+                        tint: .red
+                    ) {
+                        selectedSection = .timer
+                    }
+                }
+
+                workspaceCard(
+                    title: "Progress & Resources".localized,
+                    subtitle: "Assessment support, reference tools, and student evidence.".localized,
+                    tint: .cyan
+                ) {
+                    dashboardActionRow(
+                        title: "Manage Rubrics".localized,
+                        subtitle: "criteria and scoring tools".localized,
+                        icon: "doc.text.fill",
+                        tint: .purple
+                    ) {
+                        selectedSection = .rubrics
+                    }
+
+                    dashboardActionRow(
+                        title: "Running Records".localized,
+                        subtitle: "reading evidence and notes".localized,
+                        icon: "doc.text.magnifyingglass",
+                        tint: .cyan
+                    ) {
+                        selectedSection = .runningRecords
+                    }
+
+                    dashboardActionRow(
+                        title: "Useful Links".localized,
+                        subtitle: "reference sites and resources".localized,
+                        icon: "link",
+                        tint: .mint
+                    ) {
+                        selectedSection = .usefulLinks
+                    }
+                }
+
+                workspaceCard(
+                    title: "Settings & Safety".localized,
+                    subtitle: "Preferences, backup, and restore live together here.".localized,
+                    tint: .indigo
+                ) {
+                    dashboardActionRow(
+                        title: "Preferences".localized,
+                        subtitle: "notifications and app defaults".localized,
+                        icon: "gearshape.fill",
+                        tint: .indigo
+                    ) {
+                        showingPreferences = true
+                    }
+
+                    dashboardActionRow(
+                        title: "Backup".localized,
+                        subtitle: "export a fresh safety snapshot".localized,
+                        icon: "externaldrive.fill",
+                        tint: .gray
+                    ) {
+                        handleBackupAction()
+                    }
+
+                    dashboardActionRow(
+                        title: "Restore".localized,
+                        subtitle: "recover from an earlier backup".localized,
+                        icon: "arrow.clockwise.icloud",
+                        tint: .gray
+                    ) {
+                        handleRestoreAction()
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private func workspaceCard<Content: View>(
+        title: String,
+        subtitle: String,
+        tint: Color,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppTypography.cardTitle)
+                    .foregroundColor(.primary)
+
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 10) {
+                content()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding()
+        .appCardStyle(
+            cornerRadius: 18,
+            borderColor: tint.opacity(0.12),
+            shadowOpacity: 0.03,
+            shadowRadius: 6,
+            shadowY: 3,
+            tint: tint
+        )
+    }
+
+    private func dashboardActionRow(
+        title: String,
+        subtitle: String,
+        icon: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(tint.opacity(0.12))
+                        .frame(width: 42, height: 42)
+
+                    Image(systemName: icon)
+                        .font(.headline)
+                        .foregroundColor(tint)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AppChrome.elevatedBackground)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func handleBackupAction() {
+    #if os(macOS)
+        Task { @MainActor in
+            MacBackupManager.backup(context: context)
+        }
+    #else
+        do {
+            exportURL = try BackupManager.exportBackup(context: context)
+            showingExporter = true
+        } catch {
+            let appError = AppError.backup(stage: .export, underlyingError: error)
+            errorMessage = appError.messageForAlert
+            showingErrorAlert = true
+        }
+    #endif
+    }
+
+    private func handleRestoreAction() {
+    #if os(macOS)
+        Task { @MainActor in
+            MacBackupManager.restore(context: context)
+        }
+    #else
+        showingImporter = true
+    #endif
     }
 }

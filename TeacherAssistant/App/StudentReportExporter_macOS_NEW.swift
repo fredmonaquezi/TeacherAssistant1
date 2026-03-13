@@ -170,10 +170,18 @@ enum StudentReportExporterMac {
         // Academic section
         let results = allResults.filter { $0.student?.id == student.id }
         let scoredResults = results.filter(\.isScored)
+        let resolvedResults = results.filter(\.isResolved)
+        let pendingResults = results.filter { $0.status == .ungraded }
+        let absentResults = results.filter { $0.status == .absent }
+        let excusedResults = results.filter { $0.status == .excused }
         let average = scoredResults.averageScore
         
         drawText("Academic Performance".localized, fontSize: 20, bold: true)
-        drawText(String(format: "Total Assessments: %d".localized, scoredResults.count), fontSize: 14)
+        drawText(String(format: "Scored Assessments: %d".localized, scoredResults.count), fontSize: 14)
+        drawText(String(format: "Resolved Results: %d".localized, resolvedResults.count), fontSize: 14)
+        drawText(String(format: "Pending Results: %d".localized, pendingResults.count), fontSize: 14)
+        drawText(String(format: "Absent: %d".localized, absentResults.count), fontSize: 14)
+        drawText(String(format: "Excused: %d".localized, excusedResults.count), fontSize: 14)
         drawText(String(format: "Overall Average: %.1f".localized, average), fontSize: 14)
         
         // Draw footer
@@ -224,7 +232,11 @@ enum StudentReportExporterMac {
         text += "Academic Performance".localized.uppercased() + "\n"
         let results = allResults.filter { $0.student?.id == student.id }
         let scoredResults = results.filter(\.isScored)
-        text += "Total Assessments".localized + ": \(scoredResults.count)\n"
+        text += "Scored Assessments".localized + ": \(scoredResults.count)\n"
+        text += "Resolved Results".localized + ": \(results.filter(\.isResolved).count)\n"
+        text += "Pending Results".localized + ": \(results.filter { $0.status == .ungraded }.count)\n"
+        text += "Absent".localized + ": \(results.filter { $0.status == .absent }.count)\n"
+        text += "Excused".localized + ": \(results.filter { $0.status == .excused }.count)\n"
         text += "Overall Average".localized + ": \(String(format: "%.1f", scoredResults.averageScore))\n"
         
         return text

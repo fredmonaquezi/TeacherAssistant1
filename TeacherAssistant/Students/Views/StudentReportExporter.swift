@@ -118,22 +118,45 @@ enum StudentReportExporter {
 
             let resultsForStudent = allResults.filter { $0.student?.id == student.id }
             let scoredResultsForStudent = resultsForStudent.filter(\.isScored)
+            let resolvedResultsForStudent = resultsForStudent.filter(\.isResolved)
+            let pendingResultsForStudent = resultsForStudent.filter { $0.status == .ungraded }
+            let absentResultsForStudent = resultsForStudent.filter { $0.status == .absent }
+            let excusedResultsForStudent = resultsForStudent.filter { $0.status == .excused }
 
             let subjects: [Subject] = unique(
-                scoredResultsForStudent.compactMap { $0.assessment?.unit?.subject }
+                resolvedResultsForStudent.compactMap { $0.assessment?.unit?.subject }
             )
+
+            let academicSummary = """
+            Overall Average: \(String(format: "%.1f", scoredResultsForStudent.averageScore))
+            Scored Assessments: \(scoredResultsForStudent.count)
+            Resolved Results: \(resolvedResultsForStudent.count)
+            Pending Results: \(pendingResultsForStudent.count)
+            Absent: \(absentResultsForStudent.count)
+            Excused: \(excusedResultsForStudent.count)
+            """
+            y = drawParagraph(academicSummary, y: y) + 16
 
             for subject in subjects.sorted(by: { $0.name < $1.name }) {
 
                 startNewPageIfNeeded(80)
 
-                let subjectResults = scoredResultsForStudent.filter {
+                let subjectResults = resolvedResultsForStudent.filter {
                     $0.assessment?.unit?.subject?.id == subject.id
                 }
+                let scoredSubjectResults = subjectResults.filter(\.isScored)
+                let subjectAverageText = scoredSubjectResults.isEmpty
+                    ? "—"
+                    : String(format: "%.1f", scoredSubjectResults.averageScore)
 
-                let subjectAvg = subjectResults.averageScore
-
-                drawSubTitle("\(subject.name) — Average: \(String(format: "%.1f", subjectAvg))", y: &y)
+                drawSubTitle("\(subject.name) — Average: \(subjectAverageText)", y: &y)
+                y = drawParagraph(
+                    """
+                    Scored Assessments: \(scoredSubjectResults.count)
+                    Resolved Results: \(subjectResults.filter(\.isResolved).count)
+                    """,
+                    y: y
+                ) + 8
 
                 let units: [Unit] = unique(
                     subjectResults.compactMap { $0.assessment?.unit }
@@ -146,17 +169,21 @@ enum StudentReportExporter {
                     let unitResults = subjectResults.filter {
                         $0.assessment?.unit?.id == unit.id
                     }
+                    let scoredUnitResults = unitResults.filter(\.isScored)
+                    let unitAverageText = scoredUnitResults.isEmpty
+                        ? "—"
+                        : String(format: "%.1f", scoredUnitResults.averageScore)
 
-                    let unitAvg = unitResults.averageScore
+                    drawBoldLine("• \(unit.name) — Average: \(unitAverageText)", y: &y)
 
-                    drawBoldLine("• \(unit.name) — Average: \(String(format: "%.1f", unitAvg))", y: &y)
-
-                    for result in unitResults {
+                    for result in unitResults.sorted(by: { lhs, rhs in
+                        (lhs.assessment?.sortOrder ?? 0) < (rhs.assessment?.sortOrder ?? 0)
+                    }) {
                         guard let assessment = result.assessment else { continue }
 
                         startNewPageIfNeeded(80)
 
-                        let score = result.isScored ? "\(Int(result.score))" : "Not evaluated"
+                        let score = result.statusDisplayText
 
                         let line = "   - \(assessment.title): \(score)"
                         y = drawParagraph(line, y: y)
@@ -354,24 +381,35 @@ enum StudentReportExporter {
         // Academic Results
         let resultsForStudent = allResults.filter { $0.student?.id == student.id }
         let scoredResultsForStudent = resultsForStudent.filter(\.isScored)
+        let resolvedResultsForStudent = resultsForStudent.filter(\.isResolved)
+        let pendingResultsForStudent = resultsForStudent.filter { $0.status == .ungraded }
+        let absentResultsForStudent = resultsForStudent.filter { $0.status == .absent }
+        let excusedResultsForStudent = resultsForStudent.filter { $0.status == .excused }
         let average = scoredResultsForStudent.averageScore
         
         drawText("Academic Progress".localized, fontSize: 20, bold: true)
         drawText(String(format: "Overall Average: %.1f".localized, average), fontSize: 14)
-        drawText(String(format: "Total Assessments: %d".localized, scoredResultsForStudent.count), fontSize: 14)
+        drawText(String(format: "Scored Assessments: %d".localized, scoredResultsForStudent.count), fontSize: 14)
+        drawText(String(format: "Resolved Results: %d".localized, resolvedResultsForStudent.count), fontSize: 14)
+        drawText(String(format: "Pending Results: %d".localized, pendingResultsForStudent.count), fontSize: 14)
+        drawText(String(format: "Absent: %d".localized, absentResultsForStudent.count), fontSize: 14)
+        drawText(String(format: "Excused: %d".localized, excusedResultsForStudent.count), fontSize: 14)
         
         y -= 10
         
         // Subject Breakdown
-        let subjects: [Subject] = unique(scoredResultsForStudent.compactMap { $0.assessment?.unit?.subject })
+        let subjects: [Subject] = unique(resolvedResultsForStudent.compactMap { $0.assessment?.unit?.subject })
         
         for subject in subjects.sorted(by: { $0.name < $1.name }).prefix(10) {
-            let subjectResults = scoredResultsForStudent.filter {
+            let subjectResults = resolvedResultsForStudent.filter {
                 $0.assessment?.unit?.subject?.id == subject.id
             }
-            let subjectAvg = subjectResults.averageScore
+            let scoredSubjectResults = subjectResults.filter(\.isScored)
+            let subjectSummary = scoredSubjectResults.isEmpty
+                ? "\(subject.name): —"
+                : String(format: "%@: %.1f".localized, subject.name, scoredSubjectResults.averageScore)
             
-            drawText(String(format: "%@: %.1f".localized, subject.name, subjectAvg), fontSize: 14, bold: true)
+            drawText(subjectSummary, fontSize: 14, bold: true)
             
             if y < 100 { break } // Don't overflow page
         }

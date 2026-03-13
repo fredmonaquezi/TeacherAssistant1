@@ -4,11 +4,18 @@ private enum TeacherAssistantSchemaModelCatalog {
     static var models: [any PersistentModel.Type] {
         [
             SchoolClass.self,
+            SeatingChart.self,
+            SeatingPlacement.self,
+            ParticipationEvent.self,
+            BehaviorSupportEvent.self,
             Student.self,
             Subject.self,
             Unit.self,
             Assessment.self,
+            Assignment.self,
+            Intervention.self,
             StudentResult.self,
+            StudentAssignment.self,
             AssessmentCategory.self,
             AssessmentScore.self,
             AttendanceSession.self,
@@ -45,7 +52,17 @@ enum TeacherAssistantSchemaV2: VersionedSchema {
 
 enum TeacherAssistantMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [TeacherAssistantSchemaV1.self, TeacherAssistantSchemaV2.self]
+        [
+            TeacherAssistantSchemaV1.self,
+            TeacherAssistantSchemaV2.self,
+            TeacherAssistantSchemaV3.self,
+            TeacherAssistantSchemaV4.self,
+            TeacherAssistantSchemaV5.self,
+            TeacherAssistantSchemaV6.self,
+            TeacherAssistantSchemaV7.self,
+            TeacherAssistantSchemaV8.self,
+            TeacherAssistantSchemaV9.self,
+        ]
     }
 
     static var stages: [MigrationStage] {
@@ -53,8 +70,64 @@ enum TeacherAssistantMigrationPlan: SchemaMigrationPlan {
     }
 }
 
+enum TeacherAssistantSchemaV3: VersionedSchema {
+    static let versionIdentifier = Schema.Version(3, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
+enum TeacherAssistantSchemaV4: VersionedSchema {
+    static let versionIdentifier = Schema.Version(4, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
+enum TeacherAssistantSchemaV5: VersionedSchema {
+    static let versionIdentifier = Schema.Version(5, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
+enum TeacherAssistantSchemaV6: VersionedSchema {
+    static let versionIdentifier = Schema.Version(6, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
+enum TeacherAssistantSchemaV7: VersionedSchema {
+    static let versionIdentifier = Schema.Version(7, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
+enum TeacherAssistantSchemaV8: VersionedSchema {
+    static let versionIdentifier = Schema.Version(8, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
+enum TeacherAssistantSchemaV9: VersionedSchema {
+    static let versionIdentifier = Schema.Version(9, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
 enum PersistenceSchema {
-    typealias CurrentVersion = TeacherAssistantSchemaV2
+    typealias CurrentVersion = TeacherAssistantSchemaV9
     typealias MigrationPlan = TeacherAssistantMigrationPlan
 
     static var schema: Schema {

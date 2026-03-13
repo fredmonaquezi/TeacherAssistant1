@@ -96,6 +96,109 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         XCTAssertEqual(decodedPayload.appSettings?.dateFormat, AppDateFormatPreference.system.rawValue)
         XCTAssertEqual(decodedPayload.appSettings?.timeFormat, AppTimeFormatPreference.system.rawValue)
         XCTAssertEqual(decodedPayload.appSettings?.defaultLandingSection, AppSection.dashboard.rawValue)
+        XCTAssertEqual(decodedPayload.appSettings?.attentionRemindersEnabled, true)
+        XCTAssertEqual(decodedPayload.appSettings?.attentionNotificationsEnabled, false)
+        XCTAssertEqual(decodedPayload.appSettings?.attentionNotificationHour, 7)
+        XCTAssertEqual(decodedPayload.appSettings?.attentionNotificationMinute, 30)
+    }
+
+    @MainActor
+    func testVersionedBackupRoundTripsSeatingChart() async throws {
+        let sourceContainer = try makePersistentContainer(named: "seating-chart-backup-source")
+        let sourceContext = sourceContainer.mainContext
+
+        let schoolClass = SchoolClass(name: "Room 9", grade: "3")
+        let firstStudent = Student(name: "Avery Cole")
+        let secondStudent = Student(name: "Mia Santos")
+        firstStudent.sortOrder = 0
+        secondStudent.sortOrder = 1
+        schoolClass.students.append(firstStudent)
+        schoolClass.students.append(secondStudent)
+
+        let seatingChart = SeatingChart(title: "Homeroom Layout", rows: 2, columns: 2)
+        seatingChart.schoolClass = schoolClass
+        schoolClass.seatingChart = seatingChart
+
+        let firstPlacement = SeatingPlacement(
+            row: 0,
+            column: 0,
+            studentUUID: firstStudent.uuid,
+            studentNameSnapshot: firstStudent.name,
+            chart: seatingChart
+        )
+        let secondPlacement = SeatingPlacement(
+            row: 0,
+            column: 1,
+            studentUUID: secondStudent.uuid,
+            studentNameSnapshot: secondStudent.name,
+            chart: seatingChart
+        )
+        seatingChart.placements = [firstPlacement, secondPlacement]
+
+        let participationEvent = ParticipationEvent(
+            createdAt: Date(),
+            kind: .leadership,
+            studentUUID: firstStudent.uuid,
+            studentNameSnapshot: firstStudent.name,
+            student: firstStudent,
+            schoolClass: schoolClass
+        )
+        schoolClass.participationEvents = [participationEvent]
+        firstStudent.participationEvents = [participationEvent]
+
+        let behaviorEvent = BehaviorSupportEvent(
+            createdAt: Date(),
+            kind: .redirectNeeded,
+            studentUUID: secondStudent.uuid,
+            studentNameSnapshot: secondStudent.name,
+            student: secondStudent,
+            schoolClass: schoolClass
+        )
+        schoolClass.behaviorSupportEvents = [behaviorEvent]
+        secondStudent.behaviorSupportEvents = [behaviorEvent]
+
+        sourceContext.insert(schoolClass)
+        sourceContext.insert(seatingChart)
+        sourceContext.insert(firstPlacement)
+        sourceContext.insert(secondPlacement)
+        sourceContext.insert(participationEvent)
+        sourceContext.insert(behaviorEvent)
+        try sourceContext.save()
+
+        let backupURL = try await exportBackupRetryingRateLimit(context: sourceContext)
+        defer { try? FileManager.default.removeItem(at: backupURL) }
+
+        let destinationContainer = try makePersistentContainer(named: "seating-chart-backup-destination")
+        try await importBackupRetryingRateLimit(from: backupURL, context: destinationContainer.mainContext)
+
+        let restoredClasses = try destinationContainer.mainContext.fetch(FetchDescriptor<SchoolClass>())
+        XCTAssertEqual(restoredClasses.count, 1)
+
+        let restoredChart = try XCTUnwrap(restoredClasses.first?.seatingChart)
+        XCTAssertEqual(restoredChart.title, "Homeroom Layout")
+        XCTAssertEqual(restoredChart.rows, 2)
+        XCTAssertEqual(restoredChart.columns, 2)
+        XCTAssertEqual(restoredChart.placements.count, 2)
+
+        let restoredPlacements = restoredChart.placements.sorted {
+            if $0.row != $1.row {
+                return $0.row < $1.row
+            }
+            return $0.column < $1.column
+        }
+
+        XCTAssertEqual(restoredPlacements[0].studentNameSnapshot, "Avery Cole")
+        XCTAssertEqual(restoredPlacements[0].row, 0)
+        XCTAssertEqual(restoredPlacements[0].column, 0)
+        XCTAssertEqual(restoredPlacements[1].studentNameSnapshot, "Mia Santos")
+        XCTAssertEqual(restoredPlacements[1].row, 0)
+        XCTAssertEqual(restoredPlacements[1].column, 1)
+        XCTAssertEqual(restoredClasses.first?.participationEvents.count, 1)
+        XCTAssertEqual(restoredClasses.first?.participationEvents.first?.kind, .leadership)
+        XCTAssertEqual(restoredClasses.first?.participationEvents.first?.studentNameSnapshot, "Avery Cole")
+        XCTAssertEqual(restoredClasses.first?.behaviorSupportEvents.count, 1)
+        XCTAssertEqual(restoredClasses.first?.behaviorSupportEvents.first?.kind, .redirectNeeded)
+        XCTAssertEqual(restoredClasses.first?.behaviorSupportEvents.first?.studentNameSnapshot, "Mia Santos")
     }
 
     func testSnapshotRetentionPolicyKeepsNewestAndDailyHistory() {

@@ -4,6 +4,7 @@ import SwiftData
 struct ClassDetailView: View {
     
     @Bindable var schoolClass: SchoolClass
+    @ObservedObject var timerManager: ClassroomTimerManager
     @EnvironmentObject var languageManager: LanguageManager
     
     @State private var showingAddStudent = false
@@ -12,6 +13,9 @@ struct ClassDetailView: View {
     @State private var pickedStudent: Student?
     @State private var showingGroupGenerator = false
     @State private var showingAttendance = false
+    @State private var showingAssignments = false
+    @State private var showingSeatingChart = false
+    @State private var showingClassroomSession = false
     
     @State private var studentToDelete: Student?
     @State private var subjectToDelete: Subject?
@@ -60,6 +64,21 @@ struct ClassDetailView: View {
                         showingAttendance = true
                     }
                     .disabled(schoolClass.students.isEmpty)
+
+                    Button("🎯 " + "Classroom Session".localized) {
+                        showingClassroomSession = true
+                    }
+                    .disabled(schoolClass.students.isEmpty)
+
+                    Button("🪑 " + "Seating Chart".localized) {
+                        showingSeatingChart = true
+                    }
+                    .disabled(schoolClass.students.isEmpty)
+
+                    Button("📝 " + "Assignments".localized) {
+                        showingAssignments = true
+                    }
+                    .disabled(schoolClass.subjects.flatMap(\.units).isEmpty)
                     
                     Divider()
                     
@@ -113,6 +132,39 @@ struct ClassDetailView: View {
             }
             #else
             AttendanceListView(schoolClass: schoolClass)
+            #endif
+        }
+        .sheet(isPresented: $showingClassroomSession) {
+            #if os(macOS)
+            NavigationStack {
+                ClassroomSessionView(
+                    schoolClass: schoolClass,
+                    timerManager: timerManager
+                )
+            }
+            #else
+            ClassroomSessionView(
+                schoolClass: schoolClass,
+                timerManager: timerManager
+            )
+            #endif
+        }
+        .sheet(isPresented: $showingAssignments) {
+            #if os(macOS)
+            NavigationStack {
+                ClassAssignmentsView(schoolClass: schoolClass)
+            }
+            #else
+            ClassAssignmentsView(schoolClass: schoolClass)
+            #endif
+        }
+        .sheet(isPresented: $showingSeatingChart) {
+            #if os(macOS)
+            NavigationStack {
+                SeatingChartView(schoolClass: schoolClass)
+            }
+            #else
+            SeatingChartView(schoolClass: schoolClass)
             #endif
         }
         .alert("Delete Student?".localized, isPresented: $showingDeleteStudentAlert) {
@@ -248,7 +300,7 @@ struct ClassDetailView: View {
             Text(languageManager.localized("Quick Actions"))
                 .font(AppTypography.sectionTitle)
             
-            HStack(spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
                 quickActionButton(
                     title: languageManager.localized("Random Picker"),
                     icon: "shuffle",
@@ -274,6 +326,33 @@ struct ClassDetailView: View {
                     disabled: schoolClass.students.isEmpty
                 ) {
                     showingAttendance = true
+                }
+
+                quickActionButton(
+                    title: languageManager.localized("Session Mode"),
+                    icon: "play.rectangle.fill",
+                    color: .red,
+                    disabled: schoolClass.students.isEmpty
+                ) {
+                    showingClassroomSession = true
+                }
+
+                quickActionButton(
+                    title: languageManager.localized("Seating Chart"),
+                    icon: "chair.fill",
+                    color: .indigo,
+                    disabled: schoolClass.students.isEmpty
+                ) {
+                    showingSeatingChart = true
+                }
+
+                quickActionButton(
+                    title: languageManager.localized("Assignments"),
+                    icon: "list.clipboard",
+                    color: .teal,
+                    disabled: schoolClass.subjects.flatMap(\.units).isEmpty
+                ) {
+                    showingAssignments = true
                 }
             }
         }

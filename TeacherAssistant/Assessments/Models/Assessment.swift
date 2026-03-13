@@ -107,9 +107,9 @@ extension Assessment {
         for duplicate in matches where duplicate.id != keeper.id {
             if duplicate.isScored, (!keeper.isScored || duplicate.score > keeper.score) {
                 keeper.score = duplicate.score
-                keeper.hasScore = duplicate.hasScore
-            } else if duplicate.hasScore {
-                keeper.hasScore = true
+                keeper.status = .scored
+            } else if !keeper.isResolved, duplicate.isResolved {
+                keeper.status = duplicate.status
             }
 
             results.removeAll { $0.id == duplicate.id }
@@ -126,8 +126,10 @@ extension Assessment {
 
     private static func preferredResult(in results: [StudentResult]) -> StudentResult? {
         results.sorted {
-            if $0.isScored != $1.isScored {
-                return $0.isScored && !$1.isScored
+            let lhsRank = statusRank(for: $0)
+            let rhsRank = statusRank(for: $1)
+            if lhsRank != rhsRank {
+                return lhsRank > rhsRank
             }
             if $0.score != $1.score {
                 return $0.score > $1.score
@@ -137,6 +139,19 @@ extension Assessment {
             }
             return String(describing: $0.id) < String(describing: $1.id)
         }.first
+    }
+
+    private static func statusRank(for result: StudentResult) -> Int {
+        switch result.status {
+        case .scored:
+            return 3
+        case .excused:
+            return 2
+        case .absent:
+            return 1
+        case .ungraded:
+            return 0
+        }
     }
 
     private static func mergeNotes(from results: [StudentResult]) -> String {

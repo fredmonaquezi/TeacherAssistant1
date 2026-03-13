@@ -50,11 +50,11 @@ enum ContentSectionCoordinator {
             .macNavigationRoot()
 
         case .classes:
-            ClassesView()
+            ClassesView(timerManager: timerManager)
                 .macNavigationRoot()
 
         case .library:
-            Text("Library is currently disabled.".localized)
+            LibraryRootView()
                 .macNavigationRoot()
 
         case .attendance:
@@ -62,7 +62,7 @@ enum ContentSectionCoordinator {
                 .macNavigationRoot()
 
         case .gradebook:
-            ClassPickerView(tool: .gradebook)
+            AssessmentsView()
                 .macNavigationRoot()
 
         case .rubrics:

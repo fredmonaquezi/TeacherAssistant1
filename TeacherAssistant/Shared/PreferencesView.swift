@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 #if os(macOS)
 import AppKit
 #endif
@@ -7,10 +8,15 @@ struct PreferencesView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @EnvironmentObject var languageManager: LanguageManager
+    @ObservedObject var attentionNotificationManager: AttentionNotificationManager
 
     @AppStorage(AppPreferencesKeys.dateFormat) private var dateFormatRawValue: String = AppDateFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.timeFormat) private var timeFormatRawValue: String = AppTimeFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.defaultLandingSection) private var defaultLandingSectionRawValue: String = AppSection.dashboard.rawValue
+    @AppStorage(AppPreferencesKeys.attentionRemindersEnabled) private var attentionRemindersEnabled = true
+    @AppStorage(AppPreferencesKeys.attentionNotificationsEnabled) private var attentionNotificationsEnabled = false
+    @AppStorage(AppPreferencesKeys.attentionNotificationHour) private var attentionNotificationHour = 7
+    @AppStorage(AppPreferencesKeys.attentionNotificationMinute) private var attentionNotificationMinute = 30
     @State private var showingCleanupConfirmation = false
     @State private var showingCleanupReportAlert = false
     @State private var cleanupReportMessage = ""
@@ -54,6 +60,43 @@ struct PreferencesView: View {
         components.hour = 15
         components.minute = 45
         return calendar.date(from: components) ?? Date()
+    }
+
+    private var notificationTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                let calendar = Calendar.current
+                let baseDate = Date()
+                return calendar.date(
+                    bySettingHour: attentionNotificationHour,
+                    minute: attentionNotificationMinute,
+                    second: 0,
+                    of: baseDate
+                ) ?? baseDate
+            },
+            set: { newValue in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                attentionNotificationHour = components.hour ?? 7
+                attentionNotificationMinute = components.minute ?? 30
+            }
+        )
+    }
+
+    private var notificationAuthorizationDescription: String {
+        switch attentionNotificationManager.authorizationStatus {
+        case .authorized, .provisional:
+            return languageManager.localized("Notifications are allowed for daily attention reminders.")
+        #if !os(macOS)
+        case .ephemeral:
+            return languageManager.localized("Notifications are allowed for daily attention reminders.")
+        #endif
+        case .notDetermined:
+            return languageManager.localized("Enable notifications to request permission and schedule a daily reminder.")
+        case .denied:
+            return languageManager.localized("Notifications are denied for this app. Re-enable them in system settings if you want daily reminders.")
+        @unknown default:
+            return languageManager.localized("Notification permission status is unavailable.")
+        }
     }
 
     var body: some View {
@@ -104,6 +147,48 @@ struct PreferencesView: View {
                                         .tag(section)
                                 }
                             }
+                        }
+
+                        preferenceToggleRow(
+                            title: languageManager.localized("Daily Attention Reminders"),
+                            detail: languageManager.localized("Show an app-wide reminder banner for overdue follow-ups, missing work, and grading backlog."),
+                            systemImage: "bell.badge.fill",
+                            color: .orange,
+                            isOn: $attentionRemindersEnabled
+                        )
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            preferenceToggleRow(
+                                title: languageManager.localized("System Attention Notifications"),
+                                detail: languageManager.localized("Schedule a daily system notification when follow-ups, missing work, or grading backlog need attention."),
+                                systemImage: "app.badge.fill",
+                                color: .teal,
+                                isOn: attentionNotificationsBinding
+                            )
+
+                            if attentionNotificationsEnabled {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label(languageManager.localized("Reminder Time"), systemImage: "clock.fill")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .textCase(.uppercase)
+
+                                    DatePicker(
+                                        languageManager.localized("Reminder Time"),
+                                        selection: notificationTimeBinding,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .labelsHidden()
+                                    .datePickerStyle(.compact)
+                                }
+                                .padding()
+                                .background(Color.teal.opacity(0.08))
+                                .cornerRadius(12)
+                            }
+
+                            Text(notificationAuthorizationDescription)
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
                         }
                     }
                     .padding()
@@ -290,6 +375,9 @@ struct PreferencesView: View {
             } message: {
                 Text(errorMessage)
             }
+            .task {
+                await attentionNotificationManager.refreshAuthorizationStatus()
+            }
         }
         #if os(macOS)
         .frame(minWidth: 560, minHeight: 580)
@@ -337,6 +425,66 @@ struct PreferencesView: View {
                 .background(color.opacity(0.12))
                 .cornerRadius(10)
         }
+    }
+
+    private func preferenceToggleRow(
+        title: String,
+        detail: String,
+        systemImage: String,
+        color: Color,
+        isOn: Binding<Bool>
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundColor(color)
+                .font(.title3)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.leading)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+        }
+        .padding()
+        .background(color.opacity(0.12))
+        .cornerRadius(12)
+    }
+
+    private var attentionNotificationsBinding: Binding<Bool> {
+        Binding(
+            get: { attentionNotificationsEnabled },
+            set: { newValue in
+                if newValue {
+                    Task {
+                        let granted = await attentionNotificationManager.requestAuthorizationIfNeeded()
+                        await MainActor.run {
+                            attentionNotificationsEnabled = granted
+                            if !granted {
+                                errorMessage = languageManager.localized("Notification permission was not granted. You can enable it later from system settings.")
+                                showingErrorAlert = true
+                            }
+                        }
+                    }
+                } else {
+                    attentionNotificationsEnabled = false
+                    Task {
+                        await attentionNotificationManager.clearScheduledNotifications()
+                        await attentionNotificationManager.refreshAuthorizationStatus()
+                    }
+                }
+            }
+        )
     }
 
     private func dateFormatLabel(_ format: AppDateFormatPreference) -> String {
