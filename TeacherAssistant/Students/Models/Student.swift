@@ -46,6 +46,9 @@ class Student {
 
     @Relationship(deleteRule: .cascade, inverse: \BehaviorSupportEvent.student)
     var behaviorSupportEvents: [BehaviorSupportEvent] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \LiveObservation.student)
+    var liveObservations: [LiveObservation] = []
     
     // Computed property for easier access
     var genderEnum: StudentGender {

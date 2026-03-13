@@ -26,6 +26,9 @@ class SchoolClass {
 
     @Relationship(deleteRule: .cascade, inverse: \BehaviorSupportEvent.schoolClass)
     var behaviorSupportEvents: [BehaviorSupportEvent] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \LiveObservation.schoolClass)
+    var liveObservations: [LiveObservation] = []
     
     var sortOrder: Int
     
@@ -40,7 +43,8 @@ class SchoolClass {
         subjects: [Subject] = [],
         seatingChart: SeatingChart? = nil,
         participationEvents: [ParticipationEvent] = [],
-        behaviorSupportEvents: [BehaviorSupportEvent] = []
+        behaviorSupportEvents: [BehaviorSupportEvent] = [],
+        liveObservations: [LiveObservation] = []
     ) {
         self.name = name
         self.grade = grade
@@ -52,6 +56,7 @@ class SchoolClass {
         self.seatingChart = seatingChart
         self.participationEvents = participationEvents
         self.behaviorSupportEvents = behaviorSupportEvents
+        self.liveObservations = liveObservations
         self.sortOrder = sortOrder
     }
 }

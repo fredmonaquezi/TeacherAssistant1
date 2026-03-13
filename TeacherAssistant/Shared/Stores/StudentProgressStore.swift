@@ -58,10 +58,54 @@ struct StudentProgressSubjectSectionViewModel: Identifiable, Equatable, Sendable
 }
 
 struct StudentProgressRecentActivityViewModel: Identifiable, Equatable, Sendable {
-    let id: Int
-    let assessmentTitle: String
-    let subjectName: String?
-    let score: Double
+    let id: String
+    let kind: StudentProgressRecentActivityKind
+    let title: String
+    let subtitle: String?
+    let detailText: String
+    let date: Date
+    let score: Double?
+    let observationSupportLevel: LiveObservationLevel?
+}
+
+enum StudentProgressRecentActivityKind: String, Equatable, Sendable {
+    case assessment
+    case liveCheckIn
+}
+
+struct StudentProgressObservationChecklistItemViewModel: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let level: LiveObservationLevel
+}
+
+struct StudentProgressLatestObservationViewModel: Equatable, Sendable {
+    let createdAt: Date
+    let understandingLevel: LiveObservationLevel
+    let engagementLevel: LiveObservationLevel
+    let supportLevel: LiveObservationLevel
+    let note: String
+    let checklistItems: [StudentProgressObservationChecklistItemViewModel]
+}
+
+struct StudentProgressObservationLevelCountViewModel: Identifiable, Equatable, Sendable {
+    let id: String
+    let level: LiveObservationLevel
+    let count: Int
+}
+
+struct StudentProgressObservationSummaryViewModel: Equatable, Sendable {
+    let totalObservationCount: Int
+    let observationsTodayCount: Int
+    let latestObservation: StudentProgressLatestObservationViewModel?
+    let recentSupportCounts: [StudentProgressObservationLevelCountViewModel]
+
+    static let empty = StudentProgressObservationSummaryViewModel(
+        totalObservationCount: 0,
+        observationsTodayCount: 0,
+        latestObservation: nil,
+        recentSupportCounts: []
+    )
 }
 
 struct StudentProgressDevelopmentScoreViewModel: Identifiable, Equatable, Sendable {
@@ -100,6 +144,8 @@ struct StudentProgressDerivedData {
     let studentDevelopmentScores: [DevelopmentScore]
     let attendanceSummary: StudentProgressAttendanceSummary
     let recentResults: [StudentResult]
+    let liveObservationsForStudent: [LiveObservation]
+    let observationSummary: StudentProgressObservationSummaryViewModel
     let subjectSummaries: [StudentProgressSubjectSummary]
     let subjectSummariesByID: [UUID: StudentProgressSubjectSummary]
     let runningRecordsDescending: [RunningRecord]
@@ -125,6 +171,8 @@ struct StudentProgressDerivedData {
         studentDevelopmentScores: [],
         attendanceSummary: .empty,
         recentResults: [],
+        liveObservationsForStudent: [],
+        observationSummary: .empty,
         subjectSummaries: [],
         subjectSummariesByID: [:],
         runningRecordsDescending: [],
@@ -145,7 +193,8 @@ enum StudentProgressStore {
         student: Student,
         allResults: [StudentResult],
         allAttendanceSessions: [AttendanceSession],
-        allDevelopmentScores: [DevelopmentScore]
+        allDevelopmentScores: [DevelopmentScore],
+        allLiveObservations: [LiveObservation]
     ) -> StudentProgressDerivedData {
         let studentIDKey = String(describing: student.id)
         let runningRecords = student.runningRecords
@@ -162,9 +211,11 @@ enum StudentProgressStore {
         )
 
         return makeDerivedData(
+            student: student,
             allResults: allResults,
             allAttendanceSessions: allAttendanceSessions,
             allDevelopmentScores: allDevelopmentScores,
+            allLiveObservations: allLiveObservations,
             runningRecords: runningRecords,
             computation: computation
         )
@@ -174,7 +225,8 @@ enum StudentProgressStore {
         student: Student,
         allResults: [StudentResult],
         allAttendanceSessions: [AttendanceSession],
-        allDevelopmentScores: [DevelopmentScore]
+        allDevelopmentScores: [DevelopmentScore],
+        allLiveObservations: [LiveObservation]
     ) async -> StudentProgressDerivedData {
         let studentIDKey = String(describing: student.id)
         let runningRecords = student.runningRecords
@@ -196,9 +248,11 @@ enum StudentProgressStore {
             cancelledResult: .empty
         ) { computation in
             makeDerivedData(
+                student: student,
                 allResults: allResults,
                 allAttendanceSessions: allAttendanceSessions,
                 allDevelopmentScores: allDevelopmentScores,
+                allLiveObservations: allLiveObservations,
                 runningRecords: runningRecords,
                 computation: computation
             )
@@ -466,9 +520,11 @@ enum StudentProgressStore {
     }
 
     private static func makeDerivedData(
+        student: Student,
         allResults: [StudentResult],
         allAttendanceSessions: [AttendanceSession],
         allDevelopmentScores: [DevelopmentScore],
+        allLiveObservations: [LiveObservation],
         runningRecords: [RunningRecord],
         computation: StudentProgressComputation
     ) -> StudentProgressDerivedData {
@@ -480,16 +536,6 @@ enum StudentProgressStore {
         }
         let recentResults = computation.recentResultIndices.compactMap { index in
             allResults.indices.contains(index) ? allResults[index] : nil
-        }
-        let recentActivityViewModels = computation.recentResultIndices.compactMap { index -> StudentProgressRecentActivityViewModel? in
-            guard allResults.indices.contains(index) else { return nil }
-            let result = allResults[index]
-            return StudentProgressRecentActivityViewModel(
-                id: index,
-                assessmentTitle: result.assessment?.title ?? "Assessment",
-                subjectName: result.assessment?.unit?.subject?.name,
-                score: result.score
-            )
         }
         let attendanceRecordsForStudent: [AttendanceRecord] = computation.attendanceCoordinates.compactMap { coordinate in
             guard allAttendanceSessions.indices.contains(coordinate.sessionIndex) else { return nil }
@@ -632,6 +678,77 @@ enum StudentProgressStore {
             )
         }
 
+        let liveObservationsForStudent = allLiveObservations
+            .filter { observation in
+                observation.studentUUID == student.uuid
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+
+        let latestObservation = liveObservationsForStudent.first.map { observation in
+            StudentProgressLatestObservationViewModel(
+                createdAt: observation.createdAt,
+                understandingLevel: observation.understandingLevel,
+                engagementLevel: observation.engagementLevel,
+                supportLevel: observation.supportLevel,
+                note: observation.note,
+                checklistItems: observation.checklistResponses
+                    .sorted { $0.sortOrder < $1.sortOrder }
+                    .map {
+                        StudentProgressObservationChecklistItemViewModel(
+                            id: $0.id.uuidString,
+                            title: $0.criterionTitle,
+                            level: $0.level
+                        )
+                    }
+            )
+        }
+
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let startOfTomorrow = Calendar.current.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
+        let observationsTodayCount = liveObservationsForStudent.filter {
+            $0.createdAt >= startOfToday && $0.createdAt < startOfTomorrow
+        }.count
+
+        let recentSupportCounts = LiveObservationLevel.allCases.map { level in
+            StudentProgressObservationLevelCountViewModel(
+                id: level.rawValue,
+                level: level,
+                count: liveObservationsForStudent.prefix(8).filter { $0.supportLevel == level }.count
+            )
+        }
+
+        let assessmentActivities = recentResults.compactMap { result -> StudentProgressRecentActivityViewModel? in
+            guard let assessmentDate = result.assessment?.date else { return nil }
+            return StudentProgressRecentActivityViewModel(
+                id: "assessment-\(result.id)",
+                kind: .assessment,
+                title: result.assessment?.title ?? "Assessment".localized,
+                subtitle: result.assessment?.unit?.subject?.name,
+                detailText: String(format: "Score: %.1f".localized, result.score),
+                date: assessmentDate,
+                score: result.score,
+                observationSupportLevel: nil
+            )
+        }
+
+        let observationActivities = liveObservationsForStudent.prefix(5).map { observation in
+            StudentProgressRecentActivityViewModel(
+                id: "live-\(observation.id.uuidString)",
+                kind: .liveCheckIn,
+                title: "Live Check-In".localized,
+                subtitle: observation.source.title,
+                detailText: "U: \(observation.understandingLevel.title) • E: \(observation.engagementLevel.title) • S: \(observation.supportLevel.title)",
+                date: observation.createdAt,
+                score: nil,
+                observationSupportLevel: observation.supportLevel
+            )
+        }
+
+        let recentActivityViewModels = (assessmentActivities + observationActivities)
+            .sorted { $0.date > $1.date }
+            .prefix(6)
+            .map { $0 }
+
         return StudentProgressDerivedData(
             overallAverageScore: computation.overallAverageScore,
             resultsForStudent: resultsForStudent,
@@ -650,6 +767,13 @@ enum StudentProgressStore {
                 leftEarly: computation.attendanceSummary.leftEarly
             ),
             recentResults: recentResults,
+            liveObservationsForStudent: liveObservationsForStudent,
+            observationSummary: StudentProgressObservationSummaryViewModel(
+                totalObservationCount: liveObservationsForStudent.count,
+                observationsTodayCount: observationsTodayCount,
+                latestObservation: latestObservation,
+                recentSupportCounts: recentSupportCounts
+            ),
             subjectSummaries: subjectSummaries,
             subjectSummariesByID: subjectSummariesByID,
             runningRecordsDescending: runningRecordsDescending,

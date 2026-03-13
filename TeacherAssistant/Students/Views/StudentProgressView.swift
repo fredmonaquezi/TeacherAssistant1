@@ -17,6 +17,7 @@ struct StudentProgressView: View {
     @Query private var allResults: [StudentResult]
     @Query private var allAttendanceSessions: [AttendanceSession]
     @Query private var allDevelopmentScores: [DevelopmentScore]
+    @Query private var allLiveObservations: [LiveObservation]
     
     @State private var exportURL: URL?
     @State private var schoolName: String = ""
@@ -83,6 +84,10 @@ struct StudentProgressView: View {
     var attendanceRecordsForStudent: [AttendanceRecord] {
         derivedData.attendanceRecordsForStudent
     }
+
+    var observationSummary: StudentProgressObservationSummaryViewModel {
+        derivedData.observationSummary
+    }
     
     // MARK: - Attendance Stats
     
@@ -138,6 +143,7 @@ struct StudentProgressView: View {
             String(allResults.count),
             String(allAttendanceSessions.count),
             String(allDevelopmentScores.count),
+            String(allLiveObservations.count),
             String(describing: student.id),
             String(saveRefreshRevision),
         ].joined(separator: "|")
@@ -1548,7 +1554,8 @@ struct StudentProgressView: View {
             runningRecordCount: runningRecordCount,
             developmentAreaCount: studentDevelopmentScores.count,
             subjectOverviewViewModels: subjectOverviewViewModels,
-            recentActivityViewModels: recentActivityViewModels
+            recentActivityViewModels: recentActivityViewModels,
+            observationSummary: observationSummary
         )
         .equatable()
     }
@@ -1617,7 +1624,8 @@ struct StudentProgressView: View {
             student: student,
             allResults: allResults,
             allAttendanceSessions: allAttendanceSessions,
-            allDevelopmentScores: allDevelopmentScores
+            allDevelopmentScores: allDevelopmentScores,
+            allLiveObservations: allLiveObservations
         )
         if Task.isCancelled {
             await PerformanceMonitor.shared.endInterval(token, success: false)

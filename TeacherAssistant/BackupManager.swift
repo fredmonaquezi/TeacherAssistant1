@@ -2,7 +2,7 @@ import SwiftData
 import Foundation
 
 /// Current backup schema version for compatibility checking
-private let currentBackupSchemaVersion = 12
+private let currentBackupSchemaVersion = 13
 
 extension Notification.Name {
     static let backupRestoreDidComplete = Notification.Name("BackupRestoreDidComplete")
@@ -34,6 +34,7 @@ struct VersionedBackupFile: Codable {
     var developmentScores: [BackupDevelopmentScore]
     var calendarEvents: [BackupCalendarEvent]
     var classDiaryEntries: [BackupClassDiaryEntry]
+    var liveObservationTemplates: [BackupLiveObservationTemplate]
     var libraryFolders: [BackupLibraryFolder]
     var libraryFiles: [BackupLibraryFile]
     var usefulLinks: [BackupUsefulLink]
@@ -46,6 +47,7 @@ struct VersionedBackupFile: Codable {
         developmentScores: [BackupDevelopmentScore],
         calendarEvents: [BackupCalendarEvent],
         classDiaryEntries: [BackupClassDiaryEntry],
+        liveObservationTemplates: [BackupLiveObservationTemplate],
         libraryFolders: [BackupLibraryFolder],
         libraryFiles: [BackupLibraryFile],
         usefulLinks: [BackupUsefulLink],
@@ -60,6 +62,7 @@ struct VersionedBackupFile: Codable {
         self.developmentScores = developmentScores
         self.calendarEvents = calendarEvents
         self.classDiaryEntries = classDiaryEntries
+        self.liveObservationTemplates = liveObservationTemplates
         self.libraryFolders = libraryFolders
         self.libraryFiles = libraryFiles
         self.usefulLinks = usefulLinks
@@ -76,6 +79,7 @@ struct VersionedBackupFile: Codable {
         case developmentScores
         case calendarEvents
         case classDiaryEntries
+        case liveObservationTemplates
         case libraryFolders
         case libraryFiles
         case usefulLinks
@@ -93,6 +97,7 @@ struct VersionedBackupFile: Codable {
         developmentScores = try container.decodeIfPresent([BackupDevelopmentScore].self, forKey: .developmentScores) ?? []
         calendarEvents = try container.decodeIfPresent([BackupCalendarEvent].self, forKey: .calendarEvents) ?? []
         classDiaryEntries = try container.decodeIfPresent([BackupClassDiaryEntry].self, forKey: .classDiaryEntries) ?? []
+        liveObservationTemplates = try container.decodeIfPresent([BackupLiveObservationTemplate].self, forKey: .liveObservationTemplates) ?? []
         libraryFolders = try container.decodeIfPresent([BackupLibraryFolder].self, forKey: .libraryFolders) ?? []
         libraryFiles = try container.decodeIfPresent([BackupLibraryFile].self, forKey: .libraryFiles) ?? []
         usefulLinks = try container.decodeIfPresent([BackupUsefulLink].self, forKey: .usefulLinks) ?? []
@@ -159,6 +164,7 @@ final class BackupManager {
         let allDevelopmentScores = try exportContext.fetch(FetchDescriptor<DevelopmentScore>())
         let allCalendarEvents = try exportContext.fetch(FetchDescriptor<CalendarEvent>())
         let allDiaryEntries = try exportContext.fetch(FetchDescriptor<ClassDiaryEntry>())
+        let allLiveObservationTemplates = try exportContext.fetch(FetchDescriptor<LiveObservationTemplate>())
         let allLibraryFolders = try exportContext.fetch(FetchDescriptor<LibraryFolder>())
         let allLibraryFiles = try exportContext.fetch(FetchDescriptor<LibraryFile>())
         let allUsefulLinks = try exportContext.fetch(FetchDescriptor<UsefulLink>())
@@ -289,6 +295,33 @@ final class BackupManager {
                         studentName: event.studentNameSnapshot
                     )
                 }
+
+            let backupLiveObservations = schoolClass.liveObservations
+                .sorted { $0.createdAt > $1.createdAt }
+                .map { observation in
+                    BackupLiveObservation(
+                        id: observation.id,
+                        createdAt: observation.createdAt,
+                        sessionDate: observation.sessionDate,
+                        sourceRaw: observation.source.rawValue,
+                        understandingLevelRaw: observation.understandingLevel.rawValue,
+                        engagementLevelRaw: observation.engagementLevel.rawValue,
+                        supportLevelRaw: observation.supportLevel.rawValue,
+                        note: SecurityHelpers.sanitizeNotes(observation.note),
+                        studentUUID: observation.studentUUID,
+                        studentName: observation.studentNameSnapshot,
+                        checklistResponses: observation.checklistResponses
+                            .sorted { $0.sortOrder < $1.sortOrder }
+                            .map { response in
+                                BackupLiveObservationChecklistResponse(
+                                    id: response.id,
+                                    criterionTitle: response.criterionTitle,
+                                    levelRaw: response.level.rawValue,
+                                    sortOrder: SecurityHelpers.validateCount(response.sortOrder, min: 0, max: 10000)
+                                )
+                            }
+                    )
+                }
             
             var backupSubjects: [BackupSubject] = []
             
@@ -390,6 +423,7 @@ final class BackupManager {
                     seatingChart: backupSeatingChart,
                     participationEvents: backupParticipationEvents,
                     behaviorSupportEvents: backupBehaviorSupportEvents,
+                    liveObservations: backupLiveObservations,
                     subjects: backupSubjects
                 )
             )
@@ -488,6 +522,32 @@ final class BackupManager {
             )
         }
 
+        let backupLiveObservationTemplates = allLiveObservationTemplates
+            .sorted {
+                if $0.sortOrder != $1.sortOrder {
+                    return $0.sortOrder < $1.sortOrder
+                }
+                return $0.createdAt < $1.createdAt
+            }
+            .map { template in
+                BackupLiveObservationTemplate(
+                    id: template.id,
+                    title: template.title,
+                    sortOrder: SecurityHelpers.validateCount(template.sortOrder, min: 0, max: 10000),
+                    createdAt: template.createdAt,
+                    updatedAt: template.updatedAt,
+                    criteria: template.criteria
+                        .sorted { $0.sortOrder < $1.sortOrder }
+                        .map { criterion in
+                            BackupLiveObservationTemplateCriterion(
+                                id: criterion.id,
+                                title: criterion.title,
+                                sortOrder: SecurityHelpers.validateCount(criterion.sortOrder, min: 0, max: 10000)
+                            )
+                        }
+                )
+            }
+
         let backupLibraryFolders = allLibraryFolders
             .sorted { lhs, rhs in
                 if lhs.parentID == nil && rhs.parentID != nil {
@@ -571,6 +631,7 @@ final class BackupManager {
             developmentScores: backupDevelopmentScores,
             calendarEvents: backupCalendarEvents,
             classDiaryEntries: backupClassDiaryEntries,
+            liveObservationTemplates: backupLiveObservationTemplates,
             libraryFolders: backupLibraryFolders,
             libraryFiles: backupLibraryFiles,
             usefulLinks: backupUsefulLinks,

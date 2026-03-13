@@ -13,8 +13,10 @@ struct ClassroomSessionView: View {
 
     @Bindable var schoolClass: SchoolClass
     @ObservedObject var timerManager: ClassroomTimerManager
+    let showsDismissButton: Bool
 
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var languageManager: LanguageManager
     @Query private var diaryEntries: [ClassDiaryEntry]
 
@@ -25,8 +27,19 @@ struct ClassroomSessionView: View {
     @State private var showingAttendanceSheet = false
     @State private var showingAssignmentsSheet = false
     @State private var showingSeatingChartSheet = false
+    @State private var showingLiveCheckInSheet = false
 
     private let calendar = Calendar.current
+
+    init(
+        schoolClass: SchoolClass,
+        timerManager: ClassroomTimerManager,
+        showsDismissButton: Bool = false
+    ) {
+        self.schoolClass = schoolClass
+        self.timerManager = timerManager
+        self.showsDismissButton = showsDismissButton
+    }
 
     private var sessionDiaryPlanCandidates: Set<String> {
         [
@@ -168,19 +181,37 @@ struct ClassroomSessionView: View {
             .padding(.vertical, 20)
         }
         .navigationTitle("Classroom Session".localized)
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close".localized) {
+                        dismiss()
+                    }
+                }
+            }
+        }
         .sheet(isPresented: $showingAttendanceSheet) {
             NavigationStack {
-                AttendanceListView(schoolClass: schoolClass)
+                AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
             }
         }
         .sheet(isPresented: $showingAssignmentsSheet) {
             NavigationStack {
-                ClassAssignmentsView(schoolClass: schoolClass)
+                ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
             }
         }
         .sheet(isPresented: $showingSeatingChartSheet) {
             NavigationStack {
-                SeatingChartView(schoolClass: schoolClass)
+                SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
+            }
+        }
+        .sheet(isPresented: $showingLiveCheckInSheet) {
+            NavigationStack {
+                LiveCheckInView(
+                    schoolClass: schoolClass,
+                    source: .classroomSession,
+                    showsDismissButton: true
+                )
             }
         }
         .task {
@@ -286,6 +317,14 @@ struct ClassroomSessionView: View {
                     disabled: classAssignments.isEmpty
                 ) {
                     showingAssignmentsSheet = true
+                }
+
+                sessionActionButton(
+                    title: "Live Check-In".localized,
+                    icon: "waveform.path.ecg.rectangle",
+                    color: .indigo
+                ) {
+                    showingLiveCheckInSheet = true
                 }
 
                 sessionActionButton(

@@ -58,6 +58,7 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
             developmentScores: [],
             calendarEvents: [],
             classDiaryEntries: [],
+            liveObservationTemplates: [],
             libraryFolders: [],
             libraryFiles: [],
             usefulLinks: [],
@@ -157,12 +158,47 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         schoolClass.behaviorSupportEvents = [behaviorEvent]
         secondStudent.behaviorSupportEvents = [behaviorEvent]
 
+        let template = LiveObservationTemplate(title: "Conference Snapshot", sortOrder: 0)
+        let templateCriterion = LiveObservationTemplateCriterion(
+            title: "Evidence from Discussion",
+            sortOrder: 0,
+            template: template
+        )
+        template.criteria = [templateCriterion]
+
+        let liveObservation = LiveObservation(
+            createdAt: Date(),
+            sessionDate: Calendar.current.startOfDay(for: Date()),
+            source: .standaloneTool,
+            understandingLevel: .developing,
+            engagementLevel: .secure,
+            supportLevel: .needsSupport,
+            note: "Needed support to restate the main idea.",
+            studentUUID: firstStudent.uuid,
+            studentNameSnapshot: firstStudent.name,
+            student: firstStudent,
+            schoolClass: schoolClass
+        )
+        let liveResponse = LiveObservationChecklistResponse(
+            criterionTitle: "Evidence from Discussion",
+            level: .developing,
+            sortOrder: 0,
+            observation: liveObservation
+        )
+        liveObservation.checklistResponses = [liveResponse]
+        schoolClass.liveObservations = [liveObservation]
+        firstStudent.liveObservations = [liveObservation]
+
         sourceContext.insert(schoolClass)
         sourceContext.insert(seatingChart)
         sourceContext.insert(firstPlacement)
         sourceContext.insert(secondPlacement)
         sourceContext.insert(participationEvent)
         sourceContext.insert(behaviorEvent)
+        sourceContext.insert(template)
+        sourceContext.insert(templateCriterion)
+        sourceContext.insert(liveObservation)
+        sourceContext.insert(liveResponse)
         try sourceContext.save()
 
         let backupURL = try await exportBackupRetryingRateLimit(context: sourceContext)
@@ -199,6 +235,14 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         XCTAssertEqual(restoredClasses.first?.behaviorSupportEvents.count, 1)
         XCTAssertEqual(restoredClasses.first?.behaviorSupportEvents.first?.kind, .redirectNeeded)
         XCTAssertEqual(restoredClasses.first?.behaviorSupportEvents.first?.studentNameSnapshot, "Mia Santos")
+        XCTAssertEqual(restoredClasses.first?.liveObservations.count, 1)
+        XCTAssertEqual(restoredClasses.first?.liveObservations.first?.supportLevel, .needsSupport)
+        XCTAssertEqual(restoredClasses.first?.liveObservations.first?.checklistResponses.first?.criterionTitle, "Evidence from Discussion")
+
+        let restoredTemplates = try destinationContainer.mainContext.fetch(FetchDescriptor<LiveObservationTemplate>())
+        XCTAssertEqual(restoredTemplates.count, 1)
+        XCTAssertEqual(restoredTemplates.first?.criteria.count, 1)
+        XCTAssertEqual(restoredTemplates.first?.criteria.first?.title, "Evidence from Discussion")
     }
 
     func testSnapshotRetentionPolicyKeepsNewestAndDailyHistory() {
@@ -667,6 +711,7 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
             developmentScores: [],
             calendarEvents: [],
             classDiaryEntries: [],
+            liveObservationTemplates: [],
             libraryFolders: [],
             libraryFiles: [],
             usefulLinks: [],
@@ -708,6 +753,7 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
             developmentScores: [],
             calendarEvents: [],
             classDiaryEntries: [],
+            liveObservationTemplates: [],
             libraryFolders: [],
             libraryFiles: [],
             usefulLinks: [],
@@ -1111,6 +1157,7 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
             developmentScores: developmentScores,
             calendarEvents: calendarEvents,
             classDiaryEntries: classDiaryEntries,
+            liveObservationTemplates: [],
             libraryFolders: folders,
             libraryFiles: files,
             usefulLinks: usefulLinks,

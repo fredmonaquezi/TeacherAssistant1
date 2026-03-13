@@ -12,6 +12,7 @@ enum AppSection: String, CaseIterable, Identifiable, Codable {
     case classes = "Classes"
     case library = "Library"
     case attendance = "Attendance"
+    case liveCheckIn = "Live Check-In"
     case gradebook = "Gradebook"
     case rubrics = "Manage Rubrics"
     case groups = "Groups"
@@ -28,6 +29,7 @@ enum AppSection: String, CaseIterable, Identifiable, Codable {
             .dashboard,
             .classes,
             .attendance,
+            .liveCheckIn,
             .gradebook,
             .rubrics,
             .groups,
@@ -404,7 +406,7 @@ struct ContentView: View {
         case .assignment:
             if let assignment = resolvedAssignment(for: route) {
                 NavigationStack {
-                    AssignmentDetailView(assignment: assignment)
+                    AssignmentDetailView(assignment: assignment, showsDismissButton: true)
                 }
             } else {
                 unresolvedRouteView

@@ -3,12 +3,19 @@ import SwiftData
 
 struct AssignmentDetailView: View {
     @Bindable var assignment: Assignment
+    let showsDismissButton: Bool
 
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var languageManager: LanguageManager
 
     @State private var selectedFilter: AssignmentEntryFilter = .all
     @State private var reviewRefreshRevision = 0
+
+    init(assignment: Assignment, showsDismissButton: Bool = false) {
+        self.assignment = assignment
+        self.showsDismissButton = showsDismissButton
+    }
 
     enum AssignmentEntryFilter: String, CaseIterable, Identifiable {
         case all
@@ -63,6 +70,15 @@ struct AssignmentDetailView: View {
             .padding(.vertical, 20)
         }
         .navigationTitle(assignment.title)
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Back".localized) {
+                        dismiss()
+                    }
+                }
+            }
+        }
         .onAppear {
             if let classStudents = assignment.unit?.subject?.schoolClass?.students {
                 assignment.ensureEntries(for: classStudents, context: context)

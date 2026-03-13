@@ -16,6 +16,7 @@ struct ClassDetailView: View {
     @State private var showingAssignments = false
     @State private var showingSeatingChart = false
     @State private var showingClassroomSession = false
+    @State private var showingLiveCheckIn = false
     
     @State private var studentToDelete: Student?
     @State private var subjectToDelete: Subject?
@@ -67,6 +68,11 @@ struct ClassDetailView: View {
 
                     Button("🎯 " + "Classroom Session".localized) {
                         showingClassroomSession = true
+                    }
+                    .disabled(schoolClass.students.isEmpty)
+
+                    Button("📍 " + "Live Check-In".localized) {
+                        showingLiveCheckIn = true
                     }
                     .disabled(schoolClass.students.isEmpty)
 
@@ -128,10 +134,10 @@ struct ClassDetailView: View {
         .sheet(isPresented: $showingAttendance) {
             #if os(macOS)
             NavigationStack {
-                AttendanceListView(schoolClass: schoolClass)
+                AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
             }
             #else
-            AttendanceListView(schoolClass: schoolClass)
+            AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
             #endif
         }
         .sheet(isPresented: $showingClassroomSession) {
@@ -139,32 +145,51 @@ struct ClassDetailView: View {
             NavigationStack {
                 ClassroomSessionView(
                     schoolClass: schoolClass,
-                    timerManager: timerManager
+                    timerManager: timerManager,
+                    showsDismissButton: true
                 )
             }
             #else
             ClassroomSessionView(
                 schoolClass: schoolClass,
-                timerManager: timerManager
+                timerManager: timerManager,
+                showsDismissButton: true
             )
             #endif
         }
         .sheet(isPresented: $showingAssignments) {
             #if os(macOS)
             NavigationStack {
-                ClassAssignmentsView(schoolClass: schoolClass)
+                ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
             }
             #else
-            ClassAssignmentsView(schoolClass: schoolClass)
+            ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
             #endif
         }
         .sheet(isPresented: $showingSeatingChart) {
             #if os(macOS)
             NavigationStack {
-                SeatingChartView(schoolClass: schoolClass)
+                SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
             }
             #else
-            SeatingChartView(schoolClass: schoolClass)
+            SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
+            #endif
+        }
+        .sheet(isPresented: $showingLiveCheckIn) {
+            #if os(macOS)
+            NavigationStack {
+                LiveCheckInView(
+                    schoolClass: schoolClass,
+                    source: .standaloneTool,
+                    showsDismissButton: true
+                )
+            }
+            #else
+            LiveCheckInView(
+                schoolClass: schoolClass,
+                source: .standaloneTool,
+                showsDismissButton: true
+            )
             #endif
         }
         .alert("Delete Student?".localized, isPresented: $showingDeleteStudentAlert) {
@@ -335,6 +360,15 @@ struct ClassDetailView: View {
                     disabled: schoolClass.students.isEmpty
                 ) {
                     showingClassroomSession = true
+                }
+
+                quickActionButton(
+                    title: languageManager.localized("Live Check-In"),
+                    icon: "waveform.path.ecg.rectangle",
+                    color: .indigo,
+                    disabled: schoolClass.students.isEmpty
+                ) {
+                    showingLiveCheckIn = true
                 }
 
                 quickActionButton(

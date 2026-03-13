@@ -3,7 +3,9 @@ import SwiftData
 
 struct ClassAssignmentsView: View {
     @Bindable var schoolClass: SchoolClass
+    let showsDismissButton: Bool
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var languageManager: LanguageManager
 
     @State private var selectedFilter: AssignmentBoardFilter = .all
@@ -11,6 +13,11 @@ struct ClassAssignmentsView: View {
     @State private var searchText = ""
     @State private var showingAddAssignment = false
     @State private var reviewRefreshRevision = 0
+
+    init(schoolClass: SchoolClass, showsDismissButton: Bool = false) {
+        self.schoolClass = schoolClass
+        self.showsDismissButton = showsDismissButton
+    }
 
     enum AssignmentBoardFilter: String, CaseIterable, Identifiable {
         case all
@@ -107,6 +114,13 @@ struct ClassAssignmentsView: View {
         }
         .navigationTitle("Assignments".localized)
         .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close".localized) {
+                        dismiss()
+                    }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingAddAssignment = true
@@ -273,7 +287,10 @@ struct ClassAssignmentsView: View {
 
         return HStack(alignment: .top, spacing: 12) {
             NavigationLink {
-                AssignmentDetailView(assignment: assignment)
+                AssignmentDetailView(
+                    assignment: assignment,
+                    showsDismissButton: showsDismissButton
+                )
             } label: {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .top) {

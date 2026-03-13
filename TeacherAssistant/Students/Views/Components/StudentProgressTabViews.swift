@@ -8,6 +8,7 @@ struct StudentProgressOverviewTabView: View, Equatable {
     let developmentAreaCount: Int
     let subjectOverviewViewModels: [StudentProgressSubjectOverviewViewModel]
     let recentActivityViewModels: [StudentProgressRecentActivityViewModel]
+    let observationSummary: StudentProgressObservationSummaryViewModel
 
     var body: some View {
         VStack(spacing: 20) {
@@ -51,6 +52,14 @@ struct StudentProgressOverviewTabView: View, Equatable {
                 ForEach(subjectOverviewViewModels) { subject in
                     subjectOverviewCard(subject: subject)
                 }
+            }
+
+            sectionHeader(title: "Live Observations".localized, icon: "waveform.path.ecg.rectangle", color: .indigo)
+
+            if observationSummary.totalObservationCount == 0 {
+                emptyState(icon: "waveform.path.ecg.rectangle", message: "No live check-ins yet")
+            } else {
+                observationSummaryCard
             }
 
             sectionHeader(title: "Recent Activity".localized, icon: "clock.fill", color: .blue)
@@ -115,31 +124,114 @@ struct StudentProgressOverviewTabView: View, Equatable {
     private func activityRow(result: StudentProgressRecentActivityViewModel) -> some View {
         HStack(spacing: 12) {
             Circle()
-                .fill(Color.purple.opacity(0.2))
+                .fill(activityTintColor(result).opacity(0.18))
                 .frame(width: 40, height: 40)
                 .overlay(
-                    Image(systemName: "checkmark")
+                    Image(systemName: activityIcon(result))
                         .font(.caption)
-                        .foregroundColor(.purple)
+                        .foregroundColor(activityTintColor(result))
                 )
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(result.assessmentTitle)
+                Text(result.title)
                     .font(.subheadline)
                     .fontWeight(.medium)
 
-                if let subjectName = result.subjectName {
-                    Text(subjectName)
+                if let subtitle = result.subtitle {
+                    Text(subtitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+
+                Text(result.detailText)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             Spacer()
 
-            Text(String(format: "%.1f", result.score))
-                .font(.headline)
-                .foregroundColor(averageColor(result.score))
+            VStack(alignment: .trailing, spacing: 4) {
+                if let score = result.score {
+                    Text(String(format: "%.1f", score))
+                        .font(.headline)
+                        .foregroundColor(averageColor(score))
+                } else if let level = result.observationSupportLevel {
+                    Text(level.title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(level.color)
+                }
+
+                Text(result.date.appDateString(systemStyle: .short))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(cardBackgroundColor)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 2)
+    }
+
+    private var observationSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                statPill(
+                    title: "Total".localized,
+                    value: "\(observationSummary.totalObservationCount)",
+                    color: .indigo
+                )
+                statPill(
+                    title: "Today".localized,
+                    value: "\(observationSummary.observationsTodayCount)",
+                    color: .blue
+                )
+            }
+
+            if let latestObservation = observationSummary.latestObservation {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Latest Snapshot".localized)
+                        .font(.subheadline.weight(.semibold))
+
+                    HStack(spacing: 8) {
+                        observationTag("Understanding".localized, level: latestObservation.understandingLevel)
+                        observationTag("Engagement".localized, level: latestObservation.engagementLevel)
+                        observationTag("Support".localized, level: latestObservation.supportLevel)
+                    }
+
+                    if !latestObservation.checklistItems.isEmpty {
+                        Text(
+                            latestObservation.checklistItems
+                                .map { "\($0.title): \($0.level.title)" }
+                                .joined(separator: " • ")
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+
+                    if !latestObservation.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(latestObservation.note)
+                            .font(.subheadline)
+                    }
+                }
+            }
+
+            if !observationSummary.recentSupportCounts.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Recent Support Trend".localized)
+                        .font(.subheadline.weight(.semibold))
+
+                    ForEach(observationSummary.recentSupportCounts) { count in
+                        HStack {
+                            Text(count.level.title)
+                                .font(.caption)
+                                .foregroundColor(count.level.color)
+                            Spacer()
+                            Text("\(count.count)")
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                }
+            }
         }
         .padding()
         .background(cardBackgroundColor)
@@ -189,6 +281,49 @@ struct StudentProgressOverviewTabView: View, Equatable {
         #else
         return Color(UIColor.secondarySystemBackground)
         #endif
+    }
+
+    private func activityIcon(_ result: StudentProgressRecentActivityViewModel) -> String {
+        switch result.kind {
+        case .assessment:
+            return "checkmark"
+        case .liveCheckIn:
+            return "waveform.path.ecg"
+        }
+    }
+
+    private func activityTintColor(_ result: StudentProgressRecentActivityViewModel) -> Color {
+        switch result.kind {
+        case .assessment:
+            return .purple
+        case .liveCheckIn:
+            return result.observationSupportLevel?.color ?? .indigo
+        }
+    }
+
+    private func statPill(title: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.headline)
+                .foregroundColor(color)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(color.opacity(0.08))
+        .cornerRadius(10)
+    }
+
+    private func observationTag(_ title: String, level: LiveObservationLevel) -> some View {
+        Text("\(title): \(level.title)")
+            .font(.caption)
+            .foregroundColor(level.color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(level.color.opacity(0.08))
+            .cornerRadius(8)
     }
 }
 

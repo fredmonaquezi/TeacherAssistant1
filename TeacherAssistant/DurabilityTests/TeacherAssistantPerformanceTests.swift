@@ -214,7 +214,8 @@ final class TeacherAssistantPerformanceTests: XCTestCase {
                 student: fixture.targetStudent,
                 allResults: fixture.allResults,
                 allAttendanceSessions: fixture.allAttendanceSessions,
-                allDevelopmentScores: fixture.allDevelopmentScores
+                allDevelopmentScores: fixture.allDevelopmentScores,
+                allLiveObservations: []
             )
         }
 

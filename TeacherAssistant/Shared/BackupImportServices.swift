@@ -8,6 +8,7 @@ struct DecodedBackupPayload {
     var developmentScores: [BackupDevelopmentScore]
     var calendarEvents: [BackupCalendarEvent]
     var classDiaryEntries: [BackupClassDiaryEntry]
+    var liveObservationTemplates: [BackupLiveObservationTemplate]
     var libraryFolders: [BackupLibraryFolder]
     var libraryFiles: [BackupLibraryFile]
     var usefulLinks: [BackupUsefulLink]
@@ -36,6 +37,7 @@ enum BackupDecodeService {
                 developmentScores: versionedBackup.developmentScores,
                 calendarEvents: versionedBackup.calendarEvents,
                 classDiaryEntries: versionedBackup.classDiaryEntries,
+                liveObservationTemplates: versionedBackup.liveObservationTemplates,
                 libraryFolders: versionedBackup.libraryFolders,
                 libraryFiles: versionedBackup.libraryFiles,
                 usefulLinks: versionedBackup.usefulLinks,
@@ -53,6 +55,7 @@ enum BackupDecodeService {
             developmentScores: [],
             calendarEvents: [],
             classDiaryEntries: [],
+            liveObservationTemplates: [],
             libraryFolders: [],
             libraryFiles: [],
             usefulLinks: [],
@@ -112,6 +115,8 @@ enum BackupPayloadApplyService {
             try deleteAll(DevelopmentScore.self, in: context)
             try deleteAll(LibraryFile.self, in: context)
             try deleteAll(LibraryFolder.self, in: context)
+            try deleteAll(LiveObservationTemplate.self, in: context)
+            try deleteAll(LiveObservationTemplateCriterion.self, in: context)
             try deleteAll(RubricTemplate.self, in: context)
             try deleteAll(RunningRecord.self, in: context)
             try deleteAll(UsefulLink.self, in: context)
@@ -303,6 +308,48 @@ enum BackupPayloadApplyService {
                 newClass.behaviorSupportEvents.append(event)
                 student.behaviorSupportEvents.append(event)
                 context.insert(event)
+            }
+
+            for observationBackup in backupClass.liveObservations {
+                guard let student = resolveStudent(
+                    studentUUID: observationBackup.studentUUID,
+                    studentName: observationBackup.studentName,
+                    classStudents: newClass.students,
+                    studentByUUID: studentByUUID
+                ) else {
+                    continue
+                }
+
+                let observation = LiveObservation(
+                    id: observationBackup.id,
+                    createdAt: observationBackup.createdAt,
+                    sessionDate: observationBackup.sessionDate,
+                    source: LiveObservationSource(rawValue: observationBackup.sourceRaw) ?? .standaloneTool,
+                    understandingLevel: LiveObservationLevel(rawValue: observationBackup.understandingLevelRaw) ?? .developing,
+                    engagementLevel: LiveObservationLevel(rawValue: observationBackup.engagementLevelRaw) ?? .developing,
+                    supportLevel: LiveObservationLevel(rawValue: observationBackup.supportLevelRaw) ?? .developing,
+                    note: SecurityHelpers.sanitizeNotes(observationBackup.note),
+                    studentUUID: student.uuid,
+                    studentNameSnapshot: student.name,
+                    student: student,
+                    schoolClass: newClass
+                )
+                newClass.liveObservations.append(observation)
+                student.liveObservations.append(observation)
+
+                observation.checklistResponses = observationBackup.checklistResponses.map { responseBackup in
+                    LiveObservationChecklistResponse(
+                        id: responseBackup.id,
+                        criterionTitle: SecurityHelpers.sanitizeName(responseBackup.criterionTitle) ?? "Criterion".localized,
+                        level: LiveObservationLevel(rawValue: responseBackup.levelRaw) ?? .developing,
+                        sortOrder: SecurityHelpers.validateCount(responseBackup.sortOrder, min: 0, max: 10000),
+                        observation: observation
+                    )
+                }
+                context.insert(observation)
+                for response in observation.checklistResponses {
+                    context.insert(response)
+                }
             }
 
             for subjectBackup in backupClass.subjects {
@@ -508,6 +555,32 @@ enum BackupPayloadApplyService {
             )
             score.id = backupScore.id
             context.insert(score)
+        }
+
+        for backupTemplate in payload.liveObservationTemplates {
+            guard let sanitizedTitle = SecurityHelpers.sanitizeName(backupTemplate.title) else {
+                continue
+            }
+
+            let template = LiveObservationTemplate(
+                id: backupTemplate.id,
+                title: sanitizedTitle,
+                sortOrder: SecurityHelpers.validateCount(backupTemplate.sortOrder, min: 0, max: 10000),
+                createdAt: backupTemplate.createdAt,
+                updatedAt: backupTemplate.updatedAt
+            )
+            template.criteria = backupTemplate.criteria.map { backupCriterion in
+                LiveObservationTemplateCriterion(
+                    id: backupCriterion.id,
+                    title: SecurityHelpers.sanitizeName(backupCriterion.title) ?? "Criterion".localized,
+                    sortOrder: SecurityHelpers.validateCount(backupCriterion.sortOrder, min: 0, max: 10000),
+                    template: template
+                )
+            }
+            context.insert(template)
+            for criterion in template.criteria {
+                context.insert(criterion)
+            }
         }
 
         var libraryFolderByID: [UUID: LibraryFolder] = [:]

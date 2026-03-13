@@ -11,7 +11,9 @@ struct SeatingChartView: View {
     }
 
     @Bindable var schoolClass: SchoolClass
+    let showsDismissButton: Bool
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var languageManager: LanguageManager
 
     @State private var editingSeat: SeatCoordinate?
@@ -19,6 +21,11 @@ struct SeatingChartView: View {
     @State private var selectedMode: ClassroomMode = .layout
     @State private var recentParticipationPulseID: UUID?
     @State private var recentBehaviorPulseID: UUID?
+
+    init(schoolClass: SchoolClass, showsDismissButton: Bool = false) {
+        self.schoolClass = schoolClass
+        self.showsDismissButton = showsDismissButton
+    }
 
     private var orderedStudents: [Student] {
         schoolClass.students.sorted { lhs, rhs in
@@ -119,6 +126,13 @@ struct SeatingChartView: View {
         }
         .navigationTitle("Seating Chart".localized)
         .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close".localized) {
+                        dismiss()
+                    }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button {

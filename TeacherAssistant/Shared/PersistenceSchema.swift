@@ -8,6 +8,10 @@ private enum TeacherAssistantSchemaModelCatalog {
             SeatingPlacement.self,
             ParticipationEvent.self,
             BehaviorSupportEvent.self,
+            LiveObservation.self,
+            LiveObservationChecklistResponse.self,
+            LiveObservationTemplate.self,
+            LiveObservationTemplateCriterion.self,
             Student.self,
             Subject.self,
             Unit.self,
@@ -62,6 +66,7 @@ enum TeacherAssistantMigrationPlan: SchemaMigrationPlan {
             TeacherAssistantSchemaV7.self,
             TeacherAssistantSchemaV8.self,
             TeacherAssistantSchemaV9.self,
+            TeacherAssistantSchemaV10.self,
         ]
     }
 
@@ -126,8 +131,16 @@ enum TeacherAssistantSchemaV9: VersionedSchema {
     }
 }
 
+enum TeacherAssistantSchemaV10: VersionedSchema {
+    static let versionIdentifier = Schema.Version(10, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
 enum PersistenceSchema {
-    typealias CurrentVersion = TeacherAssistantSchemaV9
+    typealias CurrentVersion = TeacherAssistantSchemaV10
     typealias MigrationPlan = TeacherAssistantMigrationPlan
 
     static var schema: Schema {

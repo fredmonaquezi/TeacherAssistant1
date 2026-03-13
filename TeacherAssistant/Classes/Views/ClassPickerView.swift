@@ -138,6 +138,7 @@ struct ClassPickerView: View {
     var toolTitle: String {
         switch tool {
         case .attendance: return "Attendance".localized
+        case .liveCheckIn: return "Live Check-In".localized
         case .gradebook: return "Gradebook".localized
         case .groups: return "Group Generator".localized
         case .randomPicker: return "Random Picker".localized
@@ -147,6 +148,7 @@ struct ClassPickerView: View {
     var toolDescription: String {
         switch tool {
         case .attendance: return "Take attendance for your class".localized
+        case .liveCheckIn: return "Capture a live snapshot of student understanding and support needs".localized
         case .gradebook: return "View and manage grades".localized
         case .groups: return "Create student groups".localized
         case .randomPicker: return "Pick a random student".localized
@@ -156,6 +158,7 @@ struct ClassPickerView: View {
     var toolIcon: String {
         switch tool {
         case .attendance: return "calendar.badge.checkmark"
+        case .liveCheckIn: return "waveform.path.ecg.rectangle"
         case .gradebook: return "tablecells"
         case .groups: return "person.3.fill"
         case .randomPicker: return "shuffle"
@@ -165,6 +168,7 @@ struct ClassPickerView: View {
     var toolColor: Color {
         switch tool {
         case .attendance: return .blue
+        case .liveCheckIn: return .indigo
         case .gradebook: return .green
         case .groups: return .purple
         case .randomPicker: return .orange
@@ -188,6 +192,8 @@ struct ClassPickerView: View {
         switch tool {
         case .attendance:
             AttendanceListView(schoolClass: schoolClass)
+        case .liveCheckIn:
+            LiveCheckInView(schoolClass: schoolClass, source: .standaloneTool)
         case .gradebook:
             ClassOverviewView(schoolClass: schoolClass)
         case .groups:

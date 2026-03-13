@@ -219,6 +219,15 @@ struct DashboardView: View {
                     tint: .pink
                 ) {
                     dashboardActionRow(
+                        title: "Live Check-In".localized,
+                        subtitle: "in-class snapshots and checklist evidence".localized,
+                        icon: "waveform.path.ecg.rectangle",
+                        tint: .indigo
+                    ) {
+                        selectedSection = .liveCheckIn
+                    }
+
+                    dashboardActionRow(
                         title: "Groups".localized,
                         subtitle: "saved and generated groups".localized,
                         icon: "person.2.fill",

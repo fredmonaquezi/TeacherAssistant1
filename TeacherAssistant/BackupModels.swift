@@ -43,6 +43,7 @@ struct BackupClass: Codable {
     var seatingChart: BackupSeatingChart?
     var participationEvents: [BackupParticipationEvent]
     var behaviorSupportEvents: [BackupBehaviorSupportEvent]
+    var liveObservations: [BackupLiveObservation]
     var subjects: [BackupSubject]
 
     init(
@@ -56,6 +57,7 @@ struct BackupClass: Codable {
         seatingChart: BackupSeatingChart? = nil,
         participationEvents: [BackupParticipationEvent] = [],
         behaviorSupportEvents: [BackupBehaviorSupportEvent] = [],
+        liveObservations: [BackupLiveObservation] = [],
         subjects: [BackupSubject]
     ) {
         self.name = name
@@ -68,6 +70,7 @@ struct BackupClass: Codable {
         self.seatingChart = seatingChart
         self.participationEvents = participationEvents
         self.behaviorSupportEvents = behaviorSupportEvents
+        self.liveObservations = liveObservations
         self.subjects = subjects
     }
 
@@ -82,6 +85,7 @@ struct BackupClass: Codable {
         case seatingChart
         case participationEvents
         case behaviorSupportEvents
+        case liveObservations
         case subjects
     }
 
@@ -108,6 +112,7 @@ struct BackupClass: Codable {
         seatingChart = try container.decodeIfPresent(BackupSeatingChart.self, forKey: .seatingChart)
         participationEvents = try container.decodeIfPresent([BackupParticipationEvent].self, forKey: .participationEvents) ?? []
         behaviorSupportEvents = try container.decodeIfPresent([BackupBehaviorSupportEvent].self, forKey: .behaviorSupportEvents) ?? []
+        liveObservations = try container.decodeIfPresent([BackupLiveObservation].self, forKey: .liveObservations) ?? []
         subjects = try container.decodeIfPresent([BackupSubject].self, forKey: .subjects) ?? []
     }
 }
@@ -146,6 +151,27 @@ struct BackupBehaviorSupportEvent: Codable {
     var note: String
     var studentUUID: UUID?
     var studentName: String
+}
+
+struct BackupLiveObservation: Codable {
+    var id: UUID
+    var createdAt: Date
+    var sessionDate: Date
+    var sourceRaw: String
+    var understandingLevelRaw: String
+    var engagementLevelRaw: String
+    var supportLevelRaw: String
+    var note: String
+    var studentUUID: UUID?
+    var studentName: String
+    var checklistResponses: [BackupLiveObservationChecklistResponse]
+}
+
+struct BackupLiveObservationChecklistResponse: Codable {
+    var id: UUID
+    var criterionTitle: String
+    var levelRaw: String
+    var sortOrder: Int
 }
 
 struct BackupStudent: Codable {
@@ -534,6 +560,21 @@ struct BackupClassDiaryEntry: Codable {
     var subjectID: UUID?
     var unitID: UUID?
     var assignmentID: UUID?
+}
+
+struct BackupLiveObservationTemplate: Codable {
+    var id: UUID
+    var title: String
+    var sortOrder: Int
+    var createdAt: Date
+    var updatedAt: Date
+    var criteria: [BackupLiveObservationTemplateCriterion]
+}
+
+struct BackupLiveObservationTemplateCriterion: Codable {
+    var id: UUID
+    var title: String
+    var sortOrder: Int
 }
 
 struct BackupLibraryFolder: Codable {

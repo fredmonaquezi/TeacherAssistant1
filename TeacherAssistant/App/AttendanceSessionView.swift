@@ -4,7 +4,19 @@ import SwiftData
 struct AttendanceSessionView: View {
     @Bindable var session: AttendanceSession
     @Bindable var schoolClass: SchoolClass
+    let showsDismissButton: Bool
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        session: AttendanceSession,
+        schoolClass: SchoolClass,
+        showsDismissButton: Bool = false
+    ) {
+        self.session = session
+        self.schoolClass = schoolClass
+        self.showsDismissButton = showsDismissButton
+    }
 
     private var sortedRecordIDs: [PersistentIdentifier] {
         var seen: Set<PersistentIdentifier> = []
@@ -53,6 +65,15 @@ struct AttendanceSessionView: View {
         #if !os(macOS)
         .navigationTitle(session.date.appDateString)
         #endif
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Back".localized) {
+                        dismiss()
+                    }
+                }
+            }
+        }
         .macNavigationDepth()
         .onAppear {
             normalizeSessionRecordsIfNeeded()

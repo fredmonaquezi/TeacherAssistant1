@@ -7,6 +7,7 @@ enum ContentSectionCoordinator {
         case .library: return "books.vertical"
         case .classes: return "person.3.fill"
         case .attendance: return "checklist"
+        case .liveCheckIn: return "waveform.path.ecg.rectangle"
         case .gradebook: return "tablecells"
         case .rubrics: return "doc.text.fill"
         case .groups: return "person.2.fill"
@@ -59,6 +60,10 @@ enum ContentSectionCoordinator {
 
         case .attendance:
             ClassPickerView(tool: .attendance)
+                .macNavigationRoot()
+
+        case .liveCheckIn:
+            ClassPickerView(tool: .liveCheckIn)
                 .macNavigationRoot()
 
         case .gradebook:

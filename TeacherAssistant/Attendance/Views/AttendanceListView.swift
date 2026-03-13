@@ -5,9 +5,16 @@ struct AttendanceListView: View {
     
     @EnvironmentObject var languageManager: LanguageManager
     @Bindable var schoolClass: SchoolClass
+    let showsDismissButton: Bool
+    @Environment(\.dismiss) private var dismiss
     
     @State private var showingDatePicker = false
     @State private var selectedDate = Date()
+
+    init(schoolClass: SchoolClass, showsDismissButton: Bool = false) {
+        self.schoolClass = schoolClass
+        self.showsDismissButton = showsDismissButton
+    }
     
     var sortedSessions: [AttendanceSession] {
         schoolClass.attendanceSessions.sorted { $0.date > $1.date }
@@ -57,6 +64,13 @@ struct AttendanceListView: View {
         #if !os(macOS)
         .navigationTitle(languageManager.localized("Attendance"))
         .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close".localized) {
+                        dismiss()
+                    }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 12) {
                     Button {
@@ -70,6 +84,16 @@ struct AttendanceListView: View {
                         createTodaySession()
                     } label: {
                         Label(languageManager.localized("Today"), systemImage: "plus.circle.fill")
+                    }
+                }
+            }
+        }
+        #else
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close".localized) {
+                        dismiss()
                     }
                 }
             }
@@ -184,7 +208,8 @@ struct AttendanceListView: View {
                         NavigationLink {
                             AttendanceSessionView(
                                 session: session,
-                                schoolClass: schoolClass
+                                schoolClass: schoolClass,
+                                showsDismissButton: showsDismissButton
                             )
                         } label: {
                             AttendanceSessionCard(
