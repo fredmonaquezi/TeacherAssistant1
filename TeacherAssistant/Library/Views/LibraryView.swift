@@ -6,6 +6,7 @@ struct LibraryView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
 
     let folderID: UUID
@@ -91,11 +92,14 @@ struct LibraryView: View {
                     #if os(macOS)
                     VStack(spacing: 0) {
                         libraryTopBar
+                            .appMotionReveal(index: 0)
                         Divider()
                         libraryGridContent
+                            .transition(motion.transition(.sectionSwitch))
                     }
                     #else
                     libraryGridContent
+                        .transition(motion.transition(.sectionSwitch))
                         .navigationTitle(folder.name)
                         .toolbar {
 
@@ -113,12 +117,14 @@ struct LibraryView: View {
                                     Button("Cancel") {
                                         exitSelectMode()
                                     }
+                                    .buttonStyle(AppPressableButtonStyle())
 
                                     Button {
                                         showingMoveSheet = true
                                     } label: {
                                         Label("Move", systemImage: "folder")
                                     }
+                                    .buttonStyle(AppPressableButtonStyle())
                                     .disabled(selectionCount == 0)
 
                                     Button(role: .destructive) {
@@ -129,6 +135,7 @@ struct LibraryView: View {
                                             systemImage: "trash"
                                         )
                                     }
+                                    .buttonStyle(AppPressableButtonStyle())
                                     .disabled(selectionCount == 0)
 
                                 } else {
@@ -137,24 +144,28 @@ struct LibraryView: View {
                                     } label: {
                                         Label("New Folder", systemImage: "folder.badge.plus")
                                     }
+                                    .buttonStyle(AppPressableButtonStyle())
 
                                     Button {
                                         showingImportPicker = true
                                     } label: {
                                         Label("Import PDF", systemImage: "square.and.arrow.down")
                                     }
+                                    .buttonStyle(AppPressableButtonStyle())
 
                                     Button {
                                         showingRenameSheet = true
                                     } label: {
                                         Label("Rename", systemImage: "pencil")
                                     }
+                                    .buttonStyle(AppPressableButtonStyle())
 
                                     Button(role: .destructive) {
                                         showingDeleteConfirm = true
                                     } label: {
                                         Label("Delete Folder", systemImage: "trash")
                                     }
+                                    .buttonStyle(AppPressableButtonStyle())
                                     .disabled(isRootFolder)
 
                                     Button {
@@ -162,6 +173,7 @@ struct LibraryView: View {
                                     } label: {
                                         Text("Select")
                                     }
+                                    .buttonStyle(AppPressableButtonStyle())
                                 }
                             }
                         }
@@ -173,6 +185,7 @@ struct LibraryView: View {
                     RenameFolderSheet(currentName: folder.name) { newName in
                         renameFolder(to: newName)
                     }
+                    .appSheetMotion()
                 }
                 
                 // Moving
@@ -184,6 +197,7 @@ struct LibraryView: View {
                         moveSelection(to: destination)
                         showingMoveSheet = false
                     }
+                    .appSheetMotion()
                 }
 
                 // Import
@@ -235,6 +249,7 @@ struct LibraryView: View {
                                 pendingFile = nil
                             }
                         )
+                        .appSheetMotion()
                     }
                 }
                 // File size error alert
@@ -253,6 +268,7 @@ struct LibraryView: View {
                 }
             } else {
                 ProgressView("Loading folder...")
+                    .appMotionReveal(index: 0)
                     .task(id: refreshToken) {
                         do {
                             try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
@@ -266,6 +282,9 @@ struct LibraryView: View {
         .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
             saveRefreshRevision &+= 1
         }
+        .animation(motion.animation(.standard), value: refreshToken)
+        .animation(motion.animation(.standard), value: isSelecting)
+        .animation(motion.animation(.standard), value: searchText)
     }
 
     @ViewBuilder
@@ -277,6 +296,8 @@ struct LibraryView: View {
                 allFolders: allFolders,
                 allFiles: allFiles
             )
+            .id("search")
+            .appMotionReveal(index: 1)
         } else if isSelecting {
             LibrarySelectGrid(
                 subfolders: subfolders,
@@ -284,6 +305,8 @@ struct LibraryView: View {
                 selectedFolderIDs: $selectedFolderIDs,
                 selectedFileIDs: $selectedFileIDs
             )
+            .id("select")
+            .appMotionReveal(index: 1)
         } else {
             LibraryBrowseGrid(
                 subfolders: subfolders,
@@ -294,6 +317,8 @@ struct LibraryView: View {
                 fileCountByParent: fileCountByParent,
                 subfolderCountByParent: subfolderCountByParent
             )
+            .id("browse")
+            .appMotionReveal(index: 1)
         }
     }
 
@@ -310,12 +335,14 @@ struct LibraryView: View {
                     Button("Cancel") {
                         exitSelectMode()
                     }
+                    .buttonStyle(AppPressableButtonStyle())
 
                     Button {
                         showingMoveSheet = true
                     } label: {
                         Label("Move", systemImage: "folder")
                     }
+                    .buttonStyle(AppPressableButtonStyle())
                     .disabled(selectionCount == 0)
 
                     Button(role: .destructive) {
@@ -326,6 +353,7 @@ struct LibraryView: View {
                             systemImage: "trash"
                         )
                     }
+                    .buttonStyle(AppPressableButtonStyle())
                     .disabled(selectionCount == 0)
                 } else {
                     Button {
@@ -333,29 +361,34 @@ struct LibraryView: View {
                     } label: {
                         Label("New Folder", systemImage: "folder.badge.plus")
                     }
+                    .buttonStyle(AppPressableButtonStyle())
 
                     Button {
                         showingImportPicker = true
                     } label: {
                         Label("Import PDF", systemImage: "square.and.arrow.down")
                     }
+                    .buttonStyle(AppPressableButtonStyle())
 
                     Button {
                         showingRenameSheet = true
                     } label: {
                         Label("Rename", systemImage: "pencil")
                     }
+                    .buttonStyle(AppPressableButtonStyle())
 
                     Button(role: .destructive) {
                         showingDeleteConfirm = true
                     } label: {
                         Label("Delete Folder", systemImage: "trash")
                     }
+                    .buttonStyle(AppPressableButtonStyle())
                     .disabled(isRootFolder)
 
                     Button("Select") {
                         enterSelectMode()
                     }
+                    .buttonStyle(AppPressableButtonStyle())
                 }
             }
         }
@@ -372,15 +405,19 @@ struct LibraryView: View {
     // MARK: - Select mode
 
     func enterSelectMode() {
-        isSelecting = true
-        selectedFolderIDs.removeAll()
-        selectedFileIDs.removeAll()
+        withAnimation(motion.animation(.standard)) {
+            isSelecting = true
+            selectedFolderIDs.removeAll()
+            selectedFileIDs.removeAll()
+        }
     }
 
     func exitSelectMode() {
-        isSelecting = false
-        selectedFolderIDs.removeAll()
-        selectedFileIDs.removeAll()
+        withAnimation(motion.animation(.standard)) {
+            isSelecting = false
+            selectedFolderIDs.removeAll()
+            selectedFileIDs.removeAll()
+        }
     }
 
     // MARK: - Actions

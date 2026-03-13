@@ -3,6 +3,7 @@ import SwiftData
 
 struct AttentionReminderBanner: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     @Binding var selectedSection: AppSection?
 
     @AppStorage(AppPreferencesKeys.attentionRemindersEnabled) private var remindersEnabled = true
@@ -199,13 +200,13 @@ struct AttentionReminderBanner: View {
                 )
                 .padding(.horizontal)
                 .padding(.top, 12)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(motion.transition(.overlay))
                 .task(id: assignments.count) {
                     syncAssignmentEntries()
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: dismissedToday)
+        .animation(motion.animation(.quick), value: dismissedToday)
         .onReceive(NotificationCenter.default.publisher(for: .attentionAssignmentReviewStateChanged)) { _ in
             reviewRefreshRevision &+= 1
         }

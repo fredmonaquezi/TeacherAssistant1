@@ -4,6 +4,7 @@ import SwiftData
 struct UnitGradebookView: View {
     
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     
     @Bindable var unit: Unit
     
@@ -99,6 +100,7 @@ struct UnitGradebookView: View {
         ) {
             if let url = exportURL {
                 ShareSheet(activityItems: [url])
+                    .appSheetMotion()
             }
         }
         .sheet(item: $bulkAction) { action in
@@ -113,6 +115,7 @@ struct UnitGradebookView: View {
                     onlyUngraded: action.onlyUngraded
                 )
             }
+            .appSheetMotion()
         }
         .sheet(
             isPresented: Binding(
@@ -125,6 +128,7 @@ struct UnitGradebookView: View {
                     studentResult: result,
                     maxScore: result.assessment?.safeMaxScore ?? Assessment.defaultMaxScore
                 )
+                .appSheetMotion()
             }
         }
         .alert(
@@ -180,6 +184,8 @@ struct UnitGradebookView: View {
         .onChange(of: assessments.map(\.persistentModelID)) { _, _ in
             synchronizeBulkAssessmentSelection()
         }
+        .animation(motion.animation(.standard), value: isAssessmentTableCollapsed)
+        .animation(motion.animation(.standard), value: assessments.map(\.id))
         .macNavigationDepth()
     }
     
@@ -218,12 +224,13 @@ struct UnitGradebookView: View {
         }
         .padding()
         .background(Color.gray.opacity(0.05))
+        .appMotionReveal(index: 0)
     }
 
     var assessmentTableSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
+                withAnimation(motion.animation(.quick)) {
                     isAssessmentTableCollapsed.toggle()
                 }
             } label: {
@@ -259,14 +266,16 @@ struct UnitGradebookView: View {
                 .padding()
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
             .background(Color.gray.opacity(0.03))
 
             if isAssessmentTableCollapsed {
                 collapsedAssessmentSummary
+                    .transition(motion.transition(.inlineChange))
             } else {
                 Divider()
                 assessmentTable
+                    .transition(motion.transition(.sectionSwitch))
             }
         }
     }
@@ -297,6 +306,7 @@ struct UnitGradebookView: View {
         }
         .padding()
         .background(Color.gray.opacity(0.02))
+        .appMotionReveal(index: 2)
     }
 
     var assessmentTable: some View {
@@ -365,7 +375,7 @@ struct UnitGradebookView: View {
                             .background(rowBackgroundColor.opacity(0.5))
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                         .disabled(assessments.isEmpty)
 
                         // Grade cells
@@ -503,6 +513,7 @@ struct UnitGradebookView: View {
         }
         .padding()
         .background(Color.gray.opacity(0.04))
+        .appMotionReveal(index: 1)
     }
     
     func statItem(icon: String, label: String, value: String, color: Color) -> some View {
@@ -521,6 +532,7 @@ struct UnitGradebookView: View {
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(color)
+                    .contentTransition(.numericText())
             }
         }
     }
@@ -548,7 +560,7 @@ struct UnitGradebookView: View {
                     .fill(isDisabled ? Color.gray.opacity(0.08) : color.opacity(0.10))
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
         .disabled(isDisabled)
     }
 
@@ -589,7 +601,7 @@ struct UnitGradebookView: View {
                         .fill(gradeCellBackground(for: result, assessment: assessment))
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
     
     // MARK: - Student Average Cell
@@ -1058,7 +1070,7 @@ private struct BulkScoreSheet: View {
                         .fill(AppChrome.elevatedBackground)
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
 
     private func applyAndDismiss() {

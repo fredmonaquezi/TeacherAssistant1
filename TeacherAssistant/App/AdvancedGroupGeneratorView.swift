@@ -3,6 +3,7 @@ import SwiftData
 
 struct AdvancedGroupGeneratorView: View {
     
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     
     let schoolClass: SchoolClass
@@ -32,11 +33,14 @@ struct AdvancedGroupGeneratorView: View {
         }
         .sheet(isPresented: $showingSeparationEditor) {
             StudentSeparationEditor(schoolClass: schoolClass)
+                .appSheetMotion()
         }
         #if os(macOS)
         .frame(minWidth: 700, minHeight: 600)
         #endif
         .macNavigationDepth()
+        .animation(motion.animation(.standard), value: showingSettings)
+        .animation(motion.animation(.standard), value: groups.count)
     }
 
     var content: some View {
@@ -44,22 +48,28 @@ struct AdvancedGroupGeneratorView: View {
             VStack(spacing: 24) {
                 #if os(macOS)
                 groupActionsRow
+                    .appMotionReveal(index: 0)
                 #endif
                 
                 // Header Card
                 headerCard
+                    .appMotionReveal(index: 1)
                 
                 // Controls Card
                 controlsCard
+                    .appMotionReveal(index: 2)
                 
                 // Advanced Options
                 advancedOptionsCard
+                    .appMotionReveal(index: 3)
                 
                 // Results Section
                 if groups.isEmpty {
                     emptyStateView
+                        .appMotionReveal(index: 4)
                 } else {
                     resultsSection
+                        .appMotionReveal(index: 4)
                 }
                 
             }
@@ -87,6 +97,7 @@ struct AdvancedGroupGeneratorView: View {
             } label: {
                 Label(languageManager.localized("Separations"), systemImage: "person.2.slash")
             }
+            .buttonStyle(AppPressableButtonStyle())
 
             Spacer()
         }
@@ -181,7 +192,7 @@ struct AdvancedGroupGeneratorView: View {
                             .font(.title)
                             .foregroundColor(groupSize > 2 ? .purple : .gray)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPressableButtonStyle())
                     .disabled(groupSize <= 2)
                     
                     Button {
@@ -193,7 +204,7 @@ struct AdvancedGroupGeneratorView: View {
                             .font(.title)
                             .foregroundColor(groupSize < 10 ? .purple : .gray)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPressableButtonStyle())
                     .disabled(groupSize >= 10)
                 }
             }
@@ -230,7 +241,7 @@ struct AdvancedGroupGeneratorView: View {
             
             // Generate button
             Button {
-                withAnimation(.spring(response: 0.3)) {
+                withAnimation(motion.animation(.standard, interactive: true)) {
                     generateGroups()
                 }
             } label: {
@@ -251,7 +262,7 @@ struct AdvancedGroupGeneratorView: View {
                 )
                 .cornerRadius(10)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
         }
         .padding()
         .background(Color.gray.opacity(0.1))
@@ -275,7 +286,7 @@ struct AdvancedGroupGeneratorView: View {
                 Spacer()
                 
                 Button {
-                    withAnimation {
+                    withAnimation(motion.animation(.quick, interactive: true)) {
                         showingSettings.toggle()
                     }
                 } label: {
@@ -283,7 +294,7 @@ struct AdvancedGroupGeneratorView: View {
                         .foregroundColor(.purple)
                         .font(.title3)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
             }
             
             if showingSettings {
@@ -360,6 +371,7 @@ struct AdvancedGroupGeneratorView: View {
                     }
                     .toggleStyle(.switch)
                 }
+                .transition(motion.transition(.inlineChange))
             }
         }
         .padding()
@@ -565,6 +577,7 @@ struct Badge: View {
 
 struct StudentSeparationEditor: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
     @Bindable var schoolClass: SchoolClass
     
     var body: some View {
@@ -583,6 +596,8 @@ struct StudentSeparationEditor: View {
                 }
             }
         }
+        .appSheetMotion()
+        .animation(motion.animation(.standard), value: schoolClass.students.count)
         #if os(macOS)
         .frame(minWidth: 500, minHeight: 400)
         #endif

@@ -6,6 +6,7 @@ struct ClassDetailView: View {
     @Bindable var schoolClass: SchoolClass
     @ObservedObject var timerManager: ClassroomTimerManager
     @EnvironmentObject var languageManager: LanguageManager
+    @Environment(\.appMotionContext) private var motion
     
     @State private var showingAddStudent = false
     @State private var showingAddSubject = false
@@ -100,12 +101,15 @@ struct ClassDetailView: View {
         #endif
         .sheet(isPresented: $showingAddStudent) {
             AddStudentView(schoolClass: schoolClass)
+                .appSheetMotion()
         }
         .sheet(isPresented: $showingAddSubject) {
             AddSubjectView(schoolClass: schoolClass)
+                .appSheetMotion()
         }
         .sheet(isPresented: $showingCategories) {
             ClassCategoriesView(schoolClass: schoolClass)
+                .appSheetMotion()
         }
         .sheet(
             isPresented: Binding(
@@ -120,24 +124,29 @@ struct ClassDetailView: View {
                         pickRandomStudent()
                     }
                 })
+                .appSheetMotion()
             }
         }
         .sheet(isPresented: $showingGroupGenerator) {
             #if os(macOS)
             NavigationStack {
                 AdvancedGroupGeneratorView(schoolClass: schoolClass)
+                    .appSheetMotion()
             }
             #else
             AdvancedGroupGeneratorView(schoolClass: schoolClass)
+                .appSheetMotion()
             #endif
         }
         .sheet(isPresented: $showingAttendance) {
             #if os(macOS)
             NavigationStack {
                 AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
+                    .appSheetMotion()
             }
             #else
             AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
+                .appSheetMotion()
             #endif
         }
         .sheet(isPresented: $showingClassroomSession) {
@@ -148,6 +157,7 @@ struct ClassDetailView: View {
                     timerManager: timerManager,
                     showsDismissButton: true
                 )
+                .appSheetMotion()
             }
             #else
             ClassroomSessionView(
@@ -155,24 +165,29 @@ struct ClassDetailView: View {
                 timerManager: timerManager,
                 showsDismissButton: true
             )
+            .appSheetMotion()
             #endif
         }
         .sheet(isPresented: $showingAssignments) {
             #if os(macOS)
             NavigationStack {
                 ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
+                    .appSheetMotion()
             }
             #else
             ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
+                .appSheetMotion()
             #endif
         }
         .sheet(isPresented: $showingSeatingChart) {
             #if os(macOS)
             NavigationStack {
                 SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
+                    .appSheetMotion()
             }
             #else
             SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
+                .appSheetMotion()
             #endif
         }
         .sheet(isPresented: $showingLiveCheckIn) {
@@ -183,6 +198,7 @@ struct ClassDetailView: View {
                     source: .standaloneTool,
                     showsDismissButton: true
                 )
+                .appSheetMotion()
             }
             #else
             LiveCheckInView(
@@ -190,6 +206,7 @@ struct ClassDetailView: View {
                 source: .standaloneTool,
                 showsDismissButton: true
             )
+            .appSheetMotion()
             #endif
         }
         .alert("Delete Student?".localized, isPresented: $showingDeleteStudentAlert) {
@@ -229,6 +246,8 @@ struct ClassDetailView: View {
             }
         }
         .macNavigationDepth()
+        .animation(motion.animation(.standard), value: schoolClass.students.map(\.id))
+        .animation(motion.animation(.standard), value: schoolClass.subjects.map(\.id))
     }
 
     var orderedStudents: [Student] {
@@ -245,15 +264,19 @@ struct ClassDetailView: View {
             VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing + 8) {
                 // Class info header
                 classInfoHeader
+                    .appMotionReveal(index: 0)
                 
                 // Quick actions
                 quickActionsSection
+                    .appMotionReveal(index: 1)
                 
                 // Subjects section
                 subjectsSection
+                    .appMotionReveal(index: 2)
                 
                 // Students section
                 studentsSection
+                    .appMotionReveal(index: 3)
                 
             }
             .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
@@ -422,7 +445,7 @@ struct ClassDetailView: View {
                 tint: disabled ? nil : color
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
         .disabled(disabled)
     }
 
@@ -440,7 +463,9 @@ struct ClassDetailView: View {
                 Spacer()
                 
                 Button {
-                    showingAddSubject = true
+                    withAnimation(motion.animation(.quick, interactive: true)) {
+                        showingAddSubject = true
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "plus.circle.fill")
@@ -449,7 +474,7 @@ struct ClassDetailView: View {
                     .font(.subheadline)
                     .foregroundColor(.blue)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
             }
             
             if schoolClass.subjects.isEmpty {
@@ -474,7 +499,7 @@ struct ClassDetailView: View {
                                 showingDeleteSubjectAlert = true
                             })
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                     }
                 }
             }
@@ -545,7 +570,7 @@ struct ClassDetailView: View {
                             .fill(Color.blue)
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
         }
         .frame(maxWidth: .infinity)
         .padding(40)
@@ -568,15 +593,19 @@ struct ClassDetailView: View {
                 
                 // Class info header
                 classInfoHeader
+                    .appMotionReveal(index: 0)
                 
                 // Quick actions
                 quickActionsSection
+                    .appMotionReveal(index: 1)
                 
                 // Subjects section
                 iOSSubjectsSection
+                    .appMotionReveal(index: 2)
                 
                 // Students section
                 iOSStudentsSection
+                    .appMotionReveal(index: 3)
                 
             }
             .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
@@ -599,7 +628,9 @@ struct ClassDetailView: View {
                 Spacer()
                 
                 Button {
-                    showingAddSubject = true
+                    withAnimation(motion.animation(.quick, interactive: true)) {
+                        showingAddSubject = true
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "plus.circle.fill")
@@ -608,7 +639,7 @@ struct ClassDetailView: View {
                     .font(.subheadline)
                     .foregroundColor(.blue)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
             }
             
             if schoolClass.subjects.isEmpty {
@@ -633,7 +664,7 @@ struct ClassDetailView: View {
                                 showingDeleteSubjectAlert = true
                             })
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                         .contextMenu {
                             Button(role: .destructive) {
                                 subjectToDelete = subject
@@ -694,7 +725,9 @@ struct ClassDetailView: View {
             Spacer()
             
             Button {
-                showingAddStudent = true
+                withAnimation(motion.animation(.quick, interactive: true)) {
+                    showingAddStudent = true
+                }
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "plus.circle.fill")
@@ -703,14 +736,14 @@ struct ClassDetailView: View {
                 .font(.subheadline)
                 .foregroundColor(.green)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
         }
     }
 
     func studentsGrid(minimum: CGFloat, maximum: CGFloat, spacing: CGFloat) -> some View {
         let columns = [GridItem(.adaptive(minimum: minimum, maximum: maximum), spacing: spacing)]
         return LazyVGrid(columns: columns, spacing: spacing) {
-            ForEach(orderedStudents, id: \.id) { student in
+            ForEach(Array(orderedStudents.enumerated()), id: \.element.id) { index, student in
                 NavigationLink {
                     StudentDetailView(student: student)
                 } label: {
@@ -718,18 +751,19 @@ struct ClassDetailView: View {
                         studentToDelete = student
                         showingDeleteStudentAlert = true
                     })
-            }
-            .buttonStyle(.plain)
-            .contextMenu {
-                Button(role: .destructive) {
-                    studentToDelete = student
-                    showingDeleteStudentAlert = true
-                } label: {
-                    Label("Delete".localized, systemImage: "trash")
+                }
+                .buttonStyle(AppPressableButtonStyle())
+                .appMotionReveal(index: index)
+                .contextMenu {
+                    Button(role: .destructive) {
+                        studentToDelete = student
+                        showingDeleteStudentAlert = true
+                    } label: {
+                        Label("Delete".localized, systemImage: "trash")
+                    }
                 }
             }
         }
-    }
     }
     
     // MARK: - Reorder

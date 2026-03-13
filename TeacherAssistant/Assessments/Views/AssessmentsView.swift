@@ -3,6 +3,7 @@ import SwiftData
 
 struct AssessmentsView: View {
     @EnvironmentObject private var languageManager: LanguageManager
+    @Environment(\.appMotionContext) private var motion
 
     @Query(sort: \SchoolClass.sortOrder) private var classes: [SchoolClass]
     @Query private var assessments: [Assessment]
@@ -166,17 +167,26 @@ struct AssessmentsView: View {
         ScrollView {
             VStack(spacing: PlatformSpacing.sectionSpacing) {
                 heroCard
+                    .appMotionReveal(index: 0)
                 filtersCard
+                    .appMotionReveal(index: 1)
                 metricsSection
+                    .appMotionReveal(index: 2)
                 focusSection
+                    .appMotionReveal(index: 3)
                 classesSection
+                    .appMotionReveal(index: 4)
                 allAssessmentsSection
+                    .appMotionReveal(index: 5)
             }
             .padding(.vertical, 20)
         }
         #if !os(macOS)
         .navigationTitle("Assessments".localized)
         #endif
+        .animation(motion.animation(.standard), value: selectedClassID)
+        .animation(motion.animation(.standard), value: selectedStatus)
+        .animation(motion.animation(.standard), value: searchText)
     }
 
     private var heroCard: some View {
@@ -304,6 +314,7 @@ struct AssessmentsView: View {
                 icon: "doc.text.fill",
                 color: .blue
             )
+            .appMotionReveal(index: 0)
 
             metricsCard(
                 title: "Pending Grades".localized,
@@ -312,6 +323,7 @@ struct AssessmentsView: View {
                 icon: "tray.full.fill",
                 color: overviewMetrics.pendingGrades > 0 ? .orange : .green
             )
+            .appMotionReveal(index: 1)
 
             metricsCard(
                 title: "Upcoming".localized,
@@ -320,6 +332,7 @@ struct AssessmentsView: View {
                 icon: "calendar.badge.clock",
                 color: .purple
             )
+            .appMotionReveal(index: 2)
 
             metricsCard(
                 title: "Absent".localized,
@@ -328,6 +341,7 @@ struct AssessmentsView: View {
                 icon: "person.crop.circle.badge.xmark",
                 color: overviewMetrics.absentResults > 0 ? .red : .gray
             )
+            .appMotionReveal(index: 3)
 
             metricsCard(
                 title: "Excused".localized,
@@ -336,6 +350,7 @@ struct AssessmentsView: View {
                 icon: "checkmark.seal.fill",
                 color: overviewMetrics.excusedResults > 0 ? .teal : .gray
             )
+            .appMotionReveal(index: 4)
 
             metricsCard(
                 title: "Average".localized,
@@ -344,6 +359,7 @@ struct AssessmentsView: View {
                 icon: "chart.bar.fill",
                 color: overviewMetrics.scoredResultsCount > 0 ? AssessmentPercentMetrics.color(for: overviewMetrics.averagePercent) : .gray
             )
+            .appMotionReveal(index: 5)
         }
         .padding(.horizontal)
     }
@@ -363,6 +379,7 @@ struct AssessmentsView: View {
             Text(value)
                 .font(.system(size: 32, weight: .bold))
                 .foregroundColor(color)
+                .contentTransition(.numericText())
 
             Text(title)
                 .font(.headline)
@@ -448,7 +465,7 @@ struct AssessmentsView: View {
                                 unitName: assessment.unit?.name ?? ""
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                     }
                 }
             }
@@ -482,7 +499,7 @@ struct AssessmentsView: View {
                         } label: {
                             ClassAssessmentSummaryCard(summary: summary)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                     }
                 }
                 .padding(.horizontal)
@@ -520,7 +537,7 @@ struct AssessmentsView: View {
                                 progress: gradingProgress(for: assessment)
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                     }
                 }
                 .padding(.horizontal)
@@ -529,7 +546,11 @@ struct AssessmentsView: View {
     }
 
     private func filterChip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            withAnimation(motion.animation(.standard)) {
+                action()
+            }
+        } label: {
             Text(title)
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 14)
@@ -538,7 +559,7 @@ struct AssessmentsView: View {
                 .foregroundColor(isSelected ? .white : .primary)
                 .cornerRadius(20)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
 
     private func emptySectionCard(icon: String, title: String, message: String, tint: Color) -> some View {

@@ -5,6 +5,7 @@ struct ClassesView: View {
     @ObservedObject var timerManager: ClassroomTimerManager
     
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     
     // ✅ Now sorted by our custom order field
@@ -38,7 +39,7 @@ struct ClassesView: View {
                     LazyVGrid(columns: [
                         GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 24)
                     ], spacing: 24) {
-                        ForEach(classes.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { schoolClass in
+                        ForEach(Array(classes.sorted(by: { $0.sortOrder < $1.sortOrder }).enumerated()), id: \.element.id) { index, schoolClass in
                             NavigationLink {
                                 ClassDetailView(
                                     schoolClass: schoolClass,
@@ -50,7 +51,8 @@ struct ClassesView: View {
                                     showingDeleteAlert = true
                                 })
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPressableButtonStyle())
+                            .appMotionReveal(index: index)
                             .contextMenu {
                                 Button {
                                     classToEdit = schoolClass
@@ -75,7 +77,7 @@ struct ClassesView: View {
                     LazyVGrid(columns: [
                         GridItem(.adaptive(minimum: 260, maximum: 360), spacing: 20)
                     ], spacing: 20) {
-                        ForEach(classes.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { schoolClass in
+                        ForEach(Array(classes.sorted(by: { $0.sortOrder < $1.sortOrder }).enumerated()), id: \.element.id) { index, schoolClass in
                             NavigationLink {
                                 ClassDetailView(
                                     schoolClass: schoolClass,
@@ -87,7 +89,8 @@ struct ClassesView: View {
                                     showingDeleteAlert = true
                                 })
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPressableButtonStyle())
+                            .appMotionReveal(index: index)
                             .contextMenu {
                                 Button {
                                     classToEdit = schoolClass
@@ -112,7 +115,9 @@ struct ClassesView: View {
             // Floating Add Button (macOS only)
             #if os(macOS)
             Button {
-                showingAdd = true
+                withAnimation(motion.animation(.standard)) {
+                    showingAdd = true
+                }
             } label: {
                 Label("Add Class".localized, systemImage: "plus")
                     .font(.headline)
@@ -123,8 +128,9 @@ struct ClassesView: View {
                     .cornerRadius(25)
                     .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
             .padding(24)
+            .appMotionReveal(index: 1, axis: .horizontal)
             #endif
         }
         #if !os(macOS)
@@ -133,7 +139,9 @@ struct ClassesView: View {
             ToolbarItem(placement: .primaryAction) {
                 HStack {
                     Button {
-                        showingAdd = true
+                        withAnimation(motion.animation(.standard)) {
+                            showingAdd = true
+                        }
                     } label: {
                         Label("Add Class".localized, systemImage: "plus")
                     }
@@ -143,10 +151,13 @@ struct ClassesView: View {
         #endif
         .sheet(isPresented: $showingAdd) {
             AddClassView()
+                .appSheetMotion()
         }
         .sheet(item: $classToEdit) { schoolClass in
             AddClassView(editingClass: schoolClass)
+                .appSheetMotion()
         }
+        .animation(motion.animation(.standard), value: classes.map(\.id))
         .alert("Delete Class?".localized, isPresented: $showingDeleteAlert) {
             Button("Cancel".localized, role: .cancel) {
                 classToDelete = nil

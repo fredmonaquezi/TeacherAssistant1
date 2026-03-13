@@ -3,6 +3,7 @@ import SwiftData
 
 struct RunningRecordsView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     @Query private var allStudents: [Student]
     @Query(sort: \RunningRecord.date, order: .reverse) private var allRunningRecords: [RunningRecord]
@@ -119,25 +120,30 @@ struct RunningRecordsView: View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
                 headerStatsView
+                    .appMotionReveal(index: 0)
 
                 Divider()
 
                 filtersView
+                    .appMotionReveal(index: 1)
 
                 if sortedRecords.isEmpty {
                     emptyStateView
+                        .transition(motion.transition(.sectionSwitch))
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(sortedRecords, id: \.id) { record in
+                            ForEach(Array(sortedRecords.enumerated()), id: \.element.id) { index, record in
                                 RunningRecordCard(record: record, onDelete: {
                                     recordToDelete = record
                                     showingDeleteAlert = true
                                 })
+                                .appMotionReveal(index: index)
                             }
                         }
                         .padding()
                     }
+                    .transition(motion.transition(.sectionSwitch))
                 }
             }
 
@@ -154,7 +160,8 @@ struct RunningRecordsView: View {
                     .cornerRadius(25)
                     .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
+            .appMotionReveal(index: 2, axis: .horizontal)
             .padding(24)
             #endif
         }
@@ -172,6 +179,7 @@ struct RunningRecordsView: View {
         #endif
         .sheet(isPresented: $showingAddRecord) {
             AddRunningRecordView()
+                .appSheetMotion()
         }
         .sheet(
             isPresented: Binding(
@@ -181,6 +189,7 @@ struct RunningRecordsView: View {
         ) {
             if let url = exportURL {
                 ShareSheet(activityItems: [url])
+                    .appSheetMotion()
             }
         }
         .alert(languageManager.localized("Delete Running Record?"), isPresented: $showingDeleteAlert) {
@@ -246,6 +255,7 @@ struct RunningRecordsView: View {
                 self.selectedStudent = nil
             }
         }
+        .animation(motion.animation(.standard), value: refreshToken)
     }
 
     var headerStatsView: some View {
@@ -299,6 +309,7 @@ struct RunningRecordsView: View {
             Text(value)
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(color)
+                .contentTransition(.numericText())
 
             Text(title)
                 .font(.caption2)
@@ -409,7 +420,7 @@ struct RunningRecordsView: View {
                             .foregroundColor(filterLevel == level ? levelColor(level) : .primary)
                             .cornerRadius(8)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                     }
 
                     if hasActiveFilters {
@@ -435,7 +446,7 @@ struct RunningRecordsView: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPressableButtonStyle())
                 }
             }
             .padding(.horizontal, 12)
@@ -626,7 +637,7 @@ struct RunningRecordsView: View {
                     .background(Color.blue)
                     .cornerRadius(12)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -678,14 +689,16 @@ struct RunningRecordsView: View {
     }
 
     func clearFilters() {
-        selectedClass = nil
-        selectedStudent = nil
-        filterLevel = nil
-        searchText = ""
-        selectedDateRange = .all
-        sortOption = .dateDescending
-        customDateStart = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
-        customDateEnd = Date()
+        withAnimation(motion.animation(.standard)) {
+            selectedClass = nil
+            selectedStudent = nil
+            filterLevel = nil
+            searchText = ""
+            selectedDateRange = .all
+            sortOption = .dateDescending
+            customDateStart = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+            customDateEnd = Date()
+        }
     }
 
     @MainActor
@@ -815,7 +828,7 @@ struct RunningRecordCard: View {
             .cornerRadius(12)
             .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
         .contextMenu {
             if let onDelete = onDelete {
                 Button(role: .destructive) {
@@ -827,6 +840,7 @@ struct RunningRecordCard: View {
         }
         .sheet(isPresented: $showingDetail) {
             RunningRecordDetailView(record: record)
+                .appSheetMotion()
         }
     }
 

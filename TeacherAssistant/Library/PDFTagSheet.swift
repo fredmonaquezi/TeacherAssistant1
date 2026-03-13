@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct PDFTagSheet: View {
+    @Environment(\.appMotionContext) private var motion
     let fileName: String
     let onSave: (String, Subject?, Unit?) -> Void
     let onCancel: () -> Void
@@ -32,20 +33,25 @@ struct PDFTagSheet: View {
                     
                     // Header with icon
                     headerSection
+                        .appMotionReveal(index: 0)
                     
                     // File name card
                     fileNameCard
+                        .appMotionReveal(index: 1)
                     
                     // Subject picker
                     subjectPickerCard
+                        .appMotionReveal(index: 2)
                     
                     // Unit picker (if subject selected)
                     if selectedSubject != nil {
                         unitPickerCard
+                            .appMotionReveal(index: 3)
                     }
                     
                     // Summary card
                     summaryCard
+                        .appMotionReveal(index: 4)
                     
                     Spacer()
                     
@@ -89,6 +95,9 @@ struct PDFTagSheet: View {
                 }
             }
         }
+        .appSheetMotion()
+        .animation(motion.animation(.standard), value: selectedSubject?.id)
+        .animation(motion.animation(.standard), value: selectedUnit?.id)
 #if os(macOS)
         .frame(minWidth: 500, minHeight: 600)
 #endif
@@ -248,7 +257,7 @@ struct PDFTagSheet: View {
                     borderColor: Color.orange.opacity(0.12),
                     tint: .orange
                 )
-                .transition(.scale.combined(with: .opacity))
+                .transition(motion.transition(.inlineChange))
             }
             
             // MARK: - Summary Card

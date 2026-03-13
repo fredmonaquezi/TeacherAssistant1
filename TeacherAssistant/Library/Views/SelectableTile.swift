@@ -6,6 +6,7 @@ struct SelectableTile: View {
     let systemImage: String
     let isSelected: Bool
     let action: () -> Void
+    @Environment(\.appMotionContext) private var motion
 
     var body: some View {
         Button(action: action) {
@@ -24,9 +25,11 @@ struct SelectableTile: View {
                         .foregroundColor(.accentColor)
                         .background(Color.white.clipShape(Circle()))
                         .offset(x: 40, y: -40)
+                        .transition(motion.transition(.inlineChange))
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
+        .animation(motion.animation(.quick, interactive: true), value: isSelected)
     }
 }

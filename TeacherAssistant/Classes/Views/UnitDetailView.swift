@@ -4,6 +4,7 @@ import SwiftData
 struct UnitDetailView: View {
     @Bindable var unit: Unit
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     
     @Query private var allSubjectsInDB: [Subject]
 
@@ -44,15 +45,19 @@ struct UnitDetailView: View {
             VStack(alignment: .leading, spacing: 24) {
                 // MARK: - Statistics Card
                 statisticsCard
+                    .appMotionReveal(index: 0)
                 
                 // MARK: - Quick Actions
                 quickActionsSection
+                    .appMotionReveal(index: 1)
                 
                 // MARK: - Assessments Section
                 assessmentsSection
+                    .appMotionReveal(index: 2)
 
                 // MARK: - Assignments Section
                 assignmentsSection
+                    .appMotionReveal(index: 3)
                 
             }
             .padding(.vertical, 20)
@@ -96,6 +101,7 @@ struct UnitDetailView: View {
                     addAssessment()
                 }
             )
+            .appSheetMotion()
         }
         .sheet(item: $copyStep) { step in
             CopyCriteriaSheet(
@@ -106,6 +112,7 @@ struct UnitDetailView: View {
                 copyStep: $copyStep
             )
             .frame(width: 500, height: 500)
+            .appSheetMotion()
         }
         .sheet(isPresented: $showingAddAssignmentSheet) {
             if let schoolClass = unit.subject?.schoolClass {
@@ -113,12 +120,15 @@ struct UnitDetailView: View {
                     schoolClass: schoolClass,
                     presetUnit: unit
                 )
+                .appSheetMotion()
             }
         }
         .onAppear {
             normalizeAssessmentResults()
         }
         .macNavigationDepth()
+        .animation(motion.animation(.standard), value: unit.assessments.map(\.id))
+        .animation(motion.animation(.standard), value: unit.assignments.map(\.persistentModelID))
     }
     
     // MARK: - Statistics Card
@@ -158,6 +168,7 @@ struct UnitDetailView: View {
             Text(value)
                 .font(.system(size: 32, weight: .bold))
                 .foregroundColor(color)
+                .contentTransition(.numericText())
             
             Text(title)
                 .font(.caption)
@@ -186,7 +197,7 @@ struct UnitDetailView: View {
                         color: .green
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
                 
                 // View PDFs Button
                 NavigationLink {
@@ -199,12 +210,14 @@ struct UnitDetailView: View {
                         color: .purple
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
             }
             
             // Copy Criteria Button (full width)
             Button {
-                copyStep = .chooseSubject
+                withAnimation(motion.animation(.quick, interactive: true)) {
+                    copyStep = .chooseSubject
+                }
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "doc.on.doc")
@@ -232,10 +245,12 @@ struct UnitDetailView: View {
                 .background(Color.orange.opacity(0.1))
                 .cornerRadius(12)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
 
             Button {
-                showingAddAssignmentSheet = true
+                withAnimation(motion.animation(.quick, interactive: true)) {
+                    showingAddAssignmentSheet = true
+                }
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "list.clipboard")
@@ -263,7 +278,7 @@ struct UnitDetailView: View {
                 .background(Color.teal.opacity(0.1))
                 .cornerRadius(12)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
         }
         .padding(.horizontal)
     }
@@ -305,7 +320,7 @@ struct UnitDetailView: View {
                 LazyVGrid(columns: [
                     GridItem(.adaptive(minimum: 260, maximum: 380), spacing: 16)
                 ], spacing: 16) {
-                    ForEach(unit.assessments.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { assessment in
+                    ForEach(Array(unit.assessments.sorted(by: { $0.sortOrder < $1.sortOrder }).enumerated()), id: \.element.id) { index, assessment in
                         NavigationLink {
                             AssessmentDetailView(assessment: assessment)
                         } label: {
@@ -314,7 +329,8 @@ struct UnitDetailView: View {
                                 showingDeleteAssessmentAlert = true
                             })
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
+                        .appMotionReveal(index: index)
                     }
                 }
                 .padding(.horizontal)
@@ -322,7 +338,9 @@ struct UnitDetailView: View {
             
             // Add Assessment Button
             Button {
-                showingAddAssessmentDialog = true
+                withAnimation(motion.animation(.quick, interactive: true)) {
+                    showingAddAssessmentDialog = true
+                }
             } label: {
                 Label("Add Assessment".localized, systemImage: "plus.circle.fill")
                     .font(.body)
@@ -332,7 +350,7 @@ struct UnitDetailView: View {
                     .foregroundColor(.blue)
                     .cornerRadius(10)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
             .padding(.horizontal)
         }
     }
@@ -367,13 +385,15 @@ struct UnitDetailView: View {
                 Spacer()
 
                 Button {
-                    showingAddAssignmentSheet = true
+                    withAnimation(motion.animation(.quick, interactive: true)) {
+                        showingAddAssignmentSheet = true
+                    }
                 } label: {
                     Label("Add Assignment".localized, systemImage: "plus.circle.fill")
                         .font(.subheadline)
                         .foregroundColor(.teal)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
                 .padding(.horizontal)
             }
 
@@ -397,18 +417,19 @@ struct UnitDetailView: View {
                 .padding(.horizontal)
             } else {
                 LazyVStack(spacing: 12) {
-                    ForEach(unit.assignments.sorted(by: { lhs, rhs in
+                    ForEach(Array(unit.assignments.sorted(by: { lhs, rhs in
                         if lhs.dueDate != rhs.dueDate {
                             return lhs.dueDate < rhs.dueDate
                         }
                         return lhs.sortOrder < rhs.sortOrder
-                    }), id: \.persistentModelID) { assignment in
+                    }).enumerated()), id: \.element.persistentModelID) { index, assignment in
                         NavigationLink {
                             AssignmentDetailView(assignment: assignment)
                         } label: {
                             unitAssignmentRow(assignment)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
+                        .appMotionReveal(index: index)
                     }
                 }
                 .padding(.horizontal)

@@ -29,6 +29,7 @@ struct FolderCardView: View {
     @State private var showingInfo = false
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     
     // Delete confirmation
@@ -127,9 +128,9 @@ struct FolderCardView: View {
                     }
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(motion.animation(.quick, interactive: true)) {
                     isHovered = hovering
                 }
             }
@@ -206,9 +207,11 @@ struct FolderCardView: View {
         }
         .sheet(isPresented: $showingColorPicker) {
             colorPickerSheet
+                .appSheetMotion()
         }
         .sheet(isPresented: $showingInfo) {
             folderInfoSheet
+                .appSheetMotion()
         }
         .alert(languageManager.localized("Delete Folder?"), isPresented: $showingDeleteAlert) {
             Button(languageManager.localized("Cancel"), role: .cancel) {}
@@ -222,6 +225,7 @@ struct FolderCardView: View {
                 folder.name
             ))
         }
+        .animation(motion.animation(.standard), value: isDropTarget)
     }
     
     func saveRename() {
@@ -329,7 +333,7 @@ struct FolderCardView: View {
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(10)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPressableButtonStyle())
                     .padding(.horizontal)
                 }
                 .padding(.vertical)
@@ -416,8 +420,8 @@ struct FolderCardView: View {
                     .foregroundColor(isSelected ? colorOption.color : .primary)
             }
         }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.3), value: isSelected)
+        .buttonStyle(AppPressableButtonStyle())
+        .animation(motion.animation(.quick, interactive: true), value: isSelected)
     }
     
     // MARK: - Folder Info Sheet
@@ -624,6 +628,7 @@ struct PDFCardView: View {
     @State private var thumbnailRequestToken: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     
     // Delete confirmation
@@ -704,13 +709,13 @@ struct PDFCardView: View {
                                     .foregroundColor(.white)
                             }
                         }
-                        .transition(.opacity)
+                        .transition(motion.transition(.inlineChange))
                     }
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(motion.animation(.quick, interactive: true)) {
                     isHovered = hovering
                 }
             }
@@ -854,6 +859,7 @@ struct SelectableFolderCard: View {
     let action: () -> Void
     
     @State private var isHovered = false
+    @Environment(\.appMotionContext) private var motion
     
     var body: some View {
         Button(action: action) {
@@ -908,7 +914,7 @@ struct SelectableFolderCard: View {
                             }
                             Spacer()
                         }
-                        .transition(.scale.combined(with: .opacity))
+                        .transition(motion.transition(.inlineChange))
                     }
                 }
                 
@@ -923,8 +929,8 @@ struct SelectableFolderCard: View {
             }
             .frame(width: 180)
         }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.3), value: isSelected)
+        .buttonStyle(AppPressableButtonStyle())
+        .animation(motion.animation(.quick, interactive: true), value: isSelected)
     }
 }
 
@@ -936,6 +942,7 @@ struct SelectablePDFCard: View {
     @State private var thumbnail: PlatformImage?
     @State private var thumbnailRequestToken: String = ""
     private let thumbnailSize = CGSize(width: 180, height: 200)
+    @Environment(\.appMotionContext) private var motion
     private var thumbnailReloadToken: String {
         "\(file.id.uuidString)-\(file.pdfData.count)"
     }
@@ -995,7 +1002,7 @@ struct SelectablePDFCard: View {
                                         .frame(width: 44, height: 44)
                                 )
                         }
-                        .transition(.scale.combined(with: .opacity))
+                        .transition(motion.transition(.inlineChange))
                     }
                 }
                 
@@ -1010,8 +1017,8 @@ struct SelectablePDFCard: View {
             }
             .frame(width: 180)
         }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.3), value: isSelected)
+        .buttonStyle(AppPressableButtonStyle())
+        .animation(motion.animation(.quick, interactive: true), value: isSelected)
         .onAppear {
             loadThumbnail(resetCurrentValue: false)
         }

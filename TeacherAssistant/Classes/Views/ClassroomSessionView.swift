@@ -17,6 +17,7 @@ struct ClassroomSessionView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject private var languageManager: LanguageManager
     @Query private var diaryEntries: [ClassDiaryEntry]
 
@@ -172,15 +173,22 @@ struct ClassroomSessionView: View {
         ScrollView {
             VStack(spacing: PlatformSpacing.sectionSpacing) {
                 headerCard
+                    .appMotionReveal(index: 0)
                 quickActionsCard
+                    .appMotionReveal(index: 1)
                 timerCard
+                    .appMotionReveal(index: 2)
                 attendanceCard
+                    .appMotionReveal(index: 3)
                 liveCaptureCard
+                    .appMotionReveal(index: 4)
                 sessionNotesCard
+                    .appMotionReveal(index: 5)
             }
             .padding(.vertical, 20)
         }
         .navigationTitle("Classroom Session".localized)
+        .appSheetMotion()
         .toolbar {
             if showsDismissButton {
                 ToolbarItem(placement: .cancellationAction) {
@@ -193,16 +201,19 @@ struct ClassroomSessionView: View {
         .sheet(isPresented: $showingAttendanceSheet) {
             NavigationStack {
                 AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
+                    .appSheetMotion()
             }
         }
         .sheet(isPresented: $showingAssignmentsSheet) {
             NavigationStack {
                 ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
+                    .appSheetMotion()
             }
         }
         .sheet(isPresented: $showingSeatingChartSheet) {
             NavigationStack {
                 SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
+                    .appSheetMotion()
             }
         }
         .sheet(isPresented: $showingLiveCheckInSheet) {
@@ -212,6 +223,7 @@ struct ClassroomSessionView: View {
                     source: .classroomSession,
                     showsDismissButton: true
                 )
+                .appSheetMotion()
             }
         }
         .task {
@@ -229,6 +241,11 @@ struct ClassroomSessionView: View {
             notesSaveTask?.cancel()
             flushNotesSave()
         }
+        .animation(motion.animation(.standard), value: selectedMode)
+        .animation(motion.animation(.standard), value: timerManager.isRunning)
+        .animation(motion.animation(.standard), value: todaysParticipationEvents.count)
+        .animation(motion.animation(.standard), value: todaysBehaviorEvents.count)
+        .animation(motion.animation(.standard), value: todayAttendanceRecords.count)
         .macNavigationDepth()
     }
 
@@ -617,39 +634,43 @@ struct ClassroomSessionView: View {
             Text("Today's Activity".localized)
                 .font(.subheadline.weight(.semibold))
 
-            if selectedMode == .participation {
-                LazyVStack(spacing: 8) {
-                    ForEach(todaysParticipationEvents.prefix(6), id: \.id) { event in
-                        HStack {
-                            Text(event.studentNameSnapshot)
-                                .font(.subheadline.weight(.medium))
-                            Spacer()
-                            Text(event.kind.title)
-                                .font(.caption.weight(.semibold))
-                                .foregroundColor(.pink)
-                            Text(event.createdAt, style: .time)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+            Group {
+                if selectedMode == .participation {
+                    LazyVStack(spacing: 8) {
+                        ForEach(todaysParticipationEvents.prefix(6), id: \.id) { event in
+                            HStack {
+                                Text(event.studentNameSnapshot)
+                                    .font(.subheadline.weight(.medium))
+                                Spacer()
+                                Text(event.kind.title)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(.pink)
+                                Text(event.createdAt, style: .time)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
-                }
-            } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(todaysBehaviorEvents.prefix(6), id: \.id) { event in
-                        HStack {
-                            Text(event.studentNameSnapshot)
-                                .font(.subheadline.weight(.medium))
-                            Spacer()
-                            Text(event.kind.title)
-                                .font(.caption.weight(.semibold))
-                                .foregroundColor(event.kind.color)
-                            Text(event.createdAt, style: .time)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                } else {
+                    LazyVStack(spacing: 8) {
+                        ForEach(todaysBehaviorEvents.prefix(6), id: \.id) { event in
+                            HStack {
+                                Text(event.studentNameSnapshot)
+                                    .font(.subheadline.weight(.medium))
+                                Spacer()
+                                Text(event.kind.title)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(event.kind.color)
+                                Text(event.createdAt, style: .time)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
             }
+            .id(selectedMode)
+            .transition(motion.transition(.inlineChange))
         }
         .padding(.top, 4)
     }
@@ -770,7 +791,7 @@ struct ClassroomSessionView: View {
                 tint: disabled ? nil : color
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
         .disabled(disabled)
     }
 
@@ -788,7 +809,7 @@ struct ClassroomSessionView: View {
                         .fill(color.opacity(0.12))
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
 
     private func attendanceSummaryBox(title: String, value: Int, color: Color) -> some View {
@@ -838,7 +859,7 @@ struct ClassroomSessionView: View {
                                 )
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
             }
         }
         .padding(.horizontal, 12)
@@ -928,7 +949,7 @@ struct ClassroomSessionView: View {
                 tint: student == nil ? nil : accent
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
         .disabled(student == nil)
         .contextMenu {
             seatContextMenu(for: student)
@@ -1006,7 +1027,7 @@ struct ClassroomSessionView: View {
                 tint: accentColor(for: student)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
         .contextMenu {
             Button {
                 pickedStudentUUID = student.uuid

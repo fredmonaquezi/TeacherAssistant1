@@ -19,6 +19,7 @@ struct StudentDetailView: View {
     @Query var allScores: [DevelopmentScore]
     
     @EnvironmentObject var languageManager: LanguageManager
+    @Environment(\.appMotionContext) private var motion
 
     init(student: Student, initiallyShowingInterventions: Bool = false) {
         self.student = student
@@ -70,6 +71,7 @@ struct StudentDetailView: View {
                 
                 // MARK: - Quick Status Bar
                 quickStatusBar
+                    .appMotionReveal(index: 0)
                 
                 // MARK: - Statistics Cards
                 HStack(spacing: 16) {
@@ -88,26 +90,34 @@ struct StudentDetailView: View {
                     )
                 }
                 .padding(.horizontal)
+                .appMotionReveal(index: 1)
                 
                 // MARK: - Attendance Summary
                 attendanceSummaryCard
+                    .appMotionReveal(index: 2)
                 
                 // 👉 ADD THIS LINE RIGHT HERE:
                 StudentRunningRecordsSection(student: student)
+                    .appMotionReveal(index: 3)
                 
                 // MARK: - Subject Breakdown
                 subjectBreakdownSection
+                    .appMotionReveal(index: 4)
 
                 // MARK: - Actions
                 actionsSection
+                    .appMotionReveal(index: 5)
 
                 interventionSummarySection
+                    .appMotionReveal(index: 6)
 
                 // MARK: - Development Tracking
                 developmentTrackingSection
+                    .appMotionReveal(index: 7)
 
                 // MARK: - Recent Grades
                 recentGradesSection
+                    .appMotionReveal(index: 8)
                 
             }
             .padding(.vertical, 20)
@@ -124,18 +134,22 @@ struct StudentDetailView: View {
         #endif
         .sheet(isPresented: $isEditingInfo) {
             studentInfoSheet
+                .appSheetMotion()
         }
         .navigationDestination(item: $selectedUnitForEvaluation) { unit in
             StudentUnitEvaluationView(student: student, unit: unit)
         }
         .sheet(isPresented: $showingSubjectPicker) {
             subjectPickerSheet
+                .appSheetMotion()
         }
         .sheet(isPresented: $showingInterventions) {
             StudentInterventionsSheet(student: student)
+                .appSheetMotion()
         }
         .sheet(item: $selectedSubject) { subject in
             unitPickerSheet(for: subject)
+                .appSheetMotion()
         }
         .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
             saveRefreshRevision &+= 1
@@ -149,6 +163,7 @@ struct StudentDetailView: View {
             await refreshDerivedData()
         }
         .macNavigationDepth()
+        .animation(motion.animation(.standard), value: refreshToken)
     }
     
     // MARK: - Quick Status Bar
@@ -187,7 +202,7 @@ struct StudentDetailView: View {
     
     func statusToggle(isOn: Binding<Bool>, icon: String, label: String, activeColor: Color) -> some View {
         Button(action: {
-            withAnimation(.spring(response: 0.3)) {
+            withAnimation(motion.animation(.quick, interactive: true)) {
                 isOn.wrappedValue.toggle()
             }
         }) {
@@ -229,7 +244,7 @@ struct StudentDetailView: View {
             )
             .cornerRadius(12)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
     
     func statusBadge(text: String, color: Color) -> some View {
@@ -257,6 +272,7 @@ struct StudentDetailView: View {
             Text(value)
                 .font(.system(size: 36, weight: .bold))
                 .foregroundColor(color)
+                .contentTransition(.numericText())
             
             Text(title.localized)
                 .font(.subheadline)
@@ -391,7 +407,7 @@ struct StudentDetailView: View {
                     .font(.subheadline)
                     .foregroundColor(.purple)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
             }
             .padding(.horizontal)
             
@@ -431,6 +447,7 @@ struct StudentDetailView: View {
         }
         .sheet(isPresented: $showingDevelopmentTracker) {
             DevelopmentTrackerSheet(student: student)
+                .appSheetMotion()
         }
     }
 
@@ -537,7 +554,7 @@ struct StudentDetailView: View {
                     .foregroundColor(.white)
                     .cornerRadius(10)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
             
             NavigationLink {
                 StudentProgressView(student: student)
@@ -549,7 +566,7 @@ struct StudentDetailView: View {
                     .foregroundColor(.primary)
                     .cornerRadius(10)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
 
             Button {
                 showingInterventions = true
@@ -561,7 +578,7 @@ struct StudentDetailView: View {
                     .foregroundColor(.orange)
                     .cornerRadius(10)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
         }
         .padding(.horizontal)
     }
@@ -811,7 +828,7 @@ struct StudentDetailView: View {
     
     func statusCard(isOn: Binding<Bool>, icon: String, title: String, description: String, color: Color) -> some View {
         Button(action: {
-            withAnimation(.spring(response: 0.3)) {
+            withAnimation(motion.animation(.quick, interactive: true)) {
                 isOn.wrappedValue.toggle()
             }
         }) {
@@ -861,7 +878,7 @@ struct StudentDetailView: View {
             )
             .cornerRadius(10)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
     
     // MARK: - Notes Section
@@ -1043,7 +1060,7 @@ struct StudentDetailView: View {
             .cornerRadius(12)
             .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
     
     // MARK: - Unit Picker Sheet
@@ -1210,7 +1227,7 @@ struct StudentDetailView: View {
                     .stroke(Color.green.opacity(0.1), lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
     
     // MARK: - Dark Mode Support

@@ -54,6 +54,8 @@ struct ContentView: View {
     @AppStorage(AppPreferencesKeys.dateFormat) private var dateFormatRawValue: String = AppDateFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.timeFormat) private var timeFormatRawValue: String = AppTimeFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.defaultLandingSection) private var defaultLandingSectionRawValue: String = AppSection.dashboard.rawValue
+    @AppStorage(AppPreferencesKeys.motionProfile) private var motionProfileRawValue: String = AppMotionProfile.full.rawValue
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query private var allAssessments: [Assessment]
@@ -80,6 +82,24 @@ struct ContentView: View {
         _selectedSection = State(initialValue: AppSection.availableSection(from: defaultSectionRawValue))
     }
 
+    private var preferredMotionProfile: AppMotionProfile {
+        AppMotionProfile(rawValue: motionProfileRawValue) ?? .full
+    }
+
+    private var appMotionContext: AppMotionContext {
+        AppMotionContext(
+            profile: preferredMotionProfile,
+            reduceMotionEnabled: accessibilityReduceMotion,
+            prefersDesktopSpacing: {
+                #if os(macOS)
+                true
+                #else
+                false
+                #endif
+            }()
+        )
+    }
+
     var body: some View {
         ZStack {
             mainNavigationLayout
@@ -90,11 +110,13 @@ struct ContentView: View {
             if timerManager.isRunning {
                 if timerManager.isExpanded {
                     TimerOverlayView(timer: timerManager)
+                        .transition(appMotionContext.transition(.overlay))
                 } else {
                     VStack {
                         Spacer()
                         MiniTimerView(timer: timerManager)
                     }
+                    .transition(appMotionContext.transition(.overlay))
                 }
             }
 
@@ -104,9 +126,14 @@ struct ContentView: View {
                     timerManager.dismissTimesUpAndReset()
                     selectedSection = .timer   // 👈 FORCE staying in Timer section
                 }
+                .transition(appMotionContext.transition(.overlay))
             }
 
         }
+        .environment(\.appMotionContext, appMotionContext)
+        .animation(appMotionContext.animation(.standard), value: timerManager.isRunning)
+        .animation(appMotionContext.animation(.standard), value: timerManager.isExpanded)
+        .animation(appMotionContext.animation(.emphasis), value: timerManager.showTimesUp)
         .onReceive(NotificationCenter.default.publisher(for: .backupRestoreDidComplete)) { _ in
             handleBackupRestoreCompleted()
         }
@@ -262,7 +289,12 @@ struct ContentView: View {
         VStack(spacing: 0) {
             AttentionNotificationScheduler(notificationManager: attentionNotificationManager)
             AttentionReminderBanner(selectedSection: $selectedSection)
-            detailView
+            ZStack {
+                detailView
+                    .id(selectedSection?.rawValue ?? AppSection.dashboard.rawValue)
+                    .transition(appMotionContext.transition(.sectionSwitch))
+            }
+            .animation(appMotionContext.animation(.standard), value: selectedSection)
         }
     }
 

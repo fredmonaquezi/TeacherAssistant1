@@ -3,6 +3,7 @@ import SwiftData
 
 struct TodayDashboardCard: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     @ObservedObject var timerManager: ClassroomTimerManager
     @Binding var selectedSection: AppSection?
 
@@ -361,6 +362,11 @@ struct TodayDashboardCard: View {
             tint: .teal
         )
         .padding(.horizontal)
+        .animation(motion.animation(.standard), value: scheduleItems.count)
+        .animation(motion.animation(.standard), value: classesNeedingAttendance.count)
+        .animation(motion.animation(.standard), value: pendingGradesCount)
+        .animation(motion.animation(.standard), value: assignmentItems.count)
+        .animation(motion.animation(.standard), value: interventionItems.count)
         .onAppear {
             syncAssignmentEntries()
         }
@@ -403,6 +409,7 @@ struct TodayDashboardCard: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+                .transition(motion.transition(.inlineChange))
             }
         }
     }
@@ -416,6 +423,7 @@ struct TodayDashboardCard: View {
                 icon: "calendar.badge.clock",
                 color: .teal
             )
+            .appMotionReveal(index: 0)
 
             statCard(
                 title: "Attendance".localized,
@@ -424,6 +432,7 @@ struct TodayDashboardCard: View {
                 icon: "checklist",
                 color: classesNeedingAttendance.isEmpty ? .green : .orange
             )
+            .appMotionReveal(index: 1)
 
             statCard(
                 title: "Backlog".localized,
@@ -432,6 +441,7 @@ struct TodayDashboardCard: View {
                 icon: "tray.full.fill",
                 color: pendingGradesCount > 0 ? .orange : .green
             )
+            .appMotionReveal(index: 2)
 
             statCard(
                 title: "Assessments".localized,
@@ -440,6 +450,7 @@ struct TodayDashboardCard: View {
                 icon: "doc.text.fill",
                 color: upcomingAssessments.isEmpty ? .secondary : .blue
             )
+            .appMotionReveal(index: 3)
 
             statCard(
                 title: "Homework".localized,
@@ -448,6 +459,7 @@ struct TodayDashboardCard: View {
                 icon: "list.clipboard.fill",
                 color: dueSoonAssignmentsCount > 0 ? .teal : .secondary
             )
+            .appMotionReveal(index: 4)
 
             statCard(
                 title: "Missing Work".localized,
@@ -456,6 +468,7 @@ struct TodayDashboardCard: View {
                 icon: "exclamationmark.bubble.fill",
                 color: missingAssignmentsCount > 0 ? .red : .green
             )
+            .appMotionReveal(index: 5)
 
             statCard(
                 title: "Follow Ups".localized,
@@ -464,6 +477,7 @@ struct TodayDashboardCard: View {
                 icon: "cross.case.fill",
                 color: followUpsCount > 0 ? .indigo : .secondary
             )
+            .appMotionReveal(index: 6)
 
             statCard(
                 title: "Overdue Plans".localized,
@@ -472,6 +486,7 @@ struct TodayDashboardCard: View {
                 icon: "exclamationmark.circle.fill",
                 color: overdueFollowUpsCount > 0 ? .red : .green
             )
+            .appMotionReveal(index: 7)
         }
     }
 
@@ -480,8 +495,9 @@ struct TodayDashboardCard: View {
             sectionHeader(title: "Focus Actions".localized)
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
-                ForEach(focusActions) { item in
+                ForEach(Array(focusActions.enumerated()), id: \.element.id) { index, item in
                     focusActionCard(item: item)
+                        .appMotionReveal(index: index, axis: .horizontal)
                 }
             }
         }
@@ -504,8 +520,9 @@ struct TodayDashboardCard: View {
                 )
             } else {
                 VStack(spacing: 10) {
-                    ForEach(scheduleItems.prefix(4)) { item in
+                    ForEach(Array(scheduleItems.prefix(4).enumerated()), id: \.element.id) { index, item in
                         scheduleRow(item: item)
+                            .appMotionReveal(index: index)
                     }
                 }
             }
@@ -532,7 +549,7 @@ struct TodayDashboardCard: View {
                             } label: {
                                 classAttendanceRow(for: schoolClass)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPressableButtonStyle())
                         }
                     }
                 }
@@ -557,7 +574,7 @@ struct TodayDashboardCard: View {
                             } label: {
                                 backlogRow(item: item)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPressableButtonStyle())
                         }
                     }
                 }
@@ -577,7 +594,7 @@ struct TodayDashboardCard: View {
                             } label: {
                                 assignmentRow(item: item)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPressableButtonStyle())
                         }
                     }
                 }
@@ -597,7 +614,7 @@ struct TodayDashboardCard: View {
                             } label: {
                                 interventionRow(item: item)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPressableButtonStyle())
                         }
                     }
                 }
@@ -621,6 +638,7 @@ struct TodayDashboardCard: View {
             Text(value)
                 .font(.title.weight(.bold))
                 .foregroundColor(color)
+                .contentTransition(.numericText())
 
             Text(title)
                 .font(.subheadline.weight(.semibold))
@@ -639,6 +657,7 @@ struct TodayDashboardCard: View {
             shadowY: 2,
             tint: color
         )
+        .transition(motion.transition(.cardReveal))
     }
 
     private func focusActionCard(item: TodayQuickActionItem) -> some View {
@@ -676,7 +695,7 @@ struct TodayDashboardCard: View {
                     .fill(AppChrome.elevatedBackground)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
 
     private func sectionHeader(
@@ -731,6 +750,7 @@ struct TodayDashboardCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(AppChrome.elevatedBackground)
         )
+        .transition(motion.transition(.inlineChange))
     }
 
     private func classAttendanceRow(for schoolClass: SchoolClass) -> some View {
@@ -756,6 +776,7 @@ struct TodayDashboardCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(AppChrome.elevatedBackground)
         )
+        .transition(motion.transition(.inlineChange))
     }
 
     private func backlogRow(item: TodayBacklogItem) -> some View {
@@ -789,6 +810,7 @@ struct TodayDashboardCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(AppChrome.elevatedBackground)
         )
+        .transition(motion.transition(.inlineChange))
     }
 
     private func assignmentRow(item: TodayAssignmentItem) -> some View {
@@ -836,6 +858,7 @@ struct TodayDashboardCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(AppChrome.elevatedBackground)
         )
+        .transition(motion.transition(.inlineChange))
     }
 
     private func interventionRow(item: TodayInterventionItem) -> some View {
@@ -877,6 +900,7 @@ struct TodayDashboardCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(AppChrome.elevatedBackground)
         )
+        .transition(motion.transition(.inlineChange))
     }
 
     private func emptyState(icon: String, title: String, message: String) -> some View {

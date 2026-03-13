@@ -30,6 +30,7 @@ struct LiveCheckInView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
     @Query(sort: [SortDescriptor(\LiveObservationTemplate.sortOrder), SortDescriptor(\LiveObservationTemplate.createdAt)])
     private var templates: [LiveObservationTemplate]
 
@@ -178,13 +179,18 @@ struct LiveCheckInView: View {
         ScrollView {
             VStack(spacing: PlatformSpacing.sectionSpacing) {
                 headerCard
+                    .appMotionReveal(index: 0)
                 checklistCard
+                    .appMotionReveal(index: 1)
                 studentSurfaceCard
+                    .appMotionReveal(index: 2)
                 recentObservationsCard
+                    .appMotionReveal(index: 3)
             }
             .padding(.vertical, 20)
         }
         .navigationTitle("Live Check-In".localized)
+        .appSheetMotion()
         .toolbar {
             if showsDismissButton {
                 ToolbarItem(placement: .cancellationAction) {
@@ -213,10 +219,10 @@ struct LiveCheckInView: View {
                 )
             }
         }
-        .animation(.snappy(duration: 0.30, extraBounce: 0.08), value: selectedFilter)
-        .animation(.snappy(duration: 0.32, extraBounce: 0.10), value: todaysObservations.count)
-        .animation(.snappy(duration: 0.30, extraBounce: 0.08), value: sessionExtraCriteria.count)
-        .animation(.snappy(duration: 0.28, extraBounce: 0.06), value: selectedTemplateID)
+        .animation(motion.animation(.standard), value: selectedFilter)
+        .animation(motion.animation(.emphasis), value: todaysObservations.count)
+        .animation(motion.animation(.standard), value: sessionExtraCriteria.count)
+        .animation(motion.animation(.quick), value: selectedTemplateID)
         .macNavigationDepth()
     }
 
@@ -296,7 +302,7 @@ struct LiveCheckInView: View {
                     }
                 }
                 .frame(height: 10)
-                .animation(.snappy(duration: 0.35, extraBounce: 0.08), value: checkedInProgress)
+                .animation(motion.animation(.emphasis), value: checkedInProgress)
             }
 
             HStack(spacing: 10) {
@@ -373,7 +379,7 @@ struct LiveCheckInView: View {
                     ForEach(Filter.allCases) { filter in
                         let isSelected = selectedFilter == filter
                         Button {
-                            withAnimation(.snappy(duration: 0.28, extraBounce: 0.08)) {
+                            withAnimation(motion.animation(.standard)) {
                                 selectedFilter = filter
                             }
                         } label: {
@@ -410,7 +416,7 @@ struct LiveCheckInView: View {
                                 }
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                         .scaleEffect(isSelected ? 1.0 : 0.985)
                     }
                 }
@@ -582,14 +588,14 @@ struct LiveCheckInView: View {
 
                         if removableIDs.contains(criterion.id) {
                             Button {
-                                withAnimation(.snappy(duration: 0.26, extraBounce: 0.06)) {
+                                withAnimation(motion.animation(.quick)) {
                                     sessionExtraCriteria.removeAll { $0.id.uuidString == criterion.id }
                                 }
                             } label: {
                                 Image(systemName: "minus.circle.fill")
                                     .foregroundColor(.secondary)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPressableButtonStyle())
                         }
                     }
                     .padding(.horizontal, 12)
@@ -619,7 +625,7 @@ struct LiveCheckInView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 28)
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .transition(motion.transition(.inlineChange))
             } else if hasSeatPlacements {
                 VStack(alignment: .leading, spacing: 16) {
                     seatingSurface
@@ -633,10 +639,10 @@ struct LiveCheckInView: View {
                         }
                     }
                 }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .transition(motion.transition(.cardReveal))
             } else {
                 studentGrid(filteredStudents)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .transition(motion.transition(.cardReveal))
             }
         }
         .padding()
@@ -685,11 +691,11 @@ struct LiveCheckInView: View {
                         observedToday: observedTodayUUIDs.contains(student.uuid)
                     )
                 }
-                .buttonStyle(.plain)
-                .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.94)), removal: .opacity))
+                .buttonStyle(AppPressableButtonStyle())
+                .transition(motion.transition(.inlineChange))
             }
         }
-        .animation(.snappy(duration: 0.30, extraBounce: 0.08), value: students.map(\.uuid))
+        .animation(motion.animation(.standard), value: students.map(\.uuid))
     }
 
     private var recentObservationsCard: some View {
@@ -718,7 +724,7 @@ struct LiveCheckInView: View {
                 VStack(spacing: 12) {
                     ForEach(todaysObservations.prefix(8), id: \.id) { observation in
                         recentObservationRow(observation)
-                            .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
+                            .transition(motion.transition(.cardReveal))
                     }
                 }
             }
@@ -811,7 +817,7 @@ struct LiveCheckInView: View {
     private func addSessionCriterion() {
         guard !trimmedNewCriterionTitle.isEmpty else { return }
         let nextSortOrder = (activeTemplate?.criteria.count ?? 0) + sessionExtraCriteria.count
-        withAnimation(.snappy(duration: 0.28, extraBounce: 0.08)) {
+        withAnimation(motion.animation(.standard)) {
             sessionExtraCriteria.append(
                 LiveCheckInSessionCriterion(
                     title: trimmedNewCriterionTitle,
@@ -858,7 +864,7 @@ struct LiveCheckInView: View {
         for student: Student,
         payload: LiveCheckInObservationPayload
     ) {
-        withAnimation(.snappy(duration: 0.32, extraBounce: 0.10)) {
+        withAnimation(motion.animation(.emphasis)) {
             let observation = LiveObservation(
                 sessionDate: startOfToday,
                 source: source,
@@ -1059,7 +1065,7 @@ private struct LiveCheckInSeatCard: View {
             )
             .opacity(isDimmed ? 0.35 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
         .disabled(student == nil)
     }
 }
@@ -1120,6 +1126,7 @@ private struct LiveCheckInObservationEntrySheet: View {
         }
         .frame(minWidth: 720, minHeight: 680)
         .navigationTitle("Check-In".localized)
+        .appSheetMotion()
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel".localized) {
@@ -1363,7 +1370,7 @@ private struct LiveCheckInObservationEntrySheet: View {
                                 .stroke(level.color.opacity(selection.wrappedValue == level ? 0 : 0.20), lineWidth: 1)
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPressableButtonStyle())
                 }
             }
         }
@@ -1482,6 +1489,7 @@ private struct LiveCheckInTemplateManagerView: View {
         }
         .frame(minWidth: 700, minHeight: 420)
         .navigationTitle("Checklist Templates".localized)
+        .appSheetMotion()
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Done".localized) {
@@ -1631,7 +1639,7 @@ private struct LiveCheckInTemplateEditorView: View {
                         } label: {
                             Image(systemName: "trash")
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
                     }
                 }
 

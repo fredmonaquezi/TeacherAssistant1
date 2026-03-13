@@ -3,6 +3,7 @@ import SwiftData
 import UniformTypeIdentifiers
 
 struct LibrarySearchResultsGrid: View {
+    @Environment(\.appMotionContext) private var motion
 
     let folders: [LibraryFolder]
     let files: [LibraryFile]
@@ -59,6 +60,9 @@ struct LibrarySearchResultsGrid: View {
                 }
             }
             .padding(24)
+            .appMotionReveal(index: 0)
         }
+        .animation(motion.animation(.standard), value: folders.count)
+        .animation(motion.animation(.standard), value: files.count)
     }
 }

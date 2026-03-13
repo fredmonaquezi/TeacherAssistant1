@@ -97,6 +97,7 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         XCTAssertEqual(decodedPayload.appSettings?.dateFormat, AppDateFormatPreference.system.rawValue)
         XCTAssertEqual(decodedPayload.appSettings?.timeFormat, AppTimeFormatPreference.system.rawValue)
         XCTAssertEqual(decodedPayload.appSettings?.defaultLandingSection, AppSection.dashboard.rawValue)
+        XCTAssertEqual(decodedPayload.appSettings?.motionProfile, AppMotionProfile.full.rawValue)
         XCTAssertEqual(decodedPayload.appSettings?.attentionRemindersEnabled, true)
         XCTAssertEqual(decodedPayload.appSettings?.attentionNotificationsEnabled, false)
         XCTAssertEqual(decodedPayload.appSettings?.attentionNotificationHour, 7)
@@ -647,6 +648,23 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: AppPreferencesKeys.dateFormat), AppDateFormatPreference.system.rawValue)
         XCTAssertEqual(defaults.string(forKey: AppPreferencesKeys.timeFormat), AppTimeFormatPreference.system.rawValue)
         XCTAssertEqual(defaults.string(forKey: AppPreferencesKeys.defaultLandingSection), AppSection.dashboard.rawValue)
+        XCTAssertEqual(defaults.string(forKey: AppPreferencesKeys.motionProfile), AppMotionProfile.full.rawValue)
+    }
+
+    @MainActor
+    func testAppMotionContextResolvesReduceMotionOverrides() {
+        let full = AppMotionContext(profile: .full, reduceMotionEnabled: false, prefersDesktopSpacing: false)
+        XCTAssertEqual(full.effectiveProfile, .full)
+
+        let subtle = AppMotionContext(profile: .subtle, reduceMotionEnabled: false, prefersDesktopSpacing: true)
+        XCTAssertEqual(subtle.effectiveProfile, .subtle)
+
+        let reduced = AppMotionContext(profile: .reduced, reduceMotionEnabled: false, prefersDesktopSpacing: false)
+        XCTAssertEqual(reduced.effectiveProfile, .reduced)
+
+        let forcedReduced = AppMotionContext(profile: .full, reduceMotionEnabled: true, prefersDesktopSpacing: false)
+        XCTAssertEqual(forcedReduced.effectiveProfile, .reduced)
+        XCTAssertTrue(forcedReduced.isReduced)
     }
 
     @MainActor

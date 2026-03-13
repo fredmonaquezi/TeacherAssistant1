@@ -3,6 +3,7 @@ import SwiftUI
 struct MoveDestinationPicker: View {
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
 
     let allFolders: [LibraryFolder]
     let currentFolderID: UUID
@@ -21,6 +22,7 @@ struct MoveDestinationPicker: View {
                     )
                 }
             }
+            .appMotionReveal(index: 0)
             .navigationTitle("Move To…")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -30,6 +32,8 @@ struct MoveDestinationPicker: View {
                 }
             }
         }
+        .appSheetMotion()
+        .animation(motion.animation(.standard), value: rootFolders.count)
     }
 
     var rootFolders: [LibraryFolder] {
@@ -38,6 +42,7 @@ struct MoveDestinationPicker: View {
 }
 
 struct FolderRow: View {
+    @Environment(\.appMotionContext) private var motion
 
     let folder: LibraryFolder
     let allFolders: [LibraryFolder]
@@ -54,12 +59,21 @@ struct FolderRow: View {
             } label: {
                 HStack {
                     Image(systemName: "folder")
+                        .foregroundColor(.orange)
                     Text(folder.name)
                     Spacer()
+                    if folder.id != currentFolderID {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .contentShape(Rectangle())
                 .padding(.leading, CGFloat(level) * 20)
+                .padding(.vertical, 6)
+                .opacity(folder.id == currentFolderID ? 0.5 : 1)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
             .disabled(folder.id == currentFolderID)
 
             ForEach(children, id: \.id) { child in
@@ -72,6 +86,7 @@ struct FolderRow: View {
                 )
             }
         }
+        .animation(motion.animation(.quick), value: children.count)
     }
 
     var children: [LibraryFolder] {

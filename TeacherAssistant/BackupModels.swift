@@ -605,6 +605,7 @@ struct BackupAppSettings: Codable {
     var dateFormat: String
     var timeFormat: String
     var defaultLandingSection: String
+    var motionProfile: String
     var attentionRemindersEnabled: Bool
     var attentionNotificationsEnabled: Bool
     var attentionNotificationHour: Int
@@ -624,6 +625,7 @@ struct BackupAppSettings: Codable {
         dateFormat: String,
         timeFormat: String,
         defaultLandingSection: String,
+        motionProfile: String,
         attentionRemindersEnabled: Bool,
         attentionNotificationsEnabled: Bool,
         attentionNotificationHour: Int,
@@ -642,6 +644,7 @@ struct BackupAppSettings: Codable {
         self.dateFormat = dateFormat
         self.timeFormat = timeFormat
         self.defaultLandingSection = defaultLandingSection
+        self.motionProfile = motionProfile
         self.attentionRemindersEnabled = attentionRemindersEnabled
         self.attentionNotificationsEnabled = attentionNotificationsEnabled
         self.attentionNotificationHour = attentionNotificationHour
@@ -662,6 +665,7 @@ struct BackupAppSettings: Codable {
         case dateFormat
         case timeFormat
         case defaultLandingSection
+        case motionProfile
         case attentionRemindersEnabled
         case attentionNotificationsEnabled
         case attentionNotificationHour
@@ -683,6 +687,7 @@ struct BackupAppSettings: Codable {
         dateFormat = try container.decodeIfPresent(String.self, forKey: .dateFormat) ?? AppDateFormatPreference.system.rawValue
         timeFormat = try container.decodeIfPresent(String.self, forKey: .timeFormat) ?? AppTimeFormatPreference.system.rawValue
         defaultLandingSection = try container.decodeIfPresent(String.self, forKey: .defaultLandingSection) ?? AppSection.dashboard.rawValue
+        motionProfile = try container.decodeIfPresent(String.self, forKey: .motionProfile) ?? AppMotionProfile.full.rawValue
         attentionRemindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .attentionRemindersEnabled) ?? true
         attentionNotificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .attentionNotificationsEnabled) ?? false
         attentionNotificationHour = try container.decodeIfPresent(Int.self, forKey: .attentionNotificationHour) ?? 7

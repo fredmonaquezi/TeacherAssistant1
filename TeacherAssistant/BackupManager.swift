@@ -614,6 +614,7 @@ final class BackupManager {
             dateFormat: defaults.string(forKey: AppPreferencesKeys.dateFormat) ?? AppDateFormatPreference.system.rawValue,
             timeFormat: defaults.string(forKey: AppPreferencesKeys.timeFormat) ?? AppTimeFormatPreference.system.rawValue,
             defaultLandingSection: defaults.string(forKey: AppPreferencesKeys.defaultLandingSection) ?? AppSection.dashboard.rawValue,
+            motionProfile: defaults.string(forKey: AppPreferencesKeys.motionProfile) ?? AppMotionProfile.full.rawValue,
             attentionRemindersEnabled: defaults.object(forKey: AppPreferencesKeys.attentionRemindersEnabled) as? Bool ?? true,
             attentionNotificationsEnabled: defaults.object(forKey: AppPreferencesKeys.attentionNotificationsEnabled) as? Bool ?? false,
             attentionNotificationHour: defaults.object(forKey: AppPreferencesKeys.attentionNotificationHour) as? Int ?? 7,
@@ -927,6 +928,7 @@ final class BackupManager {
         defaults.set(settings.dateFormat, forKey: AppPreferencesKeys.dateFormat)
         defaults.set(settings.timeFormat, forKey: AppPreferencesKeys.timeFormat)
         defaults.set(settings.defaultLandingSection, forKey: AppPreferencesKeys.defaultLandingSection)
+        defaults.set(settings.motionProfile, forKey: AppPreferencesKeys.motionProfile)
         defaults.set(settings.attentionRemindersEnabled, forKey: AppPreferencesKeys.attentionRemindersEnabled)
         defaults.set(settings.attentionNotificationsEnabled, forKey: AppPreferencesKeys.attentionNotificationsEnabled)
         defaults.set(settings.attentionNotificationHour, forKey: AppPreferencesKeys.attentionNotificationHour)

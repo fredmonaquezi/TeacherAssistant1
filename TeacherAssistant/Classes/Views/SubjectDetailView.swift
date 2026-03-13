@@ -4,6 +4,7 @@ import SwiftData
 struct SubjectDetailView: View {
     @Bindable var subject: Subject
     @EnvironmentObject var languageManager: LanguageManager
+    @Environment(\.appMotionContext) private var motion
     
     // ✅ Delete confirmation state for units
     @State private var unitToDelete: Unit?
@@ -18,9 +19,11 @@ struct SubjectDetailView: View {
             VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing) {
                 // MARK: - Statistics Card
                 statisticsCard
+                    .appMotionReveal(index: 0)
                 
                 // MARK: - Units Section
                 unitsSection
+                    .appMotionReveal(index: 1)
                 
             }
             .padding(.vertical, 20)
@@ -63,8 +66,10 @@ struct SubjectDetailView: View {
                 addUnit()
             })
             .environmentObject(languageManager)
+            .appSheetMotion()
         }
         .macNavigationDepth()
+        .animation(motion.animation(.standard), value: subject.units.map(\.id))
     }
     
     // MARK: - Statistics Card
@@ -112,6 +117,7 @@ struct SubjectDetailView: View {
             Text(value)
                 .font(AppTypography.statValue)
                 .foregroundColor(color)
+                .contentTransition(.numericText())
             
             Text(title)
                 .font(.caption)
@@ -150,7 +156,7 @@ struct SubjectDetailView: View {
                 LazyVGrid(columns: [
                     GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 20)
                 ], spacing: 20) {
-                    ForEach(subject.units.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.id) { unit in
+                    ForEach(Array(subject.units.sorted(by: { $0.sortOrder < $1.sortOrder }).enumerated()), id: \.element.id) { index, unit in
                         NavigationLink {
                             UnitDetailView(unit: unit)
                         } label: {
@@ -159,7 +165,8 @@ struct SubjectDetailView: View {
                                 showingDeleteUnitAlert = true
                             })
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPressableButtonStyle())
+                        .appMotionReveal(index: index)
                     }
                 }
                 .padding(.horizontal)
@@ -167,7 +174,9 @@ struct SubjectDetailView: View {
             
             // Add Unit Button
             Button {
-                showingAddUnitDialog = true
+                withAnimation(motion.animation(.quick, interactive: true)) {
+                    showingAddUnitDialog = true
+                }
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "plus.circle.fill")
@@ -186,7 +195,7 @@ struct SubjectDetailView: View {
                     tint: .blue
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
             .padding(.horizontal)
         }
         .padding(.vertical, 2)

@@ -45,6 +45,7 @@ struct StudentRunningRecordsSection: View {
     @State private var filterLevel: ReadingLevel?
     @State private var dateRange: RunningRecordDateRange = .all
     @EnvironmentObject var languageManager: LanguageManager
+    @Environment(\.appMotionContext) private var motion
     
     var sortedRecords: [RunningRecord] {
         student.runningRecords.sorted { $0.date > $1.date }
@@ -144,6 +145,7 @@ struct StudentRunningRecordsSection: View {
                                 .font(.subheadline)
                                 .foregroundColor(.orange)
                         }
+                        .buttonStyle(AppPressableButtonStyle())
 
                         Button {
                             showingAllRecords = true
@@ -156,6 +158,7 @@ struct StudentRunningRecordsSection: View {
                             .font(.subheadline)
                             .foregroundColor(.blue)
                         }
+                        .buttonStyle(AppPressableButtonStyle())
                     }
                 }
             }
@@ -173,7 +176,7 @@ struct StudentRunningRecordsSection: View {
                         clearFilters()
                     }
                     .font(.caption)
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPressableButtonStyle())
                 }
                 .padding(.horizontal, 2)
             }
@@ -268,8 +271,9 @@ struct StudentRunningRecordsSection: View {
                 
                 // Recent Records
                 VStack(spacing: 8) {
-                    ForEach(recentRecords, id: \.id) { record in
+                    ForEach(Array(recentRecords.enumerated()), id: \.element.id) { index, record in
                         runningRecordMiniCard(record)
+                            .appMotionReveal(index: index)
                     }
                 }
             }
@@ -280,6 +284,7 @@ struct StudentRunningRecordsSection: View {
         .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         .sheet(isPresented: $showingAllRecords) {
             StudentAllRunningRecordsView(student: student)
+                .appSheetMotion()
         }
         .alert(languageManager.localized("Export Running Records"), isPresented: $showSchoolNamePrompt) {
             TextField(languageManager.localized("School Name (optional)"), text: $schoolNameInput)
@@ -299,6 +304,7 @@ struct StudentRunningRecordsSection: View {
         ) {
             if let url = exportURL {
                 ShareSheet(activityItems: [url])
+                    .appSheetMotion()
             }
         }
         #endif
@@ -312,6 +318,9 @@ struct StudentRunningRecordsSection: View {
         } message: {
             Text(languageManager.localized("There are no running records in the current filter."))
         }
+        .animation(motion.animation(.standard), value: filterLevel?.rawValue ?? "none")
+        .animation(motion.animation(.standard), value: dateRange.rawValue)
+        .animation(motion.animation(.standard), value: filteredRecords.map(\.id))
     }
 
     // MARK: - Export
@@ -347,8 +356,10 @@ struct StudentRunningRecordsSection: View {
     }
 
     func clearFilters() {
-        filterLevel = nil
-        dateRange = .all
+        withAnimation(motion.animation(.standard)) {
+            filterLevel = nil
+            dateRange = .all
+        }
     }
     
     // MARK: - Dark Mode Support

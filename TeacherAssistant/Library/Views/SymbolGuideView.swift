@@ -3,6 +3,7 @@ import SwiftData
 
 struct SymbolGuideView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     
     var symbols: [(symbol: String, name: String, description: String, example: String, counts: String, isError: Bool)] {
@@ -85,6 +86,7 @@ struct SymbolGuideView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(.top, 20)
+                    .appMotionReveal(index: 0)
                     
                     // Symbols List
                     VStack(spacing: 16) {
@@ -93,6 +95,7 @@ struct SymbolGuideView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .appMotionReveal(index: 1)
                     
                     // Analysis Systems
                     Divider()
@@ -127,6 +130,7 @@ struct SymbolGuideView: View {
                         }
                         .padding(.horizontal)
                     }
+                    .appMotionReveal(index: 2)
                     
                     // Accuracy Guide
                     Divider()
@@ -164,6 +168,7 @@ struct SymbolGuideView: View {
                         }
                         .padding(.horizontal)
                     }
+                    .appMotionReveal(index: 3)
                     
                     .padding(.bottom, 40)
                 }
@@ -181,6 +186,8 @@ struct SymbolGuideView: View {
                 }
             }
         }
+        .appSheetMotion()
+        .animation(motion.animation(.standard), value: symbols.count)
         #if os(macOS)
         .frame(minWidth: 500, minHeight: 700)
         #endif
@@ -315,6 +322,7 @@ struct RunningRecordDetailView: View {
     @Bindable var record: RunningRecord
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     @State private var showingDeleteAlert = false
     @State private var showingEditSheet = false
@@ -351,6 +359,7 @@ struct RunningRecordDetailView: View {
                         }
                     }
                     .padding(.top, 20)
+                    .appMotionReveal(index: 0)
                     
                     // Stats Cards
                     VStack(spacing: 16) {
@@ -423,6 +432,7 @@ struct RunningRecordDetailView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .appMotionReveal(index: 1)
                     
                     // Notes
                     if !record.notes.isEmpty {
@@ -444,6 +454,7 @@ struct RunningRecordDetailView: View {
                                 )
                         }
                         .padding(.horizontal)
+                        .transition(motion.transition(.inlineChange))
                     }
                 }
                 .padding(.vertical)
@@ -491,8 +502,12 @@ struct RunningRecordDetailView: View {
             }
             .sheet(isPresented: $showingEditSheet) {
                 AddRunningRecordView(existingRecord: record)
+                    .appSheetMotion()
             }
         }
+        .animation(motion.animation(.standard), value: record.totalWords)
+        .animation(motion.animation(.standard), value: record.errors)
+        .animation(motion.animation(.standard), value: record.selfCorrections)
     }
     
     func detailStatBox(title: String, value: String, icon: String, color: Color) -> some View {
@@ -504,6 +519,7 @@ struct RunningRecordDetailView: View {
             Text(value)
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundColor(color)
+                .contentTransition(.numericText())
             
             Text(title)
                 .font(.caption)

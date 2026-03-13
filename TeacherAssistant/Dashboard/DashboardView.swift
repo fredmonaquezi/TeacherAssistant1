@@ -8,6 +8,7 @@ struct DashboardView: View {
     @Binding var selectedSection: AppSection?
     
     @EnvironmentObject var languageManager: LanguageManager
+    @Environment(\.appMotionContext) private var motion
 
     @Environment(\.modelContext) private var context
 
@@ -43,6 +44,7 @@ struct DashboardView: View {
                     timerManager: timerManager,
                     selectedSection: $selectedSection
                 )
+                .appMotionReveal(index: 0)
 
                 workspacePanels
             }
@@ -52,6 +54,7 @@ struct DashboardView: View {
             BackupReminderBanner(reminderManager: backupReminderManager)
                 .padding(.horizontal)
                 .padding(.bottom)
+                .transition(motion.transition(.overlay))
         }
         .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
         #if !os(macOS)
@@ -62,6 +65,7 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showingPreferences) {
             PreferencesView(attentionNotificationManager: attentionNotificationManager)
+                .appSheetMotion()
         }
 
         // MARK: - iOS Exporter
@@ -212,6 +216,7 @@ struct DashboardView: View {
                         selectedSection = .gradebook
                     }
                 }
+                .appMotionReveal(index: 1)
 
                 workspaceCard(
                     title: "Classroom Tools".localized,
@@ -254,6 +259,7 @@ struct DashboardView: View {
                         selectedSection = .timer
                     }
                 }
+                .appMotionReveal(index: 2)
 
                 workspaceCard(
                     title: "Progress & Resources".localized,
@@ -287,6 +293,7 @@ struct DashboardView: View {
                         selectedSection = .usefulLinks
                     }
                 }
+                .appMotionReveal(index: 3)
 
                 workspaceCard(
                     title: "Settings & Safety".localized,
@@ -320,6 +327,7 @@ struct DashboardView: View {
                         handleRestoreAction()
                     }
                 }
+                .appMotionReveal(index: 4)
             }
         }
         .padding(.horizontal)
@@ -400,7 +408,7 @@ struct DashboardView: View {
                     .fill(AppChrome.elevatedBackground)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
 
     private func handleBackupAction() {

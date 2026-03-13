@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LibraryBrowseGrid: View {
+    @Environment(\.appMotionContext) private var motion
     let subfolders: [LibraryFolder]
     let files: [LibraryFile]
     let allFolders: [LibraryFolder]
@@ -41,11 +42,15 @@ struct LibraryBrowseGrid: View {
                 }
             }
             .padding(24)
+            .appMotionReveal(index: 0)
         }
+        .animation(motion.animation(.standard), value: subfolders.count)
+        .animation(motion.animation(.standard), value: files.count)
     }
 }
 
 struct LibrarySelectGrid: View {
+    @Environment(\.appMotionContext) private var motion
     let subfolders: [LibraryFolder]
     let files: [LibraryFile]
 
@@ -76,7 +81,10 @@ struct LibrarySelectGrid: View {
                 }
             }
             .padding(24)
+            .appMotionReveal(index: 0)
         }
+        .animation(motion.animation(.standard), value: selectedFolderIDs.count)
+        .animation(motion.animation(.standard), value: selectedFileIDs.count)
     }
 
     func toggleFolder(_ id: UUID) {

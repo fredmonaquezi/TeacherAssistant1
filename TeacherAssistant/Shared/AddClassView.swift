@@ -5,6 +5,7 @@ struct AddClassView: View {
     
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     
     @Query(sort: \SchoolClass.sortOrder) private var classes: [SchoolClass]
     let editingClass: SchoolClass?
@@ -98,6 +99,7 @@ struct AddClassView: View {
                             .multilineTextAlignment(.center)
                     }
                     .padding(.top)
+                    .appMotionReveal(index: 0)
                     
                     // Form fields
                     VStack(spacing: 16) {
@@ -217,6 +219,7 @@ struct AddClassView: View {
                                     tint: .blue
                                 )
                             }
+                            .transition(motion.transition(.inlineChange))
                         }
                         
                         // Helpful tip
@@ -247,6 +250,7 @@ struct AddClassView: View {
                         tint: .blue
                     )
                     .padding(.horizontal)
+                    .appMotionReveal(index: 1)
                     
                 }
             }
@@ -302,6 +306,10 @@ struct AddClassView: View {
                 Text(validationErrorMessage)
             }
         }
+        .appSheetMotion()
+        .animation(motion.animation(.standard), value: name)
+        .animation(motion.animation(.standard), value: grade)
+        .animation(motion.animation(.standard), value: schoolYear)
         #if os(macOS)
         .frame(minWidth: 500, minHeight: 550)
         #endif

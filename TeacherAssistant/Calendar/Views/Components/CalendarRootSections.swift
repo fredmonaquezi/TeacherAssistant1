@@ -5,17 +5,20 @@ struct CalendarHeaderSectionView: View {
     @Binding var selectedDate: Date
     @Binding var viewMode: CalendarRootView.CalendarViewMode
     let localeIdentifier: String
+    @Environment(\.appMotionContext) private var motion
 
     var body: some View {
         VStack(spacing: 10) {
             HStack {
                 Button {
-                    shiftDate(by: -1)
+                    withAnimation(motion.animation(.standard)) {
+                        shiftDate(by: -1)
+                    }
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
 
                 Spacer()
 
@@ -26,12 +29,14 @@ struct CalendarHeaderSectionView: View {
                 Spacer()
 
                 Button {
-                    shiftDate(by: 1)
+                    withAnimation(motion.animation(.standard)) {
+                        shiftDate(by: 1)
+                    }
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPressableButtonStyle())
             }
 
             Picker("View Mode".localized, selection: $viewMode) {
@@ -67,6 +72,7 @@ struct CalendarFilterSectionView: View {
     let classes: [SchoolClass]
     @Binding var selectedClassID: PersistentIdentifier?
     let onSelectToday: () -> Void
+    @Environment(\.appMotionContext) private var motion
 
     var body: some View {
         HStack(spacing: 12) {
@@ -85,7 +91,9 @@ struct CalendarFilterSectionView: View {
             Spacer()
 
             Button {
-                onSelectToday()
+                withAnimation(motion.animation(.standard)) {
+                    onSelectToday()
+                }
             } label: {
                 Text("Today".localized)
                     .font(.caption)
@@ -100,7 +108,7 @@ struct CalendarFilterSectionView: View {
                         tint: .blue
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPressableButtonStyle())
         }
         .padding(.horizontal, 4)
     }

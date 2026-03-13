@@ -6,6 +6,8 @@ struct NavigationHeaderView: View {
     var onBack: (() -> Void)? = nil
     var showBackButton: Bool = false
     @EnvironmentObject var languageManager: LanguageManager
+    @Environment(\.appMotionContext) private var motion
+    @Namespace private var selectionNamespace
 
     private let barHeight: CGFloat = 44
     private var backButtonVisible: Bool { showBackButton && onBack != nil }
@@ -30,7 +32,7 @@ struct NavigationHeaderView: View {
                 .opacity(backButtonVisible ? 1 : 0)
                 .disabled(!backButtonVisible)
                 .allowsHitTesting(backButtonVisible)
-                .animation(nil, value: backButtonVisible)
+                .animation(motion.animation(.quick), value: backButtonVisible)
                 .help(languageManager.localized("Back"))
 
                 Text("Digital TA")
@@ -137,6 +139,7 @@ struct NavigationHeaderView: View {
             .padding(.trailing, 12)
             .frame(height: barHeight)
             .background(.thinMaterial)
+            .animation(motion.animation(.standard), value: selectedSection)
             #if os(macOS)
             .gesture(WindowDragGesture())
             #endif
@@ -147,8 +150,10 @@ struct NavigationHeaderView: View {
     
     private func headerButton(title: String, icon: String, section: AppSection) -> some View {
         Button(action: {
-            onNavigate?()
-            selectedSection = section
+            withAnimation(motion.animation(.standard)) {
+                onNavigate?()
+                selectedSection = section
+            }
         }) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
@@ -164,12 +169,16 @@ struct NavigationHeaderView: View {
         }
         .buttonStyle(.plain)
         .foregroundColor(selectedSection == section ? .accentColor : .primary.opacity(0.85))
-        .background(
-            selectedSection == section 
-                ? Color.accentColor.opacity(0.16)
-                : Color.clear
-        )
+        .background {
+            if selectedSection == section {
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.16))
+                    .matchedGeometryEffect(id: "navigation-header-selection", in: selectionNamespace)
+                    .transition(motion.transition(.inlineChange))
+            }
+        }
         .clipShape(Capsule())
+        .scaleEffect(selectedSection == section && !motion.isReduced ? 1.01 : 1)
         .help(title)
     }
 }

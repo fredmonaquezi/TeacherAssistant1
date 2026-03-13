@@ -7,12 +7,14 @@ import AppKit
 struct PreferencesView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     @ObservedObject var attentionNotificationManager: AttentionNotificationManager
 
     @AppStorage(AppPreferencesKeys.dateFormat) private var dateFormatRawValue: String = AppDateFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.timeFormat) private var timeFormatRawValue: String = AppTimeFormatPreference.system.rawValue
     @AppStorage(AppPreferencesKeys.defaultLandingSection) private var defaultLandingSectionRawValue: String = AppSection.dashboard.rawValue
+    @AppStorage(AppPreferencesKeys.motionProfile) private var motionProfileRawValue: String = AppMotionProfile.full.rawValue
     @AppStorage(AppPreferencesKeys.attentionRemindersEnabled) private var attentionRemindersEnabled = true
     @AppStorage(AppPreferencesKeys.attentionNotificationsEnabled) private var attentionNotificationsEnabled = false
     @AppStorage(AppPreferencesKeys.attentionNotificationHour) private var attentionNotificationHour = 7
@@ -48,6 +50,13 @@ struct PreferencesView: View {
         Binding(
             get: { AppSection.availableSection(from: defaultLandingSectionRawValue) },
             set: { defaultLandingSectionRawValue = $0.rawValue }
+        )
+    }
+
+    private var motionProfileBinding: Binding<AppMotionProfile> {
+        Binding(
+            get: { AppMotionProfile(rawValue: motionProfileRawValue) ?? .full },
+            set: { motionProfileRawValue = $0.rawValue }
         )
     }
 
@@ -104,6 +113,7 @@ struct PreferencesView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     headerSection
+                        .appMotionReveal(index: 0)
 
                     VStack(alignment: .leading, spacing: 16) {
                         Text(languageManager.localized("Profile & Preferences"))
@@ -145,6 +155,19 @@ struct PreferencesView: View {
                                 ForEach(AppSection.allCases) { section in
                                     Text(languageManager.localized(section.rawValue))
                                         .tag(section)
+                                }
+                            }
+                        }
+
+                        preferencePickerRow(
+                            title: languageManager.localized("Motion"),
+                            systemImage: "sparkles.rectangle.stack",
+                            color: .pink
+                        ) {
+                            Picker(languageManager.localized("Motion"), selection: motionProfileBinding) {
+                                ForEach(AppMotionProfile.allCases) { profile in
+                                    Text(motionProfileLabel(profile))
+                                        .tag(profile)
                                 }
                             }
                         }
@@ -192,8 +215,14 @@ struct PreferencesView: View {
                         }
                     }
                     .padding()
-                    .background(Color.gray.opacity(0.08))
-                    .cornerRadius(16)
+                    .appCardStyle(
+                        cornerRadius: 16,
+                        borderColor: AppChrome.separator,
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2
+                    )
+                    .appMotionReveal(index: 1)
 
                     VStack(alignment: .leading, spacing: 10) {
                         Label(
@@ -221,8 +250,15 @@ struct PreferencesView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
-                    .background(Color.green.opacity(0.08))
-                    .cornerRadius(16)
+                    .appCardStyle(
+                        cornerRadius: 16,
+                        borderColor: Color.green.opacity(0.14),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2,
+                        tint: .green
+                    )
+                    .appMotionReveal(index: 2)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Label(
@@ -238,11 +274,21 @@ struct PreferencesView: View {
                         Text(languageManager.localized("Default landing section is used on next launch and is also re-applied after a restore."))
                             .font(.footnote)
                             .foregroundColor(.secondary)
+                        Text(languageManager.localized("Motion respects system Reduce Motion automatically and can be toned down here without affecting app features."))
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
-                    .background(Color.blue.opacity(0.08))
-                    .cornerRadius(16)
+                    .appCardStyle(
+                        cornerRadius: 16,
+                        borderColor: Color.blue.opacity(0.14),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2,
+                        tint: .blue
+                    )
+                    .appMotionReveal(index: 3)
 
                     #if os(macOS)
                     VStack(alignment: .leading, spacing: 16) {
@@ -280,17 +326,26 @@ struct PreferencesView: View {
                             Button(languageManager.localized("Choose Folder")) {
                                 chooseOffDeviceBackupFolder()
                             }
+                            .buttonStyle(AppPressableButtonStyle())
 
                             if !offDeviceBackupFolderPath.isEmpty {
                                 Button(languageManager.localized("Clear Folder"), role: .destructive) {
                                     clearOffDeviceBackupFolder()
                                 }
+                                .buttonStyle(AppPressableButtonStyle())
                             }
                         }
                     }
                     .padding()
-                    .background(Color.teal.opacity(0.08))
-                    .cornerRadius(16)
+                    .appCardStyle(
+                        cornerRadius: 16,
+                        borderColor: Color.teal.opacity(0.14),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2,
+                        tint: .teal
+                    )
+                    .appMotionReveal(index: 4)
                     #endif
 
                     VStack(alignment: .leading, spacing: 16) {
@@ -325,11 +380,19 @@ struct PreferencesView: View {
                         }
                     }
                     .padding()
-                    .background(Color.orange.opacity(0.08))
-                    .cornerRadius(16)
+                    .appCardStyle(
+                        cornerRadius: 16,
+                        borderColor: Color.orange.opacity(0.14),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2,
+                        tint: .orange
+                    )
+                    .appMotionReveal(index: 5)
                 }
                 .padding()
             }
+            .appSheetBackground(tint: .indigo)
             .navigationTitle(languageManager.localized("Preferences"))
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -379,6 +442,10 @@ struct PreferencesView: View {
                 await attentionNotificationManager.refreshAuthorizationStatus()
             }
         }
+        .appSheetMotion()
+        .animation(motion.animation(.standard), value: attentionNotificationsEnabled)
+        .animation(motion.animation(.standard), value: offDeviceBackupFolderPath)
+        .animation(motion.animation(.standard), value: duplicateCleanupCompleted)
         #if os(macOS)
         .frame(minWidth: 560, minHeight: 580)
         #endif
@@ -511,6 +578,17 @@ struct PreferencesView: View {
         }
     }
 
+    private func motionProfileLabel(_ profile: AppMotionProfile) -> String {
+        switch profile {
+        case .full:
+            return languageManager.localized("Full")
+        case .subtle:
+            return languageManager.localized("Subtle")
+        case .reduced:
+            return languageManager.localized("Reduced")
+        }
+    }
+
     private func maintenanceActionRow(
         title: String,
         detail: String,
@@ -549,7 +627,7 @@ struct PreferencesView: View {
             .background(tint.opacity(0.12))
             .cornerRadius(12)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.6 : 1)
     }

@@ -3,6 +3,7 @@ import SwiftData
 
 struct CalendarRootView: View {
     @EnvironmentObject var languageManager: LanguageManager
+    @Environment(\.appMotionContext) private var motion
 
     @Query private var classes: [SchoolClass]
     @Query private var diaryEntries: [ClassDiaryEntry]
@@ -65,6 +66,7 @@ struct CalendarRootView: View {
                     viewMode: $viewMode,
                     localeIdentifier: languageManager.currentLanguage.localeIdentifier
                 )
+                .appMotionReveal(index: 0)
 
                 CalendarFilterSectionView(
                     classes: classes,
@@ -73,32 +75,39 @@ struct CalendarRootView: View {
                         selectedDate = Date()
                     }
                 )
+                .appMotionReveal(index: 1)
 
-                if viewMode == .month {
-                    MonthCalendarView(
-                        monthDate: selectedDate,
-                        selectedDate: $selectedDate,
-                        dayCellViewModelsByDay: derivedData.dayCellViewModelsByDay,
-                        localeIdentifier: languageManager.currentLanguage.localeIdentifier,
-                        onSelect: {
-                            showingDayDetail = true
-                        }
-                    )
-                    .equatable()
-                } else {
-                    WeekCalendarView(
-                        dateInWeek: selectedDate,
-                        selectedDate: $selectedDate,
-                        dayCellViewModelsByDay: derivedData.dayCellViewModelsByDay,
-                        localeIdentifier: languageManager.currentLanguage.localeIdentifier,
-                        onSelect: {
-                            showingDayDetail = true
-                        }
-                    )
-                    .equatable()
+                Group {
+                    if viewMode == .month {
+                        MonthCalendarView(
+                            monthDate: selectedDate,
+                            selectedDate: $selectedDate,
+                            dayCellViewModelsByDay: derivedData.dayCellViewModelsByDay,
+                            localeIdentifier: languageManager.currentLanguage.localeIdentifier,
+                            onSelect: {
+                                showingDayDetail = true
+                            }
+                        )
+                        .equatable()
+                    } else {
+                        WeekCalendarView(
+                            dateInWeek: selectedDate,
+                            selectedDate: $selectedDate,
+                            dayCellViewModelsByDay: derivedData.dayCellViewModelsByDay,
+                            localeIdentifier: languageManager.currentLanguage.localeIdentifier,
+                            onSelect: {
+                                showingDayDetail = true
+                            }
+                        )
+                        .equatable()
+                    }
                 }
+                .id(viewMode)
+                .transition(motion.transition(.sectionSwitch))
+                .appMotionReveal(index: 2)
 
                 upcomingEventsCard
+                    .appMotionReveal(index: 3)
             }
             .padding(.vertical, 16)
             .padding(.horizontal, 12)
@@ -119,6 +128,9 @@ struct CalendarRootView: View {
             }
             await refreshDerivedData()
         }
+        .animation(motion.animation(.standard), value: viewMode)
+        .animation(motion.animation(.standard), value: selectedDate)
+        .animation(motion.animation(.standard), value: selectedClassID)
         .calendarDayDetailSheet(
             isPresented: $showingDayDetail,
             date: selectedDate,
@@ -137,6 +149,7 @@ struct CalendarRootView: View {
             localeIdentifier: languageManager.currentLanguage.localeIdentifier
         )
             .equatable()
+            .animation(motion.animation(.standard), value: upcomingEventViewModels.map(\.id))
     }
 
     // MARK: - Filtering
@@ -254,6 +267,7 @@ struct MonthCalendarView: View {
     let dayCellViewModelsByDay: [Date: CalendarDayCellViewModel]
     let localeIdentifier: String
     let onSelect: () -> Void
+    @Environment(\.appMotionContext) private var motion
 
     var body: some View {
         let days = CalendarGridBuilder.monthDays(for: monthDate)
@@ -299,8 +313,10 @@ struct MonthCalendarView: View {
         let daySummary = daySummary(for: date)
 
         return Button {
-            selectedDate = date
-            onSelect()
+            withAnimation(motion.animation(.standard)) {
+                selectedDate = date
+                onSelect()
+            }
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -348,7 +364,7 @@ struct MonthCalendarView: View {
                     .stroke(isSelected ? Color.blue.opacity(0.28) : AppChrome.separator, lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
 
     func daySummary(for date: Date) -> CalendarDayCellViewModel {
@@ -368,6 +384,7 @@ struct WeekCalendarView: View {
     let dayCellViewModelsByDay: [Date: CalendarDayCellViewModel]
     let localeIdentifier: String
     let onSelect: () -> Void
+    @Environment(\.appMotionContext) private var motion
 
     var body: some View {
         let weekDays = CalendarGridBuilder.weekDays(for: dateInWeek)
@@ -394,8 +411,10 @@ struct WeekCalendarView: View {
         let daySummary = daySummary(for: date)
 
         return Button {
-            selectedDate = date
-            onSelect()
+            withAnimation(motion.animation(.standard)) {
+                selectedDate = date
+                onSelect()
+            }
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 Text(shortWeekday(date))
@@ -433,7 +452,7 @@ struct WeekCalendarView: View {
                     .stroke(isSelected ? Color.blue.opacity(0.28) : AppChrome.separator, lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPressableButtonStyle())
     }
 
     func shortWeekday(_ date: Date) -> String {

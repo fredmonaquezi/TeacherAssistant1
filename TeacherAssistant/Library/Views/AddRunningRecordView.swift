@@ -6,6 +6,7 @@ struct AddRunningRecordView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     @Query private var allStudents: [Student]
     
@@ -173,6 +174,7 @@ struct AddRunningRecordView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(.top, 20)
+                    .appMotionReveal(index: 0)
                     
                     // Class Filter
                     VStack(alignment: .leading, spacing: 8) {
@@ -207,6 +209,7 @@ struct AddRunningRecordView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .appMotionReveal(index: 1)
 
                     // Student Selection
                     VStack(alignment: .leading, spacing: 8) {
@@ -235,6 +238,7 @@ struct AddRunningRecordView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .appMotionReveal(index: 2)
                     
                     // Date
                     VStack(alignment: .leading, spacing: 8) {
@@ -246,6 +250,7 @@ struct AddRunningRecordView: View {
                             .labelsHidden()
                     }
                     .padding(.horizontal)
+                    .appMotionReveal(index: 3)
 
                     // Book Level
                     VStack(alignment: .leading, spacing: 8) {
@@ -277,6 +282,7 @@ struct AddRunningRecordView: View {
                         }
                     }
                     .padding(.horizontal)
+                    .appMotionReveal(index: 4)
                     
                     // Text Title
                     VStack(alignment: .leading, spacing: 8) {
@@ -290,6 +296,7 @@ struct AddRunningRecordView: View {
                             .cornerRadius(10)
                     }
                     .padding(.horizontal)
+                    .appMotionReveal(index: 5)
                     
                     Divider()
                         .padding(.horizontal)
@@ -393,6 +400,7 @@ struct AddRunningRecordView: View {
                         }
                         .padding(.horizontal)
                     }
+                    .appMotionReveal(index: 6)
                     
                     // Live Results
                     if totalWordsInt > 0 {
@@ -457,6 +465,7 @@ struct AddRunningRecordView: View {
                         .background(Color.gray.opacity(0.05))
                         .cornerRadius(12)
                         .padding(.horizontal)
+                        .transition(motion.transition(.inlineChange))
                     }
                     
                     // Notes
@@ -471,6 +480,7 @@ struct AddRunningRecordView: View {
                             .cornerRadius(10)
                     }
                     .padding(.horizontal)
+                    .appMotionReveal(index: 7)
                 }
                 .padding(.vertical)
             }
@@ -496,6 +506,7 @@ struct AddRunningRecordView: View {
             }
             .sheet(isPresented: $showingSymbolGuide) {
                 SymbolGuideView()
+                    .appSheetMotion()
             }
         }
         #if os(macOS)
@@ -510,6 +521,11 @@ struct AddRunningRecordView: View {
                 }
             }
         }
+        .animation(motion.animation(.standard), value: selectedClassFilter?.id)
+        .animation(motion.animation(.standard), value: selectedStudent?.id)
+        .animation(motion.animation(.standard), value: totalWordsInt)
+        .animation(motion.animation(.standard), value: errorsInt)
+        .animation(motion.animation(.standard), value: selfCorrectionsInt)
     }
     
     func saveRecord() {
