@@ -14,4 +14,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run macOS durability tests
-        run: xcodebuild -project TeacherAssistant.xcodeproj -scheme TeacherAssistant -configuration Debug -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
+        run: |
+          DERIVED_DATA="$RUNNER_TEMP/TeacherAssistant-DerivedData"
+          RESULT_BUNDLE="$RUNNER_TEMP/TeacherAssistantDurabilityTests.xcresult"
+
+          rm -rf "$DERIVED_DATA" "$RESULT_BUNDLE"
+
+          xcodebuild \
+            -project TeacherAssistant.xcodeproj \
+            -scheme TeacherAssistant \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RESULT_BUNDLE" \
+            test \
+            CODE_SIGNING_ALLOWED=NO

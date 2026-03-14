@@ -3,9 +3,16 @@ import SwiftData
 
 struct AssessmentDetailView: View {
     @Bindable var assessment: Assessment
+    let showsDismissButton: Bool
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var languageManager: LanguageManager
     @State private var selectedResult: StudentResult?
+
+    init(assessment: Assessment, showsDismissButton: Bool = false) {
+        self.assessment = assessment
+        self.showsDismissButton = showsDismissButton
+    }
 
     var body: some View {
         ScrollView {
@@ -25,9 +32,16 @@ struct AssessmentDetailView: View {
             }
             .padding(.vertical, 20)
         }
-        #if !os(macOS)
         .navigationTitle(assessment.title)
         .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close".localized) {
+                        dismiss()
+                    }
+                }
+            }
+            #if !os(macOS)
             ToolbarItem(placement: .principal) {
                 TextField("Assessment title".localized, text: $assessment.title)
                     .font(.headline)
@@ -36,8 +50,8 @@ struct AssessmentDetailView: View {
                     .textFieldStyle(.plain)
                     #endif
             }
+            #endif
         }
-        #endif
         .onAppear {
             ensureResultsExist()
         }

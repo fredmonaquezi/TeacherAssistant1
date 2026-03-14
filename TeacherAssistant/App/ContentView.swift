@@ -430,7 +430,7 @@ struct ContentView: View {
         case .assessment:
             if let assessment = resolvedAssessment(for: route) {
                 NavigationStack {
-                    AssessmentDetailView(assessment: assessment)
+                    AssessmentDetailView(assessment: assessment, showsDismissButton: true)
                 }
             } else {
                 unresolvedRouteView
@@ -446,7 +446,7 @@ struct ContentView: View {
         case .studentOverview:
             if let student = resolvedStudent(for: route) {
                 NavigationStack {
-                    StudentDetailView(student: student)
+                    StudentDetailView(student: student, showsDismissButton: true)
                 }
             } else {
                 unresolvedRouteView
@@ -454,7 +454,11 @@ struct ContentView: View {
         case .studentFollowUp:
             if let student = resolvedStudent(for: route) {
                 NavigationStack {
-                    StudentDetailView(student: student, initiallyShowingInterventions: true)
+                    StudentDetailView(
+                        student: student,
+                        initiallyShowingInterventions: true,
+                        showsDismissButton: true
+                    )
                 }
             } else {
                 unresolvedRouteView
@@ -463,21 +467,39 @@ struct ContentView: View {
     }
 
     private var unresolvedRouteView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 34))
-                .foregroundColor(.orange)
+        NotificationFallbackSheet()
+    }
 
-            Text("Item Not Found".localized)
-                .font(.headline)
+    private struct NotificationFallbackSheet: View {
+        @Environment(\.dismiss) private var dismiss
 
-            Text("The linked item could not be opened. It may have been deleted or changed since the reminder was scheduled.".localized)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+        var body: some View {
+            NavigationStack {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 34))
+                        .foregroundColor(.orange)
+
+                    Text("Item Not Found".localized)
+                        .font(.headline)
+
+                    Text("The linked item could not be opened. It may have been deleted or changed since the reminder was scheduled.".localized)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(24)
+                .frame(minWidth: 320, minHeight: 220)
+                .navigationTitle("Reminder".localized)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close".localized) {
+                            dismiss()
+                        }
+                    }
+                }
+            }
         }
-        .padding(24)
-        .frame(minWidth: 320, minHeight: 220)
     }
 
     private func resolvedAssessment(for route: AttentionNotificationRoute) -> Assessment? {

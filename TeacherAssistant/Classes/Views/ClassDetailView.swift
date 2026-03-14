@@ -130,11 +130,11 @@ struct ClassDetailView: View {
         .sheet(isPresented: $showingGroupGenerator) {
             #if os(macOS)
             NavigationStack {
-                AdvancedGroupGeneratorView(schoolClass: schoolClass)
+                AdvancedGroupGeneratorView(schoolClass: schoolClass, showsDismissButton: true)
                     .appSheetMotion()
             }
             #else
-            AdvancedGroupGeneratorView(schoolClass: schoolClass)
+            AdvancedGroupGeneratorView(schoolClass: schoolClass, showsDismissButton: true)
                 .appSheetMotion()
             #endif
         }

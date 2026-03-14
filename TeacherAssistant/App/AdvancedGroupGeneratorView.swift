@@ -3,10 +3,12 @@ import SwiftData
 
 struct AdvancedGroupGeneratorView: View {
     
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.appMotionContext) private var motion
     @EnvironmentObject var languageManager: LanguageManager
     
     let schoolClass: SchoolClass
+    let showsDismissButton: Bool
     
     @State private var groupSize: Int = 4
     @State private var groups: [[Student]] = []
@@ -21,6 +23,11 @@ struct AdvancedGroupGeneratorView: View {
     @State private var generationNotice: String?
     @State private var generationNoticeIsWarning: Bool = false
     
+    init(schoolClass: SchoolClass, showsDismissButton: Bool = false) {
+        self.schoolClass = schoolClass
+        self.showsDismissButton = showsDismissButton
+    }
+
     var body: some View {
         Group {
             #if os(macOS)
@@ -34,6 +41,15 @@ struct AdvancedGroupGeneratorView: View {
         .sheet(isPresented: $showingSeparationEditor) {
             StudentSeparationEditor(schoolClass: schoolClass)
                 .appSheetMotion()
+        }
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close".localized) {
+                        dismiss()
+                    }
+                }
+            }
         }
         #if os(macOS)
         .frame(minWidth: 700, minHeight: 600)
@@ -92,6 +108,15 @@ struct AdvancedGroupGeneratorView: View {
     #if os(macOS)
     var groupActionsRow: some View {
         HStack {
+            if showsDismissButton {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Close".localized, systemImage: "xmark")
+                }
+                .buttonStyle(AppPressableButtonStyle())
+            }
+
             Button {
                 showingSeparationEditor = true
             } label: {

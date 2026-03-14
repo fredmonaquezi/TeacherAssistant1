@@ -4,6 +4,7 @@ import SwiftData
 struct StudentDetailView: View {
     
     @Bindable var student: Student
+    let showsDismissButton: Bool
     
     @State private var showingSubjectPicker = false
     @State private var selectedSubject: Subject?
@@ -20,9 +21,15 @@ struct StudentDetailView: View {
     
     @EnvironmentObject var languageManager: LanguageManager
     @Environment(\.appMotionContext) private var motion
+    @Environment(\.dismiss) private var dismiss
 
-    init(student: Student, initiallyShowingInterventions: Bool = false) {
+    init(
+        student: Student,
+        initiallyShowingInterventions: Bool = false,
+        showsDismissButton: Bool = false
+    ) {
         self.student = student
+        self.showsDismissButton = showsDismissButton
         _showingInterventions = State(initialValue: initiallyShowingInterventions)
     }
     
@@ -122,16 +129,29 @@ struct StudentDetailView: View {
             }
             .padding(.vertical, 20)
         }
-        #if !os(macOS)
         .navigationTitle(student.name)
         .toolbar {
+            #if os(macOS)
+            if showsDismissButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close".localized) {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Edit Info".localized) {
+                        isEditingInfo = true
+                    }
+                }
+            }
+            #else
             ToolbarItem(placement: .primaryAction) {
-                Button("Edit Info") {
+                Button("Edit Info".localized) {
                     isEditingInfo = true
                 }
             }
+            #endif
         }
-        #endif
         .sheet(isPresented: $isEditingInfo) {
             studentInfoSheet
                 .appSheetMotion()
