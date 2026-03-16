@@ -249,6 +249,8 @@ final class BackupManager {
                     title: chart.title,
                     rows: SecurityHelpers.validateCount(chart.rows, min: 1, max: 20),
                     columns: SecurityHelpers.validateCount(chart.columns, min: 1, max: 20),
+                    layoutStyleRaw: chart.layoutStyle.rawValue,
+                    centerGroupSize: chart.validatedCenterGroupSize,
                     createdAt: chart.createdAt,
                     updatedAt: chart.updatedAt,
                     placements: chart.placements

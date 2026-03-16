@@ -40,6 +40,8 @@ struct LiveCheckInView: View {
     @State private var newCriterionTitle = ""
     @State private var selectedStudent: Student?
     @State private var showingTemplateManager = false
+    @State private var feedbackBanner: LiveCheckInFeedbackBannerState?
+    @State private var feedbackDismissTask: DispatchWorkItem?
     @Namespace private var filterSelectionNamespace
 
     private let calendar = Calendar.current
@@ -67,6 +69,10 @@ struct LiveCheckInView: View {
         schoolClass.seatingChart
     }
 
+    private var layoutStyle: SeatingLayoutStyle {
+        chart?.layoutStyle ?? .rows
+    }
+
     private var seatCoordinates: [LiveCheckInSeatCoordinate] {
         guard let chart else { return [] }
         return (0..<chart.rows).flatMap { row in
@@ -74,6 +80,19 @@ struct LiveCheckInView: View {
                 LiveCheckInSeatCoordinate(row: row, column: column)
             }
         }
+    }
+
+    private var activeSeatCoordinates: [LiveCheckInSeatCoordinate] {
+        guard let chart else { return [] }
+        return seatCoordinates.filter { chart.isActiveSeat(row: $0.row, column: $0.column) }
+    }
+
+    private var centerGroupSize: Int {
+        chart?.validatedCenterGroupSize ?? 4
+    }
+
+    private var centerGroups: [[LiveCheckInSeatCoordinate]] {
+        chunkCoordinates(activeSeatCoordinates, size: centerGroupSize)
     }
 
     private var hasSeatPlacements: Bool {
@@ -216,13 +235,25 @@ struct LiveCheckInView: View {
                 LiveCheckInTemplateManagerView(
                     selectedTemplateID: $selectedTemplateID,
                     sessionCriteria: sessionExtraCriteria
-                )
+                ) { feedback in
+                    presentFeedback(feedback)
+                }
+            }
+        }
+        .overlay(alignment: .top) {
+            if let feedbackBanner {
+                LiveCheckInFeedbackBanner(state: feedbackBanner)
+                    .padding(.top, 12)
+                    .padding(.horizontal, 20)
+                    .transition(motion.transition(.overlay))
+                    .zIndex(2)
             }
         }
         .animation(motion.animation(.standard), value: selectedFilter)
         .animation(motion.animation(.emphasis), value: todaysObservations.count)
         .animation(motion.animation(.standard), value: sessionExtraCriteria.count)
         .animation(motion.animation(.quick), value: selectedTemplateID)
+        .animation(motion.animation(.quick), value: feedbackBanner?.id)
         .macNavigationDepth()
     }
 
@@ -453,7 +484,7 @@ struct LiveCheckInView: View {
 
                 Menu {
                     Button("No Checklist".localized) {
-                        selectedTemplateID = nil
+                        clearActiveTemplate(showFeedback: true)
                     }
 
                     if !templates.isEmpty {
@@ -461,7 +492,7 @@ struct LiveCheckInView: View {
 
                         ForEach(templates, id: \.id) { template in
                             Button(template.title) {
-                                selectedTemplateID = template.id
+                                applyTemplate(template, showFeedback: true)
                             }
                         }
                     }
@@ -656,27 +687,140 @@ struct LiveCheckInView: View {
 
     private var seatingSurface: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Seating Layout".localized)
+            Text(layoutSurfaceTitle)
                 .font(.headline)
 
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: max(chart?.columns ?? 1, 1)),
-                spacing: 10
-            ) {
-                ForEach(seatCoordinates) { coordinate in
-                    let student = student(at: coordinate)
-                    LiveCheckInSeatCard(
-                        student: student,
-                        observation: student.map { latestObservationByStudentUUID[$0.uuid] } ?? nil,
-                        isDimmed: student.map { !matchesCurrentFilter($0) } ?? false,
-                        onTap: {
-                            guard let student else { return }
-                            selectedStudent = student
+            seatingLayoutSurface
+        }
+    }
+
+    @ViewBuilder
+    private var seatingLayoutSurface: some View {
+        switch layoutStyle {
+        case .rows:
+            liveRowsSurface(groupAsDuos: false)
+        case .duos:
+            liveRowsSurface(groupAsDuos: true)
+        case .uShape:
+            liveUShapeSurface
+        case .centers:
+            liveCentersSurface
+        }
+    }
+
+    private func liveRowsSurface(groupAsDuos: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(0..<max(chart?.rows ?? 0, 0), id: \.self) { row in
+                if groupAsDuos {
+                    HStack(alignment: .top, spacing: 18) {
+                        ForEach(duoGroups(for: row).indices, id: \.self) { groupIndex in
+                            HStack(spacing: 10) {
+                                ForEach(duoGroups(for: row)[groupIndex]) { coordinate in
+                                    liveSeatCard(for: coordinate)
+                                }
+                            }
                         }
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(rowSeatCoordinates(for: row)) { coordinate in
+                            liveSeatCard(for: coordinate)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var liveUShapeSurface: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(0..<max(chart?.rows ?? 0, 0), id: \.self) { row in
+                HStack(alignment: .top, spacing: 10) {
+                    ForEach(rowSeatCoordinates(for: row)) { coordinate in
+                        if chart?.isActiveSeat(row: coordinate.row, column: coordinate.column) == true {
+                            liveSeatCard(for: coordinate)
+                        } else {
+                            inactiveLiveSeatPlaceholder
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var liveCentersSurface: some View {
+        ScrollView(.horizontal, showsIndicators: true) {
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(Array(centerGroups.enumerated()), id: \.offset) { index, group in
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label(
+                            String(format: "Center %d".localized, index + 1),
+                            systemImage: "circle.grid.2x2.fill"
+                        )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.indigo)
+
+                        if centerGroupSize == 4 {
+                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                                ForEach(group) { coordinate in
+                                    liveSeatCard(for: coordinate)
+                                }
+                            }
+                            .frame(width: 360)
+                        } else {
+                            HStack(alignment: .top, spacing: 10) {
+                                ForEach(group) { coordinate in
+                                    liveSeatCard(for: coordinate)
+                                }
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .appCardStyle(
+                        cornerRadius: 14,
+                        borderColor: Color.indigo.opacity(0.10),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2,
+                        tint: .indigo
                     )
                 }
             }
         }
+    }
+
+    private func liveSeatCard(for coordinate: LiveCheckInSeatCoordinate) -> some View {
+        let student = student(at: coordinate)
+        return LiveCheckInSeatCard(
+            student: student,
+            observation: student.map { latestObservationByStudentUUID[$0.uuid] } ?? nil,
+            isDimmed: student.map { !matchesCurrentFilter($0) } ?? false,
+            onTap: {
+                guard let student else { return }
+                selectedStudent = student
+            }
+        )
+    }
+
+    private var inactiveLiveSeatPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Open Space".localized)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.secondary)
+            Text("Center stays open".localized)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 124, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.secondary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.secondary.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [6, 6]))
+        )
     }
 
     private func studentGrid(_ students: [Student]) -> some View {
@@ -837,6 +981,43 @@ struct LiveCheckInView: View {
         return orderedStudents.first { $0.uuid == placement.studentUUID }
     }
 
+    private var layoutSurfaceTitle: String {
+        switch layoutStyle {
+        case .rows:
+            return "Seating Layout".localized
+        case .duos:
+            return "Duo Seating Layout".localized
+        case .uShape:
+            return "U-Shape Seating Layout".localized
+        case .centers:
+            return centerGroupSize == 3
+                ? "Learning Centers (3)".localized
+                : "Learning Centers (4)".localized
+        }
+    }
+
+    private func rowSeatCoordinates(for row: Int) -> [LiveCheckInSeatCoordinate] {
+        guard let chart else { return [] }
+        return (0..<chart.columns).map { LiveCheckInSeatCoordinate(row: row, column: $0) }
+    }
+
+    private func duoGroups(for row: Int) -> [[LiveCheckInSeatCoordinate]] {
+        chunkCoordinates(rowSeatCoordinates(for: row), size: 2)
+    }
+
+    private func chunkCoordinates(_ coordinates: [LiveCheckInSeatCoordinate], size: Int) -> [[LiveCheckInSeatCoordinate]] {
+        guard size > 0 else { return [coordinates] }
+
+        var groups: [[LiveCheckInSeatCoordinate]] = []
+        var index = 0
+        while index < coordinates.count {
+            let end = min(index + size, coordinates.count)
+            groups.append(Array(coordinates[index..<end]))
+            index = end
+        }
+        return groups
+    }
+
     private func matchesCurrentFilter(_ student: Student) -> Bool {
         switch selectedFilter {
         case .all:
@@ -894,6 +1075,69 @@ struct LiveCheckInView: View {
             }
         }
         _ = SaveCoordinator.save(context: context, reason: "Save live check-in observation")
+        presentFeedback(
+            LiveCheckInFeedbackBannerState(
+                icon: "checkmark.circle.fill",
+                title: String(format: "Saved %@".localized, student.name),
+                message: activeCriteria.isEmpty
+                    ? "Core snapshot recorded for this student.".localized
+                    : String(
+                        format: "Snapshot recorded with %d checklist item(s).".localized,
+                        payload.checklistResponses.count
+                    ),
+                tint: payload.supportLevel.color
+            )
+        )
+    }
+
+    private func applyTemplate(_ template: LiveObservationTemplate, showFeedback: Bool) {
+        withAnimation(motion.animation(.standard)) {
+            selectedTemplateID = template.id
+        }
+        guard showFeedback else { return }
+        presentFeedback(
+            LiveCheckInFeedbackBannerState(
+                icon: "checklist.checked",
+                title: String(format: "Using %@".localized, template.title),
+                message: String(
+                    format: "%d reusable items are ready for the next check-in.".localized,
+                    template.criteria.count
+                ),
+                tint: .indigo
+            )
+        )
+    }
+
+    private func clearActiveTemplate(showFeedback: Bool) {
+        withAnimation(motion.animation(.standard)) {
+            selectedTemplateID = nil
+        }
+        guard showFeedback else { return }
+        presentFeedback(
+            LiveCheckInFeedbackBannerState(
+                icon: "bolt.badge.checkmark",
+                title: "Core Snapshot Only".localized,
+                message: "The session is back to the default 3-signal check-in.".localized,
+                tint: .secondary
+            )
+        )
+    }
+
+    private func presentFeedback(_ feedback: LiveCheckInFeedbackBannerState) {
+        feedbackDismissTask?.cancel()
+        withAnimation(motion.animation(.emphasis)) {
+            feedbackBanner = feedback
+        }
+
+        let dismissTask = DispatchWorkItem {
+            withAnimation(motion.animation(.quick)) {
+                if feedbackBanner?.id == feedback.id {
+                    feedbackBanner = nil
+                }
+            }
+        }
+        feedbackDismissTask = dismissTask
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4, execute: dismissTask)
     }
 }
 
@@ -1381,13 +1625,21 @@ private struct LiveCheckInObservationEntrySheet: View {
 private struct LiveCheckInTemplateManagerView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appMotionContext) private var motion
     @Binding var selectedTemplateID: UUID?
     let sessionCriteria: [LiveCheckInSessionCriterion]
+    let onSelectionApplied: (LiveCheckInFeedbackBannerState) -> Void
     @Query(sort: [SortDescriptor(\LiveObservationTemplate.sortOrder), SortDescriptor(\LiveObservationTemplate.createdAt)])
     private var templates: [LiveObservationTemplate]
 
     @State private var templateToEdit: LiveObservationTemplate?
     @State private var showingNewTemplateEditor = false
+    @State private var feedbackBanner: LiveCheckInFeedbackBannerState?
+    @State private var feedbackDismissTask: DispatchWorkItem?
+
+    private var totalCriteriaCount: Int {
+        templates.reduce(0) { $0 + $1.criteria.count }
+    }
 
     var body: some View {
         ScrollView {
@@ -1413,24 +1665,54 @@ private struct LiveCheckInTemplateManagerView: View {
                         .buttonStyle(.borderedProminent)
                     }
 
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
+                        templateSummaryCard(
+                            title: "Templates".localized,
+                            value: "\(templates.count)",
+                            icon: "square.stack.3d.up.fill",
+                            tint: .indigo
+                        )
+                        templateSummaryCard(
+                            title: "Criteria".localized,
+                            value: "\(totalCriteriaCount)",
+                            icon: "checklist.checked",
+                            tint: .blue
+                        )
+                        templateSummaryCard(
+                            title: "Session Extras".localized,
+                            value: "\(sessionCriteria.count)",
+                            icon: "sparkles.rectangle.stack",
+                            tint: .orange
+                        )
+                    }
+
                     if !sessionCriteria.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Current Session Extras".localized)
-                                .font(.headline)
+                            HStack(spacing: 8) {
+                                Image(systemName: "sparkles.rectangle.stack.fill")
+                                    .foregroundColor(.orange)
+                                Text("Current Session Extras".localized)
+                                    .font(.headline)
+                            }
                             Text("These criteria are active only in the current session and will show in the check-in sheet, not in the reusable template list.".localized)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 8)], spacing: 8) {
                                 ForEach(sessionCriteria) { criterion in
-                                    Text(criterion.title)
-                                        .font(.caption.weight(.semibold))
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 10)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .fill(Color.orange.opacity(0.10))
-                                        )
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "sparkles")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                        Text(criterion.title)
+                                            .font(.caption.weight(.semibold))
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color.orange.opacity(0.10))
+                                    )
                                 }
                             }
                         }
@@ -1476,8 +1758,20 @@ private struct LiveCheckInTemplateManagerView: View {
                     )
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Saved Templates".localized)
-                            .font(.headline)
+                        HStack {
+                            Text("Saved Templates".localized)
+                                .font(.headline)
+                            Spacer()
+                            Text("\(templates.count)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.indigo.opacity(0.08))
+                                )
+                        }
 
                         ForEach(templates, id: \.id) { template in
                             templateRow(template)
@@ -1490,6 +1784,15 @@ private struct LiveCheckInTemplateManagerView: View {
         .frame(minWidth: 700, minHeight: 420)
         .navigationTitle("Checklist Templates".localized)
         .appSheetMotion()
+        .overlay(alignment: .top) {
+            if let feedbackBanner {
+                LiveCheckInFeedbackBanner(state: feedbackBanner)
+                    .padding(.top, 12)
+                    .padding(.horizontal, 20)
+                    .transition(motion.transition(.overlay))
+                    .zIndex(2)
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Done".localized) {
@@ -1502,6 +1805,14 @@ private struct LiveCheckInTemplateManagerView: View {
                 LiveCheckInTemplateEditorView(template: template) { savedTemplate in
                     selectedTemplateID = savedTemplate.id
                     templateToEdit = nil
+                    presentFeedback(
+                        LiveCheckInFeedbackBannerState(
+                            icon: "square.and.pencil.circle.fill",
+                            title: String(format: "Updated %@".localized, savedTemplate.title),
+                            message: "This template is ready to reuse in future check-ins.".localized,
+                            tint: .indigo
+                        )
+                    )
                 }
             }
         }
@@ -1510,91 +1821,193 @@ private struct LiveCheckInTemplateManagerView: View {
                 LiveCheckInTemplateEditorView(template: nil) { savedTemplate in
                     selectedTemplateID = savedTemplate.id
                     showingNewTemplateEditor = false
+                    presentFeedback(
+                        LiveCheckInFeedbackBannerState(
+                            icon: "plus.circle.fill",
+                            title: String(format: "Saved %@".localized, savedTemplate.title),
+                            message: "The template was added to your reusable library and selected for this session.".localized,
+                            tint: .indigo
+                        )
+                    )
                 }
             }
         }
     }
 
-    private func templateRow(_ template: LiveObservationTemplate) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Text(template.title)
-                        .font(.headline)
+    private func templateSummaryCard(title: String, value: String, icon: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon)
+                .font(.headline)
+                .foregroundColor(tint)
+            Text(value)
+                .font(.title2.weight(.bold))
+                .foregroundColor(.primary)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: tint.opacity(0.12),
+            shadowOpacity: 0.02,
+            shadowRadius: 4,
+            shadowY: 1,
+            tint: tint
+        )
+    }
 
-                    if selectedTemplateID == template.id {
-                        Text("Selected".localized)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundColor(.indigo)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(Color.indigo.opacity(0.10))
+    private func templateRow(_ template: LiveObservationTemplate) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.indigo.opacity(0.16), Color.blue.opacity(0.10)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
                             )
-                    }
+                        )
+                        .frame(width: 42, height: 42)
+
+                    Image(systemName: selectedTemplateID == template.id ? "checklist.checked" : "list.bullet.clipboard")
+                        .foregroundColor(.indigo)
                 }
 
-                Text("\(template.criteria.count) " + "criteria".localized)
-                    .font(.caption)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(template.title)
+                            .font(.headline)
+
+                        if selectedTemplateID == template.id {
+                            Text("Selected".localized)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundColor(.indigo)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.indigo.opacity(0.10))
+                                )
+                        }
+                    }
+
+                    Text(
+                        String(
+                            format: "%@ %@".localized,
+                            "\(template.criteria.count)",
+                            template.criteria.count == 1 ? "criterion".localized : "criteria".localized
+                        )
+                    )
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
-                    ForEach(template.criteria.sorted { $0.sortOrder < $1.sortOrder }, id: \.id) { criterion in
-                        Text(criterion.title)
-                            .font(.caption.weight(.medium))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.indigo.opacity(0.08))
-                            )
+                    Text("Built for quick reuse during future live check-ins.".localized)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 8) {
+                    if selectedTemplateID == template.id {
+                        Button("Using Now".localized) {
+                            dismiss()
+                        }
+                        .buttonStyle(.bordered)
+                    } else {
+                        Button("Use in Session".localized) {
+                            applyTemplate(template)
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
+
+                    Menu {
+                        Button("Edit".localized) {
+                            templateToEdit = template
+                        }
+                        Button("Delete".localized, role: .destructive) {
+                            if selectedTemplateID == template.id {
+                                selectedTemplateID = nil
+                            }
+                            context.delete(template)
+                            _ = SaveCoordinator.save(context: context, reason: "Delete live check-in template")
+                        }
+                    } label: {
+                        Label("More".localized, systemImage: "ellipsis.circle")
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
 
-            Spacer()
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 8)], spacing: 8) {
+                ForEach(Array(template.criteria.sorted { $0.sortOrder < $1.sortOrder }.enumerated()), id: \.element.id) { index, criterion in
+                    HStack(spacing: 8) {
+                        Text("\(index + 1)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundColor(.indigo)
+                            .frame(width: 22, height: 22)
+                            .background(
+                                Circle()
+                                    .fill(Color.indigo.opacity(0.10))
+                            )
 
-            VStack(alignment: .trailing, spacing: 8) {
-                if selectedTemplateID == template.id {
-                    Button("In Use".localized) {
-                        selectedTemplateID = template.id
+                        Text(criterion.title)
+                            .font(.caption.weight(.medium))
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.bordered)
-                } else {
-                    Button("Use Template".localized) {
-                        selectedTemplateID = template.id
-                    }
-                    .buttonStyle(.borderedProminent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.indigo.opacity(0.08))
+                    )
                 }
-
-                Menu {
-                    Button("Edit".localized) {
-                        templateToEdit = template
-                    }
-                    Button("Delete".localized, role: .destructive) {
-                        if selectedTemplateID == template.id {
-                            selectedTemplateID = nil
-                        }
-                        context.delete(template)
-                        _ = SaveCoordinator.save(context: context, reason: "Delete live check-in template")
-                    }
-                } label: {
-                    Label("More".localized, systemImage: "ellipsis.circle")
-                }
-                .buttonStyle(.bordered)
             }
         }
         .padding(16)
         .appCardStyle(
             cornerRadius: 16,
-            borderColor: Color.indigo.opacity(0.12),
+            borderColor: selectedTemplateID == template.id ? Color.indigo.opacity(0.22) : Color.indigo.opacity(0.12),
             shadowOpacity: 0.03,
             shadowRadius: 5,
             shadowY: 2,
             tint: .indigo
         )
+    }
+
+    private func applyTemplate(_ template: LiveObservationTemplate) {
+        selectedTemplateID = template.id
+        let feedback = LiveCheckInFeedbackBannerState(
+            icon: "checklist.checked",
+            title: String(format: "Using %@".localized, template.title),
+            message: String(
+                format: "%d reusable items are active for this session.".localized,
+                template.criteria.count
+            ),
+            tint: .indigo
+        )
+        onSelectionApplied(feedback)
+        dismiss()
+    }
+
+    private func presentFeedback(_ feedback: LiveCheckInFeedbackBannerState) {
+        feedbackDismissTask?.cancel()
+        withAnimation(motion.animation(.standard)) {
+            feedbackBanner = feedback
+        }
+
+        let dismissTask = DispatchWorkItem {
+            withAnimation(motion.animation(.quick)) {
+                if feedbackBanner?.id == feedback.id {
+                    feedbackBanner = nil
+                }
+            }
+        }
+        feedbackDismissTask = dismissTask
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4, execute: dismissTask)
     }
 }
 
@@ -1624,34 +2037,20 @@ private struct LiveCheckInTemplateEditorView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Template".localized) {
-                TextField("Template title".localized, text: $title)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: PlatformSpacing.sectionSpacing) {
+                headerCard
+                templateDetailsCard
+                criteriaCard
 
-            Section("Criteria".localized) {
-                ForEach(Array(criteriaTitles.enumerated()), id: \.offset) { index, criterionTitle in
-                    HStack {
-                        Text(criterionTitle)
-                        Spacer()
-                        Button(role: .destructive) {
-                            criteriaTitles.remove(at: index)
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        .buttonStyle(AppPressableButtonStyle())
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    TextField("Add criterion".localized, text: $newCriterionTitle)
-                    Button("Add".localized) {
-                        addCriterion()
-                    }
-                    .disabled(trimmedNewCriterion.isEmpty)
+                if !trimmedTitle.isEmpty || !criteriaTitles.isEmpty {
+                    previewCard
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 18)
         }
+        .appSheetBackground(tint: .indigo)
         .navigationTitle(template == nil ? "New Template".localized : "Edit Template".localized)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -1667,6 +2066,9 @@ private struct LiveCheckInTemplateEditorView: View {
                 .disabled(trimmedTitle.isEmpty)
             }
         }
+        #if os(macOS)
+        .frame(minWidth: 640, minHeight: 560)
+        #endif
     }
 
     private var trimmedTitle: String {
@@ -1681,6 +2083,243 @@ private struct LiveCheckInTemplateEditorView: View {
         guard !trimmedNewCriterion.isEmpty else { return }
         criteriaTitles.append(trimmedNewCriterion)
         newCriterionTitle = ""
+    }
+
+    private var headerCard: some View {
+        HStack(alignment: .top, spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.indigo.opacity(0.18), Color.blue.opacity(0.10)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+
+                Image(systemName: template == nil ? "list.bullet.clipboard.fill" : "square.and.pencil.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(.indigo)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(template == nil ? "Build a Reusable Checklist".localized : "Refine This Template".localized)
+                    .font(AppTypography.sectionTitle)
+
+                Text("Create a short checklist you can reuse across future live check-ins. Keep criteria specific and easy to score in the moment.".localized)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 18,
+            borderColor: Color.indigo.opacity(0.12),
+            tint: .indigo
+        )
+    }
+
+    private var templateDetailsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Template Details".localized)
+                .font(AppTypography.sectionTitle)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Title".localized)
+                    .font(AppTypography.eyebrow)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+
+                TextField("Template title".localized, text: $title)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .appFieldStyle(tint: .indigo, isInvalid: trimmedTitle.isEmpty && !title.isEmpty)
+
+                Text("Example: Reading Conference Snapshot, Guided Group Observation, Writing Workshop Look-Fors".localized)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 18,
+            borderColor: Color.indigo.opacity(0.10),
+            tint: .indigo
+        )
+    }
+
+    private var criteriaCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Criteria".localized)
+                        .font(AppTypography.sectionTitle)
+
+                    Text("Add the checkpoints you want to score quickly during a live check-in.".localized)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Text("\(criteriaTitles.count) " + "items".localized)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(criteriaTitles.isEmpty ? .secondary : .indigo)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill((criteriaTitles.isEmpty ? Color.gray : Color.indigo).opacity(0.10))
+                    )
+            }
+
+            if criteriaTitles.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "checklist.unchecked")
+                        .font(.system(size: 28))
+                        .foregroundColor(.secondary)
+
+                    Text("No criteria yet".localized)
+                        .font(.headline)
+
+                    Text("Start with 3 to 5 short criteria so this checklist stays fast to use during class.".localized)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .padding(.horizontal, 16)
+                .appCardStyle(
+                    cornerRadius: 14,
+                    borderColor: Color.gray.opacity(0.10),
+                    shadowOpacity: 0.02,
+                    shadowRadius: 4,
+                    shadowY: 1,
+                    tint: .gray
+                )
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(criteriaTitles.enumerated()), id: \.offset) { index, criterionTitle in
+                        criterionRow(index: index, title: criterionTitle)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Add New Criterion".localized)
+                    .font(AppTypography.eyebrow)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+
+                HStack(spacing: 10) {
+                    TextField("Add criterion".localized, text: $newCriterionTitle)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .appFieldStyle(tint: .blue)
+
+                    Button {
+                        addCriterion()
+                    } label: {
+                        Label("Add".localized, systemImage: "plus.circle.fill")
+                            .frame(minWidth: 110)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(trimmedNewCriterion.isEmpty)
+                }
+            }
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 18,
+            borderColor: Color.indigo.opacity(0.10),
+            tint: .indigo
+        )
+    }
+
+    private func criterionRow(index: Int, title: String) -> some View {
+        HStack(spacing: 12) {
+            Text("\(index + 1)")
+                .font(.caption.weight(.bold))
+                .foregroundColor(.indigo)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(Color.indigo.opacity(0.10))
+                )
+
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(role: .destructive) {
+                criteriaTitles.remove(at: index)
+            } label: {
+                Image(systemName: "trash")
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(AppPressableButtonStyle())
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: Color.indigo.opacity(0.08),
+            shadowOpacity: 0.02,
+            shadowRadius: 4,
+            shadowY: 1,
+            tint: .indigo
+        )
+    }
+
+    private var previewCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Preview".localized)
+                .font(AppTypography.sectionTitle)
+
+            Text(trimmedTitle.isEmpty ? "Untitled Template".localized : trimmedTitle)
+                .font(.headline)
+
+            if criteriaTitles.isEmpty {
+                Text("Criteria will appear here as you add them.".localized)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 10)], spacing: 10) {
+                    ForEach(Array(criteriaTitles.enumerated()), id: \.offset) { index, criterionTitle in
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle")
+                                .foregroundColor(.indigo)
+                            Text("\(index + 1). \(criterionTitle)")
+                                .font(.caption.weight(.medium))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.indigo.opacity(0.08))
+                        )
+                    }
+                }
+            }
+        }
+        .padding()
+        .appCardStyle(
+            cornerRadius: 18,
+            borderColor: Color.indigo.opacity(0.10),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: .indigo
+        )
     }
 
     private func saveTemplate() {
@@ -1772,6 +2411,56 @@ private struct LiveCheckInTopBadge: View {
                 Capsule()
                     .fill(tint.opacity(0.10))
             )
+    }
+}
+
+private struct LiveCheckInFeedbackBannerState: Identifiable, Equatable {
+    let id = UUID()
+    let icon: String
+    let title: String
+    let message: String
+    let tint: Color
+}
+
+private struct LiveCheckInFeedbackBanner: View {
+    let state: LiveCheckInFeedbackBannerState
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(state.tint.opacity(0.12))
+                    .frame(width: 34, height: 34)
+
+                Image(systemName: state.icon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(state.tint)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(state.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.primary)
+
+                Text(state.message)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(state.tint.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 12, y: 4)
     }
 }
 

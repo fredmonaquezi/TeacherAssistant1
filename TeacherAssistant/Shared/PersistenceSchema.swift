@@ -67,6 +67,7 @@ enum TeacherAssistantMigrationPlan: SchemaMigrationPlan {
             TeacherAssistantSchemaV8.self,
             TeacherAssistantSchemaV9.self,
             TeacherAssistantSchemaV10.self,
+            TeacherAssistantSchemaV11.self,
         ]
     }
 
@@ -139,8 +140,16 @@ enum TeacherAssistantSchemaV10: VersionedSchema {
     }
 }
 
+enum TeacherAssistantSchemaV11: VersionedSchema {
+    static let versionIdentifier = Schema.Version(11, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TeacherAssistantSchemaModelCatalog.models
+    }
+}
+
 enum PersistenceSchema {
-    typealias CurrentVersion = TeacherAssistantSchemaV10
+    typealias CurrentVersion = TeacherAssistantSchemaV11
     typealias MigrationPlan = TeacherAssistantMigrationPlan
 
     static var schema: Schema {

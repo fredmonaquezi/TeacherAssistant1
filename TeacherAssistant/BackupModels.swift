@@ -122,6 +122,8 @@ struct BackupSeatingChart: Codable {
     var title: String
     var rows: Int
     var columns: Int
+    var layoutStyleRaw: String?
+    var centerGroupSize: Int?
     var createdAt: Date
     var updatedAt: Date
     var placements: [BackupSeatPlacement]

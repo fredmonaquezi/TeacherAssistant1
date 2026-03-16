@@ -78,6 +78,10 @@ struct ClassroomSessionView: View {
         schoolClass.seatingChart
     }
 
+    private var layoutStyle: SeatingLayoutStyle {
+        chart?.layoutStyle ?? .rows
+    }
+
     private var seatCoordinates: [SessionSeatCoordinate] {
         guard let chart else { return [] }
         return (0..<chart.rows).flatMap { row in
@@ -85,6 +89,19 @@ struct ClassroomSessionView: View {
                 SessionSeatCoordinate(row: row, column: column)
             }
         }
+    }
+
+    private var activeSeatCoordinates: [SessionSeatCoordinate] {
+        guard let chart else { return [] }
+        return seatCoordinates.filter { chart.isActiveSeat(row: $0.row, column: $0.column) }
+    }
+
+    private var centerGroupSize: Int {
+        chart?.validatedCenterGroupSize ?? 4
+    }
+
+    private var centerGroups: [[SessionSeatCoordinate]] {
+        chunkCoordinates(activeSeatCoordinates, size: centerGroupSize)
     }
 
     private var startOfToday: Date {
@@ -247,6 +264,9 @@ struct ClassroomSessionView: View {
         .animation(motion.animation(.standard), value: todaysBehaviorEvents.count)
         .animation(motion.animation(.standard), value: todayAttendanceRecords.count)
         .macNavigationDepth()
+        #if os(macOS)
+        .frame(minWidth: 980, idealWidth: 1080, minHeight: 820, idealHeight: 900)
+        #endif
     }
 
     private var headerCard: some View {
@@ -531,20 +551,7 @@ struct ClassroomSessionView: View {
             pickerCard
 
             if let chart, !chart.placements.isEmpty {
-                ScrollView(.horizontal, showsIndicators: true) {
-                    LazyVGrid(
-                        columns: Array(
-                            repeating: GridItem(.fixed(140), spacing: 10),
-                            count: max(chart.columns, 1)
-                        ),
-                        spacing: 10
-                    ) {
-                        ForEach(seatCoordinates) { coordinate in
-                            sessionSeatButton(for: coordinate)
-                        }
-                    }
-                    .padding(.bottom, 4)
-                }
+                sessionSeatingSurface(for: chart)
             } else {
                 Label(
                     "No seating chart is set up yet. Use the roster below or open the full seating chart to lay out the room.".localized,
@@ -582,6 +589,128 @@ struct ClassroomSessionView: View {
             tint: .indigo
         )
         .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private func sessionSeatingSurface(for chart: SeatingChart) -> some View {
+        switch chart.layoutStyle {
+        case .rows:
+            sessionRowsSurface(groupAsDuos: false)
+        case .duos:
+            sessionRowsSurface(groupAsDuos: true)
+        case .uShape:
+            sessionUShapeSurface
+        case .centers:
+            sessionCentersSurface
+        }
+    }
+
+    private func sessionRowsSurface(groupAsDuos: Bool) -> some View {
+        ScrollView(.horizontal, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(0..<max(chart?.rows ?? 0, 0), id: \.self) { row in
+                    if groupAsDuos {
+                        HStack(alignment: .top, spacing: 20) {
+                            ForEach(duoGroups(for: row).indices, id: \.self) { groupIndex in
+                                HStack(spacing: 10) {
+                                    ForEach(duoGroups(for: row)[groupIndex]) { coordinate in
+                                        sessionSeatButton(for: coordinate)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        HStack(alignment: .top, spacing: 10) {
+                            ForEach(rowSeatCoordinates(for: row)) { coordinate in
+                                sessionSeatButton(for: coordinate)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 4)
+        }
+    }
+
+    private var sessionUShapeSurface: some View {
+        ScrollView(.horizontal, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(0..<max(chart?.rows ?? 0, 0), id: \.self) { row in
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(rowSeatCoordinates(for: row)) { coordinate in
+                            if chart?.isActiveSeat(row: coordinate.row, column: coordinate.column) == true {
+                                sessionSeatButton(for: coordinate)
+                            } else {
+                                inactiveSessionSeatPlaceholder
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 4)
+        }
+    }
+
+    private var sessionCentersSurface: some View {
+        ScrollView(.horizontal, showsIndicators: true) {
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(Array(centerGroups.enumerated()), id: \.offset) { index, group in
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label(
+                            String(format: "Center %d".localized, index + 1),
+                            systemImage: "circle.grid.2x2.fill"
+                        )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.indigo)
+
+                        if centerGroupSize == 4 {
+                            LazyVGrid(columns: [GridItem(.fixed(140), spacing: 10), GridItem(.fixed(140), spacing: 10)], spacing: 10) {
+                                ForEach(group) { coordinate in
+                                    sessionSeatButton(for: coordinate)
+                                }
+                            }
+                        } else {
+                            HStack(alignment: .top, spacing: 10) {
+                                ForEach(group) { coordinate in
+                                    sessionSeatButton(for: coordinate)
+                                }
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .appCardStyle(
+                        cornerRadius: 14,
+                        borderColor: Color.indigo.opacity(0.10),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2,
+                        tint: .indigo
+                    )
+                }
+            }
+            .padding(.bottom, 4)
+        }
+    }
+
+    private var inactiveSessionSeatPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Open Space".localized)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.secondary)
+            Text("Center stays open".localized)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(width: 140, height: 112, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.secondary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [6, 6]))
+        )
     }
 
     private var pickerCard: some View {
@@ -639,8 +768,13 @@ struct ClassroomSessionView: View {
                     LazyVStack(spacing: 8) {
                         ForEach(todaysParticipationEvents.prefix(6), id: \.id) { event in
                             HStack {
-                                Text(event.studentNameSnapshot)
-                                    .font(.subheadline.weight(.medium))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.studentNameSnapshot)
+                                        .font(.subheadline.weight(.medium))
+                                    Text(studentLocationSummary(for: event.studentUUID))
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
                                 Spacer()
                                 Text(event.kind.title)
                                     .font(.caption.weight(.semibold))
@@ -655,8 +789,13 @@ struct ClassroomSessionView: View {
                     LazyVStack(spacing: 8) {
                         ForEach(todaysBehaviorEvents.prefix(6), id: \.id) { event in
                             HStack {
-                                Text(event.studentNameSnapshot)
-                                    .font(.subheadline.weight(.medium))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.studentNameSnapshot)
+                                        .font(.subheadline.weight(.medium))
+                                    Text(studentLocationSummary(for: event.studentUUID))
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
                                 Spacer()
                                 Text(event.kind.title)
                                     .font(.caption.weight(.semibold))
@@ -905,7 +1044,7 @@ struct ClassroomSessionView: View {
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("R\(coordinate.row + 1) • S\(coordinate.column + 1)")
+                    Text(sessionSeatLabel(for: coordinate))
                         .font(.caption.weight(.semibold))
                         .foregroundColor(.secondary)
                     Spacer()
@@ -995,14 +1134,28 @@ struct ClassroomSessionView: View {
             logInteraction(for: student)
         } label: {
             HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(student.name)
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(.primary)
                         .lineLimit(1)
-                    Text(selectedMode == .participation ? "Log contribution".localized : "Log support".localized)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 6) {
+                        Text(selectedMode == .participation ? "Log contribution".localized : "Log support".localized)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Text(studentLocationSummary(for: student.uuid))
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(locationChipColor)
+                            .lineLimit(1)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(locationChipColor.opacity(0.10))
+                            )
+                    }
                 }
 
                 Spacer()
@@ -1127,15 +1280,107 @@ struct ClassroomSessionView: View {
         orderedStudents.first { $0.uuid == uuid }
     }
 
+    private func sessionSeatLabel(for coordinate: SessionSeatCoordinate) -> String {
+        switch layoutStyle {
+        case .rows:
+            return "R\(coordinate.row + 1) • S\(coordinate.column + 1)"
+        case .duos:
+            return String(
+                format: "Duo %d • %d".localized,
+                (coordinate.column / 2) + 1,
+                (coordinate.column % 2) + 1
+            )
+        case .uShape:
+            return String(
+                format: "U • %d-%d".localized,
+                coordinate.row + 1,
+                coordinate.column + 1
+            )
+        case .centers:
+            let index = activeSeatCoordinates.firstIndex(of: coordinate) ?? 0
+            return String(
+                format: "C%d • %d".localized,
+                (index / centerGroupSize) + 1,
+                (index % centerGroupSize) + 1
+            )
+        }
+    }
+
+    private func rowSeatCoordinates(for row: Int) -> [SessionSeatCoordinate] {
+        guard let chart else { return [] }
+        return (0..<chart.columns).map { SessionSeatCoordinate(row: row, column: $0) }
+    }
+
+    private func duoGroups(for row: Int) -> [[SessionSeatCoordinate]] {
+        chunkCoordinates(rowSeatCoordinates(for: row), size: 2)
+    }
+
+    private func chunkCoordinates(_ coordinates: [SessionSeatCoordinate], size: Int) -> [[SessionSeatCoordinate]] {
+        guard size > 0 else { return [coordinates] }
+
+        var groups: [[SessionSeatCoordinate]] = []
+        var index = 0
+        while index < coordinates.count {
+            let end = min(index + size, coordinates.count)
+            groups.append(Array(coordinates[index..<end]))
+            index = end
+        }
+        return groups
+    }
+
     private func selectedStudentContext(for student: Student) -> String {
-        if let placement = chart?.placements.first(where: { $0.studentUUID == student.uuid }) {
+        studentLocationSummary(for: student.uuid)
+    }
+
+    private func studentLocationSummary(for studentUUID: UUID) -> String {
+        guard let placement = chart?.placements.first(where: { $0.studentUUID == studentUUID }) else {
+            return "Not seated".localized
+        }
+        return classroomLocationText(for: placement)
+    }
+
+    private func classroomLocationText(for placement: SeatingPlacement) -> String {
+        switch layoutStyle {
+        case .rows:
             return String(
                 format: languageManager.localized("Row %d • Seat %d"),
                 placement.row + 1,
                 placement.column + 1
             )
+        case .duos:
+            return String(
+                format: languageManager.localized("Duo %d • Seat %d"),
+                (placement.column / 2) + 1,
+                (placement.column % 2) + 1
+            )
+        case .uShape:
+            return String(
+                format: languageManager.localized("U-Shape • Row %d Seat %d"),
+                placement.row + 1,
+                placement.column + 1
+            )
+        case .centers:
+            let coordinate = SessionSeatCoordinate(row: placement.row, column: placement.column)
+            let index = activeSeatCoordinates.firstIndex(of: coordinate) ?? 0
+            return String(
+                format: languageManager.localized("Center %d • Seat %d"),
+                (index / centerGroupSize) + 1,
+                (index % centerGroupSize) + 1
+            )
         }
-        return "Not seated".localized
+    }
+
+    private var locationChipColor: Color {
+        switch layoutStyle {
+        case .rows:
+            return .indigo
+        case .duos:
+            return .teal
+        case .uShape:
+            return .orange
+        case .centers:
+            return .purple
+        }
     }
 
     private func logInteraction(for student: Student) {

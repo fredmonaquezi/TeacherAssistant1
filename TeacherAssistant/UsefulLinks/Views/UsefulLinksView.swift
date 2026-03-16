@@ -18,6 +18,8 @@ struct UsefulLinksView: View {
     @State private var errorMessage = ""
     @State private var showingErrorAlert = false
 
+    init() {}
+
     private var isEditing: Bool {
         editingLinkID != nil
     }

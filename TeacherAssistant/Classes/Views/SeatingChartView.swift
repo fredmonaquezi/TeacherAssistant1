@@ -40,9 +40,12 @@ struct SeatingChartView: View {
         schoolClass.seatingChart
     }
 
+    private var layoutStyle: SeatingLayoutStyle {
+        chart?.layoutStyle ?? .rows
+    }
+
     private var seatCount: Int {
-        guard let chart else { return 0 }
-        return max(chart.rows, 1) * max(chart.columns, 1)
+        chart?.activeSeatCount ?? 0
     }
 
     private var seatedCount: Int {
@@ -65,6 +68,19 @@ struct SeatingChartView: View {
                 SeatCoordinate(row: row, column: column)
             }
         }
+    }
+
+    private var activeSeatCoordinates: [SeatCoordinate] {
+        guard let chart else { return [] }
+        return allSeatCoordinates.filter { chart.isActiveSeat(row: $0.row, column: $0.column) }
+    }
+
+    private var centerGroupSize: Int {
+        chart?.validatedCenterGroupSize ?? 4
+    }
+
+    private var centerGroups: [[SeatCoordinate]] {
+        activeSeatCoordinates.chunked(into: centerGroupSize)
     }
 
     private var startOfToday: Date {
@@ -232,6 +248,11 @@ struct SeatingChartView: View {
                     color: seatCount >= orderedStudents.count ? .indigo : .red
                 )
                 overviewStat(
+                    title: "Format".localized,
+                    value: layoutStyleSummary,
+                    color: .purple
+                )
+                overviewStat(
                     title: "Participation Today".localized,
                     value: "\(todaysParticipationEvents.count)",
                     color: todaysParticipationEvents.isEmpty ? .secondary : .pink
@@ -282,6 +303,42 @@ struct SeatingChartView: View {
 
     private var controlsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Room Format".localized)
+                    .font(AppTypography.sectionTitle)
+
+                Picker("Room Format".localized, selection: Binding(
+                    get: { layoutStyle },
+                    set: { applyLayoutStyle($0) }
+                )) {
+                    Text("Rows".localized).tag(SeatingLayoutStyle.rows)
+                    Text("Duos".localized).tag(SeatingLayoutStyle.duos)
+                    Text("U-Shape".localized).tag(SeatingLayoutStyle.uShape)
+                    Text("Centers".localized).tag(SeatingLayoutStyle.centers)
+                }
+                .pickerStyle(.segmented)
+
+                Text(layoutStyleDescription)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            if layoutStyle == .centers {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Center Size".localized)
+                        .font(.subheadline.weight(.semibold))
+
+                    Picker("Center Size".localized, selection: Binding(
+                        get: { centerGroupSize },
+                        set: { updateCenterGroupSize($0) }
+                    )) {
+                        Text("3 per center".localized).tag(3)
+                        Text("4 per center".localized).tag(4)
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+
             Text("Classroom Mode".localized)
                 .font(AppTypography.sectionTitle)
 
@@ -329,7 +386,7 @@ struct SeatingChartView: View {
 
             Text(
                 selectedMode == .layout
-                ? "Tap any seat to assign, move, or clear a student. Moving a seated student onto another occupied seat swaps them.".localized
+                ? layoutInteractionText
                 : selectedMode == .participation
                 ? "Tap any occupied seat to log a participation moment instantly. Use the menu on each seat for leadership or collaboration tags.".localized
                 : "Tap any occupied seat to log a support check-in instantly. Use the menu on each seat for positive behavior, support, or redirect tags.".localized
@@ -380,17 +437,146 @@ struct SeatingChartView: View {
                 )
                 .padding(.horizontal)
             } else {
-                ScrollView(.horizontal, showsIndicators: true) {
-                    LazyVGrid(columns: gridColumns, spacing: 12) {
-                        ForEach(allSeatCoordinates) { coordinate in
-                            seatButton(for: coordinate)
-                        }
-                    }
+                seatingSurface
                     .padding(.horizontal)
-                    .padding(.bottom, 6)
-                }
             }
         }
+    }
+
+    @ViewBuilder
+    private var seatingSurface: some View {
+        switch layoutStyle {
+        case .rows:
+            standardRowsSurface(groupAsDuos: false)
+        case .duos:
+            standardRowsSurface(groupAsDuos: true)
+        case .uShape:
+            uShapeSurface
+        case .centers:
+            centersSurface
+        }
+    }
+
+    private func standardRowsSurface(groupAsDuos: Bool) -> some View {
+        ScrollView(.horizontal, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(0..<max(chart?.rows ?? 0, 0), id: \.self) { row in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(String(format: "Row %d".localized, row + 1))
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.secondary)
+
+                        if groupAsDuos {
+                            HStack(alignment: .top, spacing: 24) {
+                                ForEach(rowSeatCoordinates(for: row).chunked(into: 2).indices, id: \.self) { groupIndex in
+                                    HStack(spacing: 12) {
+                                        ForEach(rowSeatCoordinates(for: row).chunked(into: 2)[groupIndex]) { coordinate in
+                                            seatButton(for: coordinate)
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            HStack(alignment: .top, spacing: 12) {
+                                ForEach(rowSeatCoordinates(for: row)) { coordinate in
+                                    seatButton(for: coordinate)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 6)
+        }
+    }
+
+    private var uShapeSurface: some View {
+        ScrollView(.horizontal, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(0..<max(chart?.rows ?? 0, 0), id: \.self) { row in
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(rowSeatCoordinates(for: row)) { coordinate in
+                            if chart?.isActiveSeat(row: coordinate.row, column: coordinate.column) == true {
+                                seatButton(for: coordinate)
+                            } else {
+                                inactiveSeatPlaceholder
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 6)
+        }
+    }
+
+    private var centersSurface: some View {
+        ScrollView(.horizontal, showsIndicators: true) {
+            HStack(alignment: .top, spacing: 16) {
+                ForEach(Array(centerGroups.enumerated()), id: \.offset) { index, group in
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Label(
+                                String(format: "Center %d".localized, index + 1),
+                                systemImage: "circle.grid.2x2.fill"
+                            )
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.indigo)
+
+                            Spacer()
+
+                            Text("\(group.count)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.secondary)
+                        }
+
+                        if centerGroupSize == 4 {
+                            LazyVGrid(columns: [GridItem(.fixed(160), spacing: 12), GridItem(.fixed(160), spacing: 12)], spacing: 12) {
+                                ForEach(group) { coordinate in
+                                    seatButton(for: coordinate)
+                                }
+                            }
+                        } else {
+                            HStack(alignment: .top, spacing: 12) {
+                                ForEach(group) { coordinate in
+                                    seatButton(for: coordinate)
+                                }
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .appCardStyle(
+                        cornerRadius: 16,
+                        borderColor: Color.indigo.opacity(0.12),
+                        shadowOpacity: 0.03,
+                        shadowRadius: 5,
+                        shadowY: 2,
+                        tint: .indigo
+                    )
+                }
+            }
+            .padding(.bottom, 6)
+        }
+    }
+
+    private var inactiveSeatPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Open Space".localized)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.secondary)
+            Text("No seat in this layout".localized)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(width: 160, height: 118, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.secondary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.secondary.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [6, 6]))
+        )
     }
 
     @ViewBuilder
@@ -859,6 +1045,7 @@ struct SeatingChartView: View {
                   placement.column >= 0,
                   placement.row < chart.rows,
                   placement.column < chart.columns,
+                  chart.isActiveSeat(row: placement.row, column: placement.column),
                   let student = rosterByUUID[placement.studentUUID],
                   seenStudentUUIDs.insert(placement.studentUUID).inserted,
                   seenCoordinates.insert(coordinateKey).inserted else {
@@ -893,11 +1080,49 @@ struct SeatingChartView: View {
         _ = SaveCoordinator.save(context: context, reason: "Update seating chart layout")
     }
 
+    private func applyLayoutStyle(_ style: SeatingLayoutStyle) {
+        ensureChartExists()
+        guard let chart else { return }
+
+        chart.layoutStyle = style
+        let recommended = recommendedDimensions(
+            for: max(orderedStudents.count, 1),
+            style: style,
+            centerGroupSize: chart.validatedCenterGroupSize
+        )
+        if chart.activeSeatCount < orderedStudents.count {
+            chart.rows = recommended.rows
+            chart.columns = recommended.columns
+        }
+        trimPlacementsOutsideBounds()
+        chart.updatedAt = Date()
+        _ = SaveCoordinator.save(context: context, reason: "Change seating chart layout style")
+    }
+
+    private func updateCenterGroupSize(_ groupSize: Int) {
+        guard let chart else { return }
+        chart.centerGroupSize = min(max(groupSize, 3), 4)
+        if chart.layoutStyle == .centers, chart.activeSeatCount < orderedStudents.count {
+            let recommended = recommendedDimensions(
+                for: max(orderedStudents.count, 1),
+                style: .centers,
+                centerGroupSize: chart.validatedCenterGroupSize
+            )
+            chart.rows = recommended.rows
+            chart.columns = recommended.columns
+        }
+        trimPlacementsOutsideBounds()
+        chart.updatedAt = Date()
+        _ = SaveCoordinator.save(context: context, reason: "Update seating chart center size")
+    }
+
     private func trimPlacementsOutsideBounds() {
         guard let chart else { return }
 
         let invalidPlacements = chart.placements.filter {
-            $0.row >= chart.rows || $0.column >= chart.columns
+            $0.row >= chart.rows ||
+            $0.column >= chart.columns ||
+            !chart.isActiveSeat(row: $0.row, column: $0.column)
         }
 
         for placement in invalidPlacements {
@@ -905,7 +1130,9 @@ struct SeatingChartView: View {
         }
 
         chart.placements.removeAll { placement in
-            placement.row >= chart.rows || placement.column >= chart.columns
+            placement.row >= chart.rows ||
+            placement.column >= chart.columns ||
+            !chart.isActiveSeat(row: placement.row, column: placement.column)
         }
     }
 
@@ -917,7 +1144,13 @@ struct SeatingChartView: View {
         guard !students.isEmpty else { return }
 
         if seatCount < students.count {
-            chart.rows = Int(ceil(Double(students.count) / Double(max(chart.columns, 1))))
+            let recommended = recommendedDimensions(
+                for: students.count,
+                style: chart.layoutStyle,
+                centerGroupSize: chart.validatedCenterGroupSize
+            )
+            chart.rows = recommended.rows
+            chart.columns = recommended.columns
         }
 
         for placement in chart.placements {
@@ -925,10 +1158,13 @@ struct SeatingChartView: View {
         }
         chart.placements.removeAll()
 
+        let targetCoordinates = autoArrangeCoordinates(for: chart)
         for (index, student) in students.enumerated() {
+            guard index < targetCoordinates.count else { break }
+            let coordinate = targetCoordinates[index]
             let placement = SeatingPlacement(
-                row: index / max(chart.columns, 1),
-                column: index % max(chart.columns, 1),
+                row: coordinate.row,
+                column: coordinate.column,
                 studentUUID: student.uuid,
                 studentNameSnapshot: student.name,
                 chart: chart
@@ -964,6 +1200,7 @@ struct SeatingChartView: View {
     private func assign(student: Student, to coordinate: SeatCoordinate) {
         ensureChartExists()
         guard let chart else { return }
+        guard chart.isActiveSeat(row: coordinate.row, column: coordinate.column) else { return }
 
         let targetPlacement = placement(at: coordinate)
         let existingPlacement = chart.placements.first { $0.studentUUID == student.uuid }
@@ -1090,11 +1327,34 @@ struct SeatingChartView: View {
     }
 
     private func seatLabel(for coordinate: SeatCoordinate) -> String {
-        String(
-            format: languageManager.localized("Row %d • Seat %d"),
-            coordinate.row + 1,
-            coordinate.column + 1
-        )
+        switch layoutStyle {
+        case .rows:
+            return String(
+                format: languageManager.localized("Row %d • Seat %d"),
+                coordinate.row + 1,
+                coordinate.column + 1
+            )
+        case .duos:
+            return String(
+                format: languageManager.localized("Duo %d • Seat %d"),
+                (coordinate.column / 2) + 1,
+                (coordinate.column % 2) + 1
+            )
+        case .uShape:
+            return String(
+                format: languageManager.localized("U-Shape • Row %d Seat %d"),
+                coordinate.row + 1,
+                coordinate.column + 1
+            )
+        case .centers:
+            let centerIndex = activeSeatCoordinates.firstIndex(of: coordinate).map { $0 / centerGroupSize } ?? 0
+            let seatIndex = activeSeatCoordinates.firstIndex(of: coordinate).map { ($0 % centerGroupSize) + 1 } ?? 1
+            return String(
+                format: languageManager.localized("Center %d • Seat %d"),
+                centerIndex + 1,
+                seatIndex
+            )
+        }
     }
 
     private func initials(for name: String) -> String {
@@ -1109,10 +1369,54 @@ struct SeatingChartView: View {
         return (rows, columns)
     }
 
+    private func recommendedDimensions(
+        for studentCount: Int,
+        style: SeatingLayoutStyle,
+        centerGroupSize: Int
+    ) -> (rows: Int, columns: Int) {
+        switch style {
+        case .rows:
+            return defaultDimensions(for: studentCount)
+        case .duos:
+            let base = defaultDimensions(for: studentCount)
+            let columns = max(2, base.columns + (base.columns % 2))
+            let rows = max(1, Int(ceil(Double(studentCount) / Double(columns))))
+            return (rows, columns)
+        case .centers:
+            let groupSize = min(max(centerGroupSize, 3), 4)
+            let groups = max(1, Int(ceil(Double(studentCount) / Double(groupSize))))
+            if groupSize == 3 {
+                let groupsPerRow = min(max(1, Int(ceil(sqrt(Double(groups))))), 4)
+                let columns = groupsPerRow * 3
+                let rows = max(1, Int(ceil(Double(studentCount) / Double(columns))))
+                return (rows, columns)
+            } else {
+                let groupsPerRow = min(max(1, Int(ceil(sqrt(Double(groups))))), 3)
+                let columns = groupsPerRow * 2
+                let rows = max(2, Int(ceil(Double(studentCount) / Double(columns))))
+                return (rows, columns)
+            }
+        case .uShape:
+            var best: (rows: Int, columns: Int, area: Int)?
+            for rows in 3...10 {
+                for columns in 4...12 {
+                    let activeSeats = (rows * 2) + (columns * 2) - 4
+                    guard activeSeats >= studentCount else { continue }
+                    let area = rows * columns
+                    if let best, best.area <= area {
+                        continue
+                    }
+                    best = (rows, columns, area)
+                }
+            }
+            return best.map { ($0.rows, $0.columns) } ?? (4, 5)
+        }
+    }
+
     private var chartTitle: String {
         switch selectedMode {
         case .layout:
-            return "Room Layout".localized
+            return String(format: "%@ • %@".localized, "Room Layout".localized, layoutStyleSummary)
         case .participation:
             return "Live Participation Board".localized
         case .behaviorSupport:
@@ -1206,6 +1510,78 @@ struct SeatingChartView: View {
         }
         return isOccupied ? .indigo : nil
     }
+
+    private var layoutStyleSummary: String {
+        switch layoutStyle {
+        case .rows:
+            return "Rows".localized
+        case .duos:
+            return "Duos".localized
+        case .uShape:
+            return "U-Shape".localized
+        case .centers:
+            return centerGroupSize == 3 ? "Centers of 3".localized : "Centers of 4".localized
+        }
+    }
+
+    private var layoutStyleDescription: String {
+        switch layoutStyle {
+        case .rows:
+            return "A traditional row-and-column room layout.".localized
+        case .duos:
+            return "Keep seats visually grouped in pairs for partner work and quick pair swaps.".localized
+        case .uShape:
+            return "Reserve the middle of the room and keep seating around the perimeter.".localized
+        case .centers:
+            return centerGroupSize == 3
+                ? "Organize the class into small centers of three students.".localized
+                : "Organize the class into small centers of four students.".localized
+        }
+    }
+
+    private var layoutInteractionText: String {
+        switch layoutStyle {
+        case .rows:
+            return "Tap any seat to assign, move, or clear a student. Moving a seated student onto another occupied seat swaps them.".localized
+        case .duos:
+            return "Tap seats to build partner pairs. Students can still be moved or swapped seat by seat.".localized
+        case .uShape:
+            return "Only the outer seats are active in U-shape mode. The middle space stays open for instruction.".localized
+        case .centers:
+            return centerGroupSize == 3
+                ? "Tap seats to organize students into small centers of three.".localized
+                : "Tap seats to organize students into small centers of four.".localized
+        }
+    }
+
+    private func rowSeatCoordinates(for row: Int) -> [SeatCoordinate] {
+        guard let chart else { return [] }
+        return (0..<chart.columns).map { SeatCoordinate(row: row, column: $0) }
+    }
+
+    private func autoArrangeCoordinates(for chart: SeatingChart) -> [SeatCoordinate] {
+        switch chart.layoutStyle {
+        case .rows, .duos, .centers:
+            return activeSeatCoordinates
+        case .uShape:
+            guard chart.rows > 1, chart.columns > 1 else {
+                return activeSeatCoordinates
+            }
+
+            var coordinates: [SeatCoordinate] = []
+            coordinates.append(contentsOf: (0..<chart.columns).map { SeatCoordinate(row: 0, column: $0) })
+            if chart.rows > 2 {
+                coordinates.append(contentsOf: (1..<(chart.rows - 1)).map { SeatCoordinate(row: $0, column: chart.columns - 1) })
+            }
+            if chart.rows > 1 {
+                coordinates.append(contentsOf: (0..<chart.columns).reversed().map { SeatCoordinate(row: chart.rows - 1, column: $0) })
+            }
+            if chart.columns > 1, chart.rows > 2 {
+                coordinates.append(contentsOf: (1..<(chart.rows - 1)).reversed().map { SeatCoordinate(row: $0, column: 0) })
+            }
+            return coordinates
+        }
+    }
 }
 
 private struct SeatCoordinate: Identifiable, Hashable {
@@ -1227,6 +1603,23 @@ private struct SeatAssignmentSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var languageManager: LanguageManager
 
+    private var layoutStyle: SeatingLayoutStyle {
+        schoolClass.seatingChart?.layoutStyle ?? .rows
+    }
+
+    private var activeSeatCoordinates: [SeatCoordinate] {
+        guard let chart = schoolClass.seatingChart else { return [] }
+        return (0..<chart.rows).flatMap { row in
+            (0..<chart.columns).compactMap { column in
+                chart.isActiveSeat(row: row, column: column) ? SeatCoordinate(row: row, column: column) : nil
+            }
+        }
+    }
+
+    private var centerGroupSize: Int {
+        schoolClass.seatingChart?.validatedCenterGroupSize ?? 4
+    }
+
     private var orderedStudents: [Student] {
         schoolClass.students.sorted { lhs, rhs in
             if lhs.sortOrder != rhs.sortOrder {
@@ -1247,14 +1640,28 @@ private struct SeatAssignmentSheet: View {
     var body: some View {
         List {
             Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(locationTitle)
-                        .font(.headline)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Text(locationTitle)
+                            .font(.headline)
+
+                        Text(layoutBadgeTitle)
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(layoutBadgeColor)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(layoutBadgeColor.opacity(0.10))
+                            )
+                    }
+
                     if let currentPlacement {
                         Text(
                             String(
-                                format: languageManager.localized("Currently seated: %@"),
-                                currentPlacement.studentNameSnapshot
+                                format: languageManager.localized("Currently seated: %@ at %@"),
+                                currentPlacement.studentNameSnapshot,
+                                locationText(for: currentPlacement)
                             )
                         )
                         .font(.subheadline)
@@ -1292,12 +1699,23 @@ private struct SeatAssignmentSheet: View {
                                     .foregroundColor(.primary)
 
                                 if let placement = placementsByStudentUUID[student.uuid] {
-                                    Text(locationText(for: placement))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 6) {
+                                        Image(systemName: locationChipIcon)
+                                            .font(.caption2)
+                                            .foregroundColor(layoutBadgeColor)
+                                        Text(locationText(for: placement))
+                                            .font(.caption.weight(.medium))
+                                            .foregroundColor(layoutBadgeColor)
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        Capsule()
+                                            .fill(layoutBadgeColor.opacity(0.10))
+                                    )
                                 } else {
                                     Text("Unseated".localized)
-                                        .font(.caption)
+                                        .font(.caption.weight(.medium))
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -1305,17 +1723,11 @@ private struct SeatAssignmentSheet: View {
                             Spacer()
 
                             if currentPlacement?.studentUUID == student.uuid {
-                                Text("Current".localized)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(.indigo)
+                                statusBadge(title: "Current".localized, color: .indigo)
                             } else if placementsByStudentUUID[student.uuid] != nil {
-                                Text("Swap".localized)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(.orange)
+                                statusBadge(title: "Swap".localized, color: .orange)
                             } else {
-                                Text("Assign".localized)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(.green)
+                                statusBadge(title: "Assign".localized, color: .green)
                             }
                         }
                         .padding(.vertical, 2)
@@ -1338,10 +1750,99 @@ private struct SeatAssignmentSheet: View {
     }
 
     private func locationText(for placement: SeatingPlacement) -> String {
-        String(
-            format: languageManager.localized("Currently at row %d seat %d"),
-            placement.row + 1,
-            placement.column + 1
-        )
+        switch layoutStyle {
+        case .rows:
+            return String(
+                format: languageManager.localized("Currently at row %d seat %d"),
+                placement.row + 1,
+                placement.column + 1
+            )
+        case .duos:
+            return String(
+                format: languageManager.localized("Currently in duo %d seat %d"),
+                (placement.column / 2) + 1,
+                (placement.column % 2) + 1
+            )
+        case .uShape:
+            return String(
+                format: languageManager.localized("Currently in U-shape row %d seat %d"),
+                placement.row + 1,
+                placement.column + 1
+            )
+        case .centers:
+            let coordinate = SeatCoordinate(row: placement.row, column: placement.column)
+            let index = activeSeatCoordinates.firstIndex(of: coordinate) ?? 0
+            return String(
+                format: languageManager.localized("Currently in center %d seat %d"),
+                (index / centerGroupSize) + 1,
+                (index % centerGroupSize) + 1
+            )
+        }
+    }
+
+    private var layoutBadgeTitle: String {
+        switch layoutStyle {
+        case .rows:
+            return "Rows".localized
+        case .duos:
+            return "Duos".localized
+        case .uShape:
+            return "U-Shape".localized
+        case .centers:
+            return centerGroupSize == 3 ? "Centers of 3".localized : "Centers of 4".localized
+        }
+    }
+
+    private var layoutBadgeColor: Color {
+        switch layoutStyle {
+        case .rows:
+            return .indigo
+        case .duos:
+            return .teal
+        case .uShape:
+            return .orange
+        case .centers:
+            return .purple
+        }
+    }
+
+    private var locationChipIcon: String {
+        switch layoutStyle {
+        case .rows:
+            return "square.grid.3x3"
+        case .duos:
+            return "person.2.fill"
+        case .uShape:
+            return "arrow.uturn.down"
+        case .centers:
+            return "circle.grid.2x2.fill"
+        }
+    }
+
+    private func statusBadge(title: String, color: Color) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundColor(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(color.opacity(0.10))
+            )
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+
+        var chunks: [[Element]] = []
+        var index = startIndex
+        while index < endIndex {
+            let nextIndex = self.index(index, offsetBy: size, limitedBy: endIndex) ?? endIndex
+            chunks.append(Array(self[index..<nextIndex]))
+            index = nextIndex
+        }
+        return chunks
     }
 }

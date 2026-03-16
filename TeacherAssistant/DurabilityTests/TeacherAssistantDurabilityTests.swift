@@ -117,7 +117,13 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         schoolClass.students.append(firstStudent)
         schoolClass.students.append(secondStudent)
 
-        let seatingChart = SeatingChart(title: "Homeroom Layout", rows: 2, columns: 2)
+        let seatingChart = SeatingChart(
+            title: "Homeroom Layout",
+            rows: 3,
+            columns: 4,
+            layoutStyleRaw: SeatingLayoutStyle.duos.rawValue,
+            centerGroupSize: 4
+        )
         seatingChart.schoolClass = schoolClass
         schoolClass.seatingChart = seatingChart
 
@@ -213,8 +219,10 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
 
         let restoredChart = try XCTUnwrap(restoredClasses.first?.seatingChart)
         XCTAssertEqual(restoredChart.title, "Homeroom Layout")
-        XCTAssertEqual(restoredChart.rows, 2)
-        XCTAssertEqual(restoredChart.columns, 2)
+        XCTAssertEqual(restoredChart.rows, 3)
+        XCTAssertEqual(restoredChart.columns, 4)
+        XCTAssertEqual(restoredChart.layoutStyle, .duos)
+        XCTAssertEqual(restoredChart.validatedCenterGroupSize, 4)
         XCTAssertEqual(restoredChart.placements.count, 2)
 
         let restoredPlacements = restoredChart.placements.sorted {

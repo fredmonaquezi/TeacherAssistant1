@@ -211,6 +211,8 @@ enum BackupPayloadApplyService {
                     title: SecurityHelpers.sanitizeName(backupSeatingChart.title) ?? "Main Layout",
                     rows: SecurityHelpers.validateCount(backupSeatingChart.rows, min: 1, max: 20),
                     columns: SecurityHelpers.validateCount(backupSeatingChart.columns, min: 1, max: 20),
+                    layoutStyleRaw: SeatingLayoutStyle(rawValue: backupSeatingChart.layoutStyleRaw ?? "")?.rawValue ?? SeatingLayoutStyle.rows.rawValue,
+                    centerGroupSize: SecurityHelpers.validateCount(backupSeatingChart.centerGroupSize ?? 4, min: 3, max: 4),
                     createdAt: backupSeatingChart.createdAt,
                     updatedAt: backupSeatingChart.updatedAt
                 )
@@ -225,7 +227,8 @@ enum BackupPayloadApplyService {
                     guard placementBackup.row >= 0,
                           placementBackup.column >= 0,
                           placementBackup.row < seatingChart.rows,
-                          placementBackup.column < seatingChart.columns else {
+                          placementBackup.column < seatingChart.columns,
+                          seatingChart.isActiveSeat(row: placementBackup.row, column: placementBackup.column) else {
                         continue
                     }
 
