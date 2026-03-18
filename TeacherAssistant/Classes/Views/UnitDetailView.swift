@@ -127,8 +127,6 @@ struct UnitDetailView: View {
             normalizeAssessmentResults()
         }
         .macNavigationDepth()
-        .animation(motion.animation(.standard), value: unit.assessments.map(\.id))
-        .animation(motion.animation(.standard), value: unit.assignments.map(\.persistentModelID))
     }
     
     // MARK: - Statistics Card

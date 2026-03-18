@@ -58,14 +58,9 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
-    @Query private var allAssessments: [Assessment]
-    @Query private var allAssignments: [Assignment]
-    @Query private var allInterventions: [Intervention]
-    @Query private var allStudents: [Student]
     @State private var selectedSection: AppSection?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var navigationStackResetID = UUID()
-    @State private var appViewResetID = UUID()
     @StateObject private var macNavigationState = MacNavigationState()
     @State private var saveFailureMessage: String?
     @State private var activeNotificationRoute: AttentionNotificationRoute?
@@ -82,8 +77,31 @@ struct ContentView: View {
         _selectedSection = State(initialValue: AppSection.availableSection(from: defaultSectionRawValue))
     }
 
-    private var preferredMotionProfile: AppMotionProfile {
+    private var usesEmbeddedSectionNavigation: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad
+        #else
+        true
+        #endif
+    }
+
+    private var shouldTrimForIPad: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad
+        #else
+        false
+        #endif
+    }
+
+    private var configuredMotionProfile: AppMotionProfile {
         AppMotionProfile(rawValue: motionProfileRawValue) ?? .full
+    }
+
+    private var preferredMotionProfile: AppMotionProfile {
+        guard shouldTrimForIPad, configuredMotionProfile == .full else {
+            return configuredMotionProfile
+        }
+        return .subtle
     }
 
     private var appMotionContext: AppMotionContext {
@@ -96,14 +114,14 @@ struct ContentView: View {
                 #else
                 false
                 #endif
-            }()
+            }(),
+            prefersLightweightScrollingEffects: shouldTrimForIPad
         )
     }
 
     var body: some View {
         ZStack {
             mainNavigationLayout
-                .id(appViewResetID)
 
 
             // ⏱️ TIMER OVERLAY LAYER
@@ -149,19 +167,10 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newValue in
             handleScenePhaseChanged(newValue)
         }
-        .onChange(of: allInterventions.count) { _, _ in
-            handlePendingAttentionNotificationMutationIfNeeded()
-        }
         .onChange(of: defaultLandingSectionRawValue) { _, newValue in
             if selectedSection == nil {
                 selectedSection = AppSection.availableSection(from: newValue)
             }
-        }
-        .onChange(of: dateFormatRawValue) { _, _ in
-            refreshForPreferenceChange()
-        }
-        .onChange(of: timeFormatRawValue) { _, _ in
-            refreshForPreferenceChange()
         }
         .alert(
             "Save Failed".localized,
@@ -189,7 +198,7 @@ struct ContentView: View {
         #if os(macOS)
         topHeaderLayout(showBackButton: macNavigationState.depth > 0, backAction: goBack)
         #elseif os(iOS)
-        if UIDevice.current.userInterfaceIdiom == .pad {
+        if usesEmbeddedSectionNavigation {
             topHeaderLayout(showBackButton: false, backAction: nil)
         } else {
             iPhoneLayout
@@ -204,10 +213,6 @@ struct ContentView: View {
             NavigationHeaderView(
                 selectedSection: $selectedSection,
                 onNavigate: {
-                    // Single-shot reset so top navigation always works
-                    // from deep pushed screens without multiple rebuilds.
-                    navigationStackResetID = UUID()
-                    macNavigationState.reset()
                 },
                 onBack: backAction,
                 showBackButton: showBackButton
@@ -220,6 +225,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .environmentObject(macNavigationState)
+        .sectionNavigationMode(.embedded)
         #if os(macOS)
         .background(MacWindowToolbarCleaner())
         .frame(minWidth: 900, minHeight: 650)
@@ -233,8 +239,19 @@ struct ContentView: View {
         .onAppear {
             macNavigationState.reset()
         }
-        .onChange(of: selectedSection) { _, _ in
+        .onChange(of: selectedSection) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            navigationStackResetID = UUID()
             macNavigationState.reset()
+            Task {
+                let token = await PerformanceMonitor.shared.beginInterval(
+                    .sectionSwitch,
+                    metadata: newValue?.rawValue ?? AppSection.dashboard.rawValue
+                )
+                await Task.yield()
+                await Task.yield()
+                await PerformanceMonitor.shared.endInterval(token, success: true)
+            }
         }
     }
 
@@ -291,7 +308,6 @@ struct ContentView: View {
             AttentionReminderBanner(selectedSection: $selectedSection)
             ZStack {
                 detailView
-                    .id(selectedSection?.rawValue ?? AppSection.dashboard.rawValue)
                     .transition(appMotionContext.transition(.sectionSwitch))
             }
             .animation(appMotionContext.animation(.standard), value: selectedSection)
@@ -320,16 +336,16 @@ struct ContentView: View {
 
     private func handleBackupRestoreCompleted() {
         selectedSection = AppSection.availableSection(from: defaultLandingSectionRawValue)
-        appViewResetID = UUID()
         navigationStackResetID = UUID()
-        #if os(macOS)
-        macNavigationState.reset()
-        #endif
-    }
-
-    private func refreshForPreferenceChange() {
-        appViewResetID = UUID()
-        navigationStackResetID = UUID()
+        Task {
+            let updatedAssignments = AssignmentEntryMaintenanceService.syncAllAssignments(context: modelContext)
+            if updatedAssignments > 0 {
+                _ = await PersistenceWriteCoordinator.shared.perform(
+                    context: modelContext,
+                    reason: "Assignment entry maintenance"
+                )
+            }
+        }
         #if os(macOS)
         macNavigationState.reset()
         #endif
@@ -385,7 +401,7 @@ struct ContentView: View {
 
         case .markFollowUpInProgress, .resolveFollowUp:
             guard let interventionID = request.route.interventionID,
-                  let intervention = allInterventions.first(where: { $0.id == interventionID }) else {
+                  let intervention = fetchIntervention(id: interventionID) else {
                 handledAttentionMutationIDs.remove(request.id)
                 return
             }
@@ -503,7 +519,8 @@ struct ContentView: View {
     }
 
     private func resolvedAssessment(for route: AttentionNotificationRoute) -> Assessment? {
-        allAssessments.first { assessment in
+        let assessments = (try? modelContext.fetch(FetchDescriptor<Assessment>())) ?? []
+        return assessments.first { assessment in
             guard assessment.title == route.assessmentTitle else { return false }
 
             if let routeDate = route.assessmentDate,
@@ -521,12 +538,31 @@ struct ContentView: View {
 
     private func resolvedAssignment(for route: AttentionNotificationRoute) -> Assignment? {
         guard let assignmentID = route.assignmentID else { return nil }
-        return allAssignments.first { $0.id == assignmentID }
+        let descriptor = FetchDescriptor<Assignment>(
+            predicate: #Predicate<Assignment> { assignment in
+                assignment.id == assignmentID
+            }
+        )
+        return (try? modelContext.fetch(descriptor))?.first
     }
 
     private func resolvedStudent(for route: AttentionNotificationRoute) -> Student? {
         guard let studentUUID = route.studentUUID else { return nil }
-        return allStudents.first { $0.uuid == studentUUID }
+        let descriptor = FetchDescriptor<Student>(
+            predicate: #Predicate<Student> { student in
+                student.uuid == studentUUID
+            }
+        )
+        return (try? modelContext.fetch(descriptor))?.first
+    }
+
+    private func fetchIntervention(id: UUID) -> Intervention? {
+        let descriptor = FetchDescriptor<Intervention>(
+            predicate: #Predicate<Intervention> { intervention in
+                intervention.id == id
+            }
+        )
+        return (try? modelContext.fetch(descriptor))?.first
     }
 
     private func handleScenePhaseChanged(_ newPhase: ScenePhase) {

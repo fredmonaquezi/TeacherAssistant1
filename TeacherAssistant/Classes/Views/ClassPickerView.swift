@@ -10,11 +10,9 @@ struct ClassPickerView: View {
     
     var body: some View {
         #if os(macOS)
-        // macOS: No NavigationStack needed, header navigation handles it
         classPickerContent
         #else
-        // iOS: Keep NavigationStack for proper navigation
-        NavigationStack {
+        SectionNavigationContainer {
             classPickerContent
         }
         #endif
@@ -191,9 +189,15 @@ struct ClassPickerView: View {
     func destinationView(for schoolClass: SchoolClass) -> some View {
         switch tool {
         case .attendance:
-            AttendanceListView(schoolClass: schoolClass)
+            LiveWorkspaceView(
+                schoolClass: schoolClass,
+                initialSection: .attendance
+            )
         case .liveCheckIn:
-            LiveCheckInView(schoolClass: schoolClass, source: .standaloneTool)
+            LiveWorkspaceView(
+                schoolClass: schoolClass,
+                initialSection: .checkIn
+            )
         case .gradebook:
             ClassOverviewView(schoolClass: schoolClass)
         case .groups:

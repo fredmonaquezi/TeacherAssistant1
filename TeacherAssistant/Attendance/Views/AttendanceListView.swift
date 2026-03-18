@@ -6,14 +6,20 @@ struct AttendanceListView: View {
     @EnvironmentObject var languageManager: LanguageManager
     @Bindable var schoolClass: SchoolClass
     let showsDismissButton: Bool
+    let embeddedInLiveWorkspace: Bool
     @Environment(\.dismiss) private var dismiss
     
     @State private var showingDatePicker = false
     @State private var selectedDate = Date()
 
-    init(schoolClass: SchoolClass, showsDismissButton: Bool = false) {
+    init(
+        schoolClass: SchoolClass,
+        showsDismissButton: Bool = false,
+        embeddedInLiveWorkspace: Bool = false
+    ) {
         self.schoolClass = schoolClass
         self.showsDismissButton = showsDismissButton
+        self.embeddedInLiveWorkspace = embeddedInLiveWorkspace
     }
     
     var sortedSessions: [AttendanceSession] {
@@ -25,8 +31,12 @@ struct AttendanceListView: View {
             #if os(macOS)
             content
             #else
-            NavigationStack {
+            if embeddedInLiveWorkspace {
                 content
+            } else {
+                NavigationStack {
+                    content
+                }
             }
             #endif
         }

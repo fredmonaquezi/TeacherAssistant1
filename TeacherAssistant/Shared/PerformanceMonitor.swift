@@ -3,12 +3,16 @@ import os
 
 enum PerformanceMetric: String {
     case appLaunch = "app.launch"
+    case sectionSwitch = "navigation.sectionSwitch"
     case saveOperation = "persistence.save"
     case backupExport = "backup.export"
     case backupImport = "backup.import"
+    case dashboardDerive = "dashboard.derive"
+    case attentionDerive = "attention.derive"
     case runningRecordsDerive = "runningRecords.derive"
     case calendarDerive = "calendar.derive"
     case libraryDerive = "library.derive"
+    case libraryThumbnailRender = "library.thumbnail.render"
     case studentProgressDerive = "studentProgress.derive"
     case studentDetailDerive = "studentDetail.derive"
 }

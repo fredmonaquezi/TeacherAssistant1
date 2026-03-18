@@ -48,11 +48,9 @@ struct CalendarRootView: View {
 
     var body: some View {
         #if os(macOS)
-        // macOS: No NavigationStack needed, header navigation handles it
         calendarContent
         #else
-        // iOS: Keep NavigationStack for proper navigation
-        NavigationStack {
+        SectionNavigationContainer {
             calendarContent
         }
         #endif
@@ -128,9 +126,6 @@ struct CalendarRootView: View {
             }
             await refreshDerivedData()
         }
-        .animation(motion.animation(.standard), value: viewMode)
-        .animation(motion.animation(.standard), value: selectedDate)
-        .animation(motion.animation(.standard), value: selectedClassID)
         .calendarDayDetailSheet(
             isPresented: $showingDayDetail,
             date: selectedDate,
@@ -149,7 +144,6 @@ struct CalendarRootView: View {
             localeIdentifier: languageManager.currentLanguage.localeIdentifier
         )
             .equatable()
-            .animation(motion.animation(.standard), value: upcomingEventViewModels.map(\.id))
     }
 
     // MARK: - Filtering

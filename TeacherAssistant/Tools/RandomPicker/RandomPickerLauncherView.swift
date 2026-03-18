@@ -17,6 +17,8 @@ struct RandomPickerLauncherView: View {
     @State private var pickedStudents: [Student] = []
     @State private var selectedCandidateIDs: Set<String> = []
     @State private var quickPickCount: Int = 3
+    @AppStorage(RandomPickerDefaultsKeys.fairHistoryData) private var fairHistoryData = ""
+    @AppStorage(RandomPickerDefaultsKeys.roleCycleData) private var roleCycleData = ""
     @AppStorage("helperRotation") private var helperRotationData = ""
     @AppStorage("guardianRotation") private var guardianRotationData = ""
     @AppStorage("lineLeaderRotation") private var lineLeaderRotationData = ""
@@ -33,33 +35,30 @@ struct RandomPickerLauncherView: View {
     var isSelectedCategoryCustom: Bool {
         customCategories.contains(selectedCategory)
     }
+
+    private var orderedStudents: [Student] {
+        schoolClass.students.sorted(by: { lhs, rhs in
+            if lhs.sortOrder != rhs.sortOrder {
+                return lhs.sortOrder < rhs.sortOrder
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        })
+    }
+
+    private var generalScope: String {
+        StudentRandomizer.generalScope(for: schoolClass)
+    }
+
+    private var selectedRoleScope: String {
+        StudentRandomizer.roleScope(for: schoolClass, category: selectedCategory)
+    }
+
+    private var roleState: StudentRandomizerRoleState {
+        StudentRandomizer.roleState(from: orderedStudents, scope: selectedRoleScope)
+    }
     
     let categoryIcons = ["Helper": "star.fill", "Guardian": "shield.fill", "Line Leader": "figure.walk", "Messenger": "envelope.fill"]
     let categoryColors: [String: Color] = ["Helper": .purple, "Guardian": .blue, "Line Leader": .green, "Messenger": .orange]
-    
-    var currentRotationData: String {
-        switch selectedCategory {
-        case "Helper": return helperRotationData
-        case "Guardian": return guardianRotationData
-        case "Line Leader": return lineLeaderRotationData
-        case "Messenger": return messengerRotationData
-        default:
-            // Custom category - stored in customRotationData as "CategoryName:id1,id2,id3|"
-            return getCustomRotation(for: selectedCategory)
-        }
-    }
-    
-    func updateRotationData(_ newData: String) {
-        switch selectedCategory {
-        case "Helper": helperRotationData = newData
-        case "Guardian": guardianRotationData = newData
-        case "Line Leader": lineLeaderRotationData = newData
-        case "Messenger": messengerRotationData = newData
-        default:
-            // Custom category
-            updateCustomRotation(for: selectedCategory, data: newData)
-        }
-    }
     
     func getCustomRotation(for category: String) -> String {
         let entries = customRotationData.split(separator: "|").map { String($0) }
@@ -81,28 +80,19 @@ struct RandomPickerLauncherView: View {
         customRotationData = entries.joined(separator: "|")
     }
     
-    var usedStudentIDs: Set<String> {
-        Set(currentRotationData.split(separator: ",").map { String($0) })
-    }
-
     var quickPickCandidates: [Student] {
-        let sortedStudents = schoolClass.students.sorted(by: { $0.sortOrder < $1.sortOrder })
         guard !selectedCandidateIDs.isEmpty else {
-            return sortedStudents
+            return orderedStudents
         }
-        return sortedStudents.filter { selectedCandidateIDs.contains($0.stableIDString) }
+        return orderedStudents.filter { selectedCandidateIDs.contains($0.stableIDString) }
     }
     
     var availableStudents: [Student] {
-        schoolClass.students
-            .sorted(by: { $0.sortOrder < $1.sortOrder })
-            .filter { !usedStudentIDs.contains($0.stableIDString) }
+        orderedStudents.filter { roleState.availableIDs.contains($0.stableIDString) }
     }
     
     var usedStudents: [Student] {
-        schoolClass.students
-            .sorted(by: { $0.sortOrder < $1.sortOrder })
-            .filter { usedStudentIDs.contains($0.stableIDString) }
+        orderedStudents.filter { roleState.usedIDs.contains($0.stableIDString) }
     }
     
     var categoryColor: Color {
@@ -134,12 +124,14 @@ struct RandomPickerLauncherView: View {
         .onAppear {
             loadCustomCategories()
             ensureStableIDs()
+            migrateLegacyRotationDataIfNeeded()
         }
         .sheet(isPresented: $showingAddCategory) {
             AddCustomCategoryView(onAdd: { newCategory in
                 customCategories.append(newCategory)
                 saveCustomCategories()
                 selectedCategory = newCategory
+                migrateLegacyRotationDataIfNeeded()
             })
         }
         .sheet(
@@ -154,14 +146,11 @@ struct RandomPickerLauncherView: View {
                         student: pickedStudent,
                         categoryName: selectedCategory,
                         categoryColor: categoryColor,
-                        onMarkUsed: {
-                            let currentIDs = Set(currentRotationData.split(separator: ",").map { String($0) })
-                            var newIDs = currentIDs
-                            newIDs.insert(pickedStudent.stableIDString)
-                            updateRotationData(newIDs.joined(separator: ","))
-                        },
                         onSkip: {
-                            // Do nothing - just close the sheet
+                            StudentRandomizer.undoRolePick(
+                                studentID: pickedStudent.stableIDString,
+                                scope: selectedRoleScope
+                            )
                         }
                     )
                 } else {
@@ -260,7 +249,7 @@ struct RandomPickerLauncherView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Quick Random Pick".localized)
                             .font(.headline)
-                        Text("One instant draw, no rotation tracking".localized)
+                        Text("Balanced draw with repeat protection".localized)
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.85))
                     }
@@ -546,7 +535,7 @@ struct RandomPickerLauncherView: View {
 
             if !usedStudents.isEmpty {
                 Button {
-                    updateRotationData("")
+                    StudentRandomizer.clearRoleCycle(scope: selectedRoleScope)
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.counterclockwise")
@@ -600,7 +589,7 @@ struct RandomPickerLauncherView: View {
                         .multilineTextAlignment(.center)
                     
                     Button {
-                        updateRotationData("")
+                        StudentRandomizer.clearRoleCycle(scope: selectedRoleScope)
                     } label: {
                         HStack {
                             Image(systemName: "arrow.clockwise")
@@ -754,7 +743,10 @@ struct RandomPickerLauncherView: View {
         isSpinning = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             isSpinning = false
-            pickedStudent = quickPickCandidates.randomElement()
+            pickedStudent = StudentRandomizer.pickFairStudent(
+                from: quickPickCandidates,
+                scope: generalScope
+            )
         }
     }
     
@@ -764,8 +756,11 @@ struct RandomPickerLauncherView: View {
         isSpinning = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             isSpinning = false
-            let winners = Array(quickPickCandidates.shuffled().prefix(max(1, min(count, quickPickCandidates.count))))
-            pickedStudents = winners
+            pickedStudents = StudentRandomizer.pickFairStudents(
+                count: max(1, min(count, quickPickCandidates.count)),
+                from: quickPickCandidates,
+                scope: generalScope
+            )
         }
     }
     
@@ -775,7 +770,10 @@ struct RandomPickerLauncherView: View {
         isSpinning = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             isSpinning = false
-            pickedStudent = availableStudents.randomElement()
+            pickedStudent = StudentRandomizer.pickNextRoleStudent(
+                from: orderedStudents,
+                scope: selectedRoleScope
+            )
         }
     }
     
@@ -791,10 +789,44 @@ struct RandomPickerLauncherView: View {
         customCategoriesData = customCategories.joined(separator: "|")
     }
 
+    func legacyRotationData(for category: String) -> String {
+        switch category {
+        case "Helper":
+            return helperRotationData
+        case "Guardian":
+            return guardianRotationData
+        case "Line Leader":
+            return lineLeaderRotationData
+        case "Messenger":
+            return messengerRotationData
+        default:
+            return getCustomRotation(for: category)
+        }
+    }
+
+    func migrateLegacyRotationDataIfNeeded() {
+        for category in categories {
+            let legacyIDs = legacyRotationData(for: category)
+                .split(separator: ",")
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            guard !legacyIDs.isEmpty else { continue }
+
+            StudentRandomizer.importLegacyRoleCycle(
+                ids: legacyIDs,
+                scope: StudentRandomizer.roleScope(for: schoolClass, category: category)
+            )
+        }
+    }
+
     func deleteCustomCategory(_ category: String) {
         customCategories.removeAll { $0 == category }
         saveCustomCategories()
         updateCustomRotation(for: category, data: "")
+        StudentRandomizer.clearRoleCycle(
+            scope: StudentRandomizer.roleScope(for: schoolClass, category: category)
+        )
 
         if selectedCategory == category {
             selectedCategory = defaultCategories.first ?? "Helper"
@@ -1082,7 +1114,6 @@ struct RotationPickResultView: View {
     let student: Student
     let categoryName: String
     let categoryColor: Color
-    let onMarkUsed: () -> Void
     let onSkip: () -> Void
     
     @Environment(\.dismiss) private var dismiss
@@ -1106,10 +1137,9 @@ struct RotationPickResultView: View {
             Spacer()
             VStack(spacing: 12) {
                 Button { 
-                    onMarkUsed()
                     dismiss()
                 } label: {
-                    HStack { Image(systemName: "checkmark.circle.fill"); Text("Mark as Used".localized) }
+                    HStack { Image(systemName: "checkmark.circle.fill"); Text("Keep Pick".localized) }
                         .font(.headline).foregroundColor(.white).frame(maxWidth: .infinity).padding()
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)

@@ -14,6 +14,8 @@ struct ClassroomSessionView: View {
     @Bindable var schoolClass: SchoolClass
     @ObservedObject var timerManager: ClassroomTimerManager
     let showsDismissButton: Bool
+    let embeddedInLiveWorkspace: Bool
+    let onSelectLiveSection: ((LiveWorkspaceSection) -> Void)?
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -25,21 +27,21 @@ struct ClassroomSessionView: View {
     @State private var pickedStudentUUID: UUID?
     @State private var notesDraft = ""
     @State private var notesSaveTask: Task<Void, Never>?
-    @State private var showingAttendanceSheet = false
-    @State private var showingAssignmentsSheet = false
-    @State private var showingSeatingChartSheet = false
-    @State private var showingLiveCheckInSheet = false
 
     private let calendar = Calendar.current
 
     init(
         schoolClass: SchoolClass,
         timerManager: ClassroomTimerManager,
-        showsDismissButton: Bool = false
+        showsDismissButton: Bool = false,
+        embeddedInLiveWorkspace: Bool = false,
+        onSelectLiveSection: ((LiveWorkspaceSection) -> Void)? = nil
     ) {
         self.schoolClass = schoolClass
         self.timerManager = timerManager
         self.showsDismissButton = showsDismissButton
+        self.embeddedInLiveWorkspace = embeddedInLiveWorkspace
+        self.onSelectLiveSection = onSelectLiveSection
     }
 
     private var sessionDiaryPlanCandidates: Set<String> {
@@ -205,7 +207,6 @@ struct ClassroomSessionView: View {
             .padding(.vertical, 20)
         }
         .navigationTitle("Classroom Session".localized)
-        .appSheetMotion()
         .toolbar {
             if showsDismissButton {
                 ToolbarItem(placement: .cancellationAction) {
@@ -213,34 +214,6 @@ struct ClassroomSessionView: View {
                         dismiss()
                     }
                 }
-            }
-        }
-        .sheet(isPresented: $showingAttendanceSheet) {
-            NavigationStack {
-                AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
-                    .appSheetMotion()
-            }
-        }
-        .sheet(isPresented: $showingAssignmentsSheet) {
-            NavigationStack {
-                ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
-                    .appSheetMotion()
-            }
-        }
-        .sheet(isPresented: $showingSeatingChartSheet) {
-            NavigationStack {
-                SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
-                    .appSheetMotion()
-            }
-        }
-        .sheet(isPresented: $showingLiveCheckInSheet) {
-            NavigationStack {
-                LiveCheckInView(
-                    schoolClass: schoolClass,
-                    source: .classroomSession,
-                    showsDismissButton: true
-                )
-                .appSheetMotion()
             }
         }
         .task {
@@ -260,13 +233,9 @@ struct ClassroomSessionView: View {
         }
         .animation(motion.animation(.standard), value: selectedMode)
         .animation(motion.animation(.standard), value: timerManager.isRunning)
-        .animation(motion.animation(.standard), value: todaysParticipationEvents.count)
-        .animation(motion.animation(.standard), value: todaysBehaviorEvents.count)
-        .animation(motion.animation(.standard), value: todayAttendanceRecords.count)
         .macNavigationDepth()
-        #if os(macOS)
-        .frame(minWidth: 980, idealWidth: 1080, minHeight: 820, idealHeight: 900)
-        #endif
+        .modifier(ClassroomSessionFrameModifier(isEnabled: !embeddedInLiveWorkspace))
+        .modifier(ClassroomSessionSheetMotionModifier(isEnabled: !embeddedInLiveWorkspace))
     }
 
     private var headerCard: some View {
@@ -344,7 +313,7 @@ struct ClassroomSessionView: View {
                     color: .blue
                 ) {
                     ensureTodayAttendanceSessionExists()
-                    showingAttendanceSheet = true
+                    openLiveSection(.attendance)
                 }
 
                 sessionActionButton(
@@ -353,7 +322,7 @@ struct ClassroomSessionView: View {
                     color: .teal,
                     disabled: classAssignments.isEmpty
                 ) {
-                    showingAssignmentsSheet = true
+                    openLiveSection(.assignments)
                 }
 
                 sessionActionButton(
@@ -361,7 +330,7 @@ struct ClassroomSessionView: View {
                     icon: "waveform.path.ecg.rectangle",
                     color: .indigo
                 ) {
-                    showingLiveCheckInSheet = true
+                    openLiveSection(.checkIn)
                 }
 
                 sessionActionButton(
@@ -369,7 +338,7 @@ struct ClassroomSessionView: View {
                     icon: "chair.fill",
                     color: .indigo
                 ) {
-                    showingSeatingChartSheet = true
+                    openLiveSection(.seating)
                 }
 
                 sessionActionButton(
@@ -474,7 +443,7 @@ struct ClassroomSessionView: View {
                 Button(todaysAttendanceSession == nil ? "Start".localized : "Open Full".localized) {
                     ensureTodayAttendanceSessionExists()
                     if todaysAttendanceSession != nil {
-                        showingAttendanceSheet = true
+                        openLiveSection(.attendance)
                     }
                 }
                 .buttonStyle(.bordered)
@@ -1265,9 +1234,11 @@ struct ClassroomSessionView: View {
 
     private func pickRandomStudent() {
         guard !orderedStudents.isEmpty else { return }
-        let candidates = orderedStudents.filter { $0.uuid != pickedStudentUUID }
-        let source = candidates.isEmpty ? orderedStudents : candidates
-        pickedStudentUUID = source.randomElement()?.uuid
+        let pickedStudent = StudentRandomizer.pickFairStudent(
+            from: orderedStudents,
+            scope: StudentRandomizer.generalScope(for: schoolClass)
+        )
+        pickedStudentUUID = pickedStudent?.uuid
     }
 
     private func placement(at coordinate: SessionSeatCoordinate) -> SeatingPlacement? {
@@ -1476,6 +1447,10 @@ struct ClassroomSessionView: View {
         }
         return student.needsHelp ? .red : .orange
     }
+
+    private func openLiveSection(_ section: LiveWorkspaceSection) {
+        onSelectLiveSection?(section)
+    }
 }
 
 private struct SessionSeatCoordinate: Identifiable, Hashable {
@@ -1483,4 +1458,32 @@ private struct SessionSeatCoordinate: Identifiable, Hashable {
     let column: Int
 
     var id: String { "\(row)-\(column)" }
+}
+
+private struct ClassroomSessionSheetMotionModifier: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.appSheetMotion()
+        } else {
+            content
+        }
+    }
+}
+
+private struct ClassroomSessionFrameModifier: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        if isEnabled {
+            content.frame(minWidth: 980, idealWidth: 1080, minHeight: 820, idealHeight: 900)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
 }

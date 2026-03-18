@@ -14,7 +14,9 @@ private let randomPickerSettingsKeys: [String] = [
     "lineLeaderRotation",
     "messengerRotation",
     "customCategoriesData",
-    "customRotationData"
+    "customRotationData",
+    RandomPickerDefaultsKeys.fairHistoryData,
+    RandomPickerDefaultsKeys.roleCycleData
 ]
 
 private enum TimerPreferenceKeys {
@@ -613,6 +615,8 @@ final class BackupManager {
             messengerRotation: defaults.string(forKey: "messengerRotation") ?? "",
             customCategoriesData: defaults.string(forKey: "customCategoriesData") ?? "",
             customRotationData: defaults.string(forKey: "customRotationData") ?? "",
+            randomPickerFairHistoryData: defaults.string(forKey: RandomPickerDefaultsKeys.fairHistoryData) ?? "",
+            randomPickerRoleCycleData: defaults.string(forKey: RandomPickerDefaultsKeys.roleCycleData) ?? "",
             dateFormat: defaults.string(forKey: AppPreferencesKeys.dateFormat) ?? AppDateFormatPreference.system.rawValue,
             timeFormat: defaults.string(forKey: AppPreferencesKeys.timeFormat) ?? AppTimeFormatPreference.system.rawValue,
             defaultLandingSection: defaults.string(forKey: AppPreferencesKeys.defaultLandingSection) ?? AppSection.dashboard.rawValue,
@@ -920,7 +924,9 @@ final class BackupManager {
             "lineLeaderRotation": settings.lineLeaderRotation,
             "messengerRotation": settings.messengerRotation,
             "customCategoriesData": settings.customCategoriesData,
-            "customRotationData": settings.customRotationData
+            "customRotationData": settings.customRotationData,
+            RandomPickerDefaultsKeys.fairHistoryData: settings.randomPickerFairHistoryData,
+            RandomPickerDefaultsKeys.roleCycleData: settings.randomPickerRoleCycleData
         ]
 
         for key in randomPickerSettingsKeys {

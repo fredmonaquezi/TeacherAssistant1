@@ -102,6 +102,56 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
         XCTAssertEqual(decodedPayload.appSettings?.attentionNotificationsEnabled, false)
         XCTAssertEqual(decodedPayload.appSettings?.attentionNotificationHour, 7)
         XCTAssertEqual(decodedPayload.appSettings?.attentionNotificationMinute, 30)
+        XCTAssertEqual(decodedPayload.appSettings?.randomPickerFairHistoryData, "")
+        XCTAssertEqual(decodedPayload.appSettings?.randomPickerRoleCycleData, "")
+    }
+
+    @MainActor
+    func testStudentRandomizerAvoidsImmediateRepeatsAcrossGeneralPicks() {
+        let testDefaults = makeRandomPickerDefaults()
+        defer { clearRandomPickerDefaults(testDefaults.suiteName) }
+
+        let schoolClass = SchoolClass(name: "Room 20", grade: "4")
+        let students = ["Avery", "Mia", "Noah"].enumerated().map { index, name -> Student in
+            let student = Student(name: name)
+            student.sortOrder = index
+            return student
+        }
+        schoolClass.students = students
+
+        let scope = StudentRandomizer.generalScope(for: schoolClass)
+        let first = StudentRandomizer.pickFairStudent(from: students, scope: scope, defaults: testDefaults.defaults)
+        let second = StudentRandomizer.pickFairStudent(from: students, scope: scope, defaults: testDefaults.defaults)
+
+        XCTAssertNotNil(first)
+        XCTAssertNotNil(second)
+        XCTAssertNotEqual(first?.stableIDString, second?.stableIDString)
+    }
+
+    @MainActor
+    func testStudentRandomizerCyclesRolePicksBeforeRepeatingStudents() {
+        let testDefaults = makeRandomPickerDefaults()
+        defer { clearRandomPickerDefaults(testDefaults.suiteName) }
+
+        let schoolClass = SchoolClass(name: "Room 21", grade: "5")
+        let students = ["Avery", "Mia", "Noah"].enumerated().map { index, name -> Student in
+            let student = Student(name: name)
+            student.sortOrder = index
+            return student
+        }
+        schoolClass.students = students
+
+        let scope = StudentRandomizer.roleScope(for: schoolClass, category: "Helper")
+        let first = StudentRandomizer.pickNextRoleStudent(from: students, scope: scope, defaults: testDefaults.defaults)
+        let second = StudentRandomizer.pickNextRoleStudent(from: students, scope: scope, defaults: testDefaults.defaults)
+        let third = StudentRandomizer.pickNextRoleStudent(from: students, scope: scope, defaults: testDefaults.defaults)
+
+        let pickedIDs = Set([first, second, third].compactMap { $0?.stableIDString })
+        XCTAssertEqual(pickedIDs.count, 3)
+
+        let state = StudentRandomizer.roleState(from: students, scope: scope, defaults: testDefaults.defaults)
+        XCTAssertTrue(state.availableIDs.isEmpty)
+        XCTAssertEqual(state.usedIDs.count, 3)
     }
 
     @MainActor
@@ -1264,6 +1314,20 @@ final class TeacherAssistantDurabilityTests: XCTestCase {
                 throw error
             }
         }
+    }
+
+    private func makeRandomPickerDefaults() -> (defaults: UserDefaults, suiteName: String) {
+        let suiteName = "TeacherAssistantDurabilityTests.RandomPicker.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated UserDefaults suite")
+            return (.standard, suiteName)
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        return (defaults, suiteName)
+    }
+
+    private func clearRandomPickerDefaults(_ suiteName: String) {
+        UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
     }
 
     private func preserveUserDefaults(for keys: [String]) -> [String: Any?] {

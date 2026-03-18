@@ -18,15 +18,18 @@ struct AppMotionContext: Equatable {
     let configuredProfile: AppMotionProfile
     let reduceMotionEnabled: Bool
     let prefersDesktopSpacing: Bool
+    let prefersLightweightScrollingEffects: Bool
 
     init(
         profile: AppMotionProfile = .full,
         reduceMotionEnabled: Bool = false,
-        prefersDesktopSpacing: Bool = false
+        prefersDesktopSpacing: Bool = false,
+        prefersLightweightScrollingEffects: Bool = false
     ) {
         self.configuredProfile = profile
         self.reduceMotionEnabled = reduceMotionEnabled
         self.prefersDesktopSpacing = prefersDesktopSpacing
+        self.prefersLightweightScrollingEffects = prefersLightweightScrollingEffects
     }
 
     var effectiveProfile: AppMotionProfile {
@@ -126,6 +129,9 @@ struct AppMotionContext: Equatable {
             if isReduced {
                 return .opacity
             }
+            if prefersLightweightScrollingEffects {
+                return .opacity
+            }
             if prefersDesktopSpacing {
                 return .asymmetric(
                     insertion: .opacity.combined(with: .scale(scale: 0.995)),
@@ -216,6 +222,10 @@ private struct AppMotionRevealModifier: ViewModifier {
             .offset(x: revealOffset.width, y: revealOffset.height)
             .onAppear {
                 guard !isVisible else { return }
+                guard !motion.prefersLightweightScrollingEffects else {
+                    isVisible = true
+                    return
+                }
                 let delay = motion.isReduced ? 0 : min(Double(index), 5) * 0.035
                 if delay == 0 {
                     withAnimation(motion.animation(.standard)) {

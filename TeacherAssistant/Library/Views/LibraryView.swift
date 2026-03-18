@@ -282,9 +282,7 @@ struct LibraryView: View {
         .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
             saveRefreshRevision &+= 1
         }
-        .animation(motion.animation(.standard), value: refreshToken)
         .animation(motion.animation(.standard), value: isSelecting)
-        .animation(motion.animation(.standard), value: searchText)
     }
 
     @ViewBuilder

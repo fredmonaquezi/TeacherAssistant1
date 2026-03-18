@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct TodayDashboardCard: View {
-    @Environment(\.modelContext) private var context
     @Environment(\.appMotionContext) private var motion
     @ObservedObject var timerManager: ClassroomTimerManager
     @Binding var selectedSection: AppSection?
@@ -13,212 +12,100 @@ struct TodayDashboardCard: View {
     @Query private var interventions: [Intervention]
     @Query private var calendarEvents: [CalendarEvent]
     @Query private var diaryEntries: [ClassDiaryEntry]
+    @State private var derivedData: TodayDashboardDerivedData = .empty
+    @State private var saveRefreshRevision = 0
 
     private let calendar = Calendar.current
 
-    private var startOfToday: Date {
-        calendar.startOfDay(for: Date())
-    }
-
-    private var startOfTomorrow: Date {
-        calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
-    }
-
-    private var nextWeekBoundary: Date {
-        calendar.date(byAdding: .day, value: 7, to: startOfToday) ?? startOfTomorrow
-    }
-
-    private var orderedClasses: [SchoolClass] {
-        classes.sorted { $0.sortOrder < $1.sortOrder }
-    }
-
     private var scheduleItems: [TodayScheduleItem] {
-        let eventItems = calendarEvents
-            .filter { calendar.isDate($0.date, inSameDayAs: startOfToday) }
-            .map { event in
-                TodayScheduleItem(
-                    title: event.title,
-                    detail: contextLine(
-                        className: event.schoolClass?.name,
-                        secondary: contextualDetail(
-                            primary: event.assignment?.title,
-                            secondary: event.details
-                        )
-                    ),
-                    timeLabel: formattedTimeRange(
-                        date: event.date,
-                        startTime: event.startTime,
-                        endTime: event.endTime,
-                        isAllDay: event.isAllDay
-                    ),
-                    sortDate: combinedDate(for: event.date, time: event.startTime),
-                    icon: event.isAllDay ? "calendar" : "clock",
-                    tint: .teal
-                )
-            }
-
-        let diaryItems = diaryEntries
-            .filter { calendar.isDate($0.date, inSameDayAs: startOfToday) }
-            .map { entry in
-                TodayScheduleItem(
-                    title: firstNonEmpty(entry.plan, fallback: "Class Diary".localized),
-                    detail: contextLine(
-                        className: entry.schoolClass?.name,
-                        secondary: contextualDetail(
-                            primary: entry.assignment?.title,
-                            secondary: entry.subject?.name ?? entry.unit?.name ?? entry.notes
-                        )
-                    ),
-                    timeLabel: formattedTimeRange(
-                        date: entry.date,
-                        startTime: entry.startTime,
-                        endTime: entry.endTime,
-                        isAllDay: false,
-                        fallback: "Planned class".localized
-                    ),
-                    sortDate: combinedDate(for: entry.date, time: entry.startTime),
-                    icon: "text.book.closed",
-                    tint: .orange
-                )
-            }
-
-        return (eventItems + diaryItems).sorted { lhs, rhs in
-            if lhs.sortDate != rhs.sortDate {
-                return lhs.sortDate < rhs.sortDate
-            }
-            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        derivedData.scheduleItems.map {
+            TodayScheduleItem(
+                title: $0.title,
+                detail: $0.detail,
+                timeLabel: $0.timeLabel,
+                sortDate: $0.sortDate,
+                icon: $0.icon,
+                tint: $0.isAllDay ? .teal : color(for: $0.icon)
+            )
         }
     }
 
     private var classesNeedingAttendance: [SchoolClass] {
-        orderedClasses.filter { schoolClass in
-            !schoolClass.attendanceSessions.contains { session in
-                calendar.isDate(session.date, inSameDayAs: startOfToday)
-            }
-        }
+        derivedData.classesNeedingAttendance
     }
 
     private var backlogItems: [TodayBacklogItem] {
-        assessments
-            .compactMap { assessment in
-                let remainingCount = assessment.results.count - assessment.results.filter(\.isResolved).count
-                guard remainingCount > 0 else { return nil }
-
-                return TodayBacklogItem(
-                    assessment: assessment,
-                    remainingCount: remainingCount,
-                    className: assessment.unit?.subject?.schoolClass?.name ?? "",
-                    unitName: assessment.unit?.name ?? ""
-                )
-            }
-            .sorted { lhs, rhs in
-                if lhs.remainingCount != rhs.remainingCount {
-                    return lhs.remainingCount > rhs.remainingCount
-                }
-                if lhs.assessment.date != rhs.assessment.date {
-                    return lhs.assessment.date < rhs.assessment.date
-                }
-                return lhs.assessment.title.localizedCaseInsensitiveCompare(rhs.assessment.title) == .orderedAscending
-            }
+        derivedData.backlogItems.map {
+            TodayBacklogItem(
+                assessment: $0.assessment,
+                remainingCount: $0.remainingCount,
+                className: $0.className,
+                unitName: $0.unitName
+            )
+        }
     }
 
     private var upcomingAssessments: [Assessment] {
-        assessments
-            .filter { $0.date >= startOfToday && $0.date < nextWeekBoundary }
-            .sorted { lhs, rhs in
-                if lhs.date != rhs.date {
-                    return lhs.date < rhs.date
-                }
-                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-            }
+        derivedData.upcomingAssessments
     }
 
     private var pendingGradesCount: Int {
-        assessments.reduce(0) { partialResult, assessment in
-            partialResult + max(assessment.results.count - assessment.results.filter(\.isResolved).count, 0)
-        }
+        derivedData.pendingGradesCount
     }
 
     private var assignmentItems: [TodayAssignmentItem] {
-        assignments
-            .compactMap { assignment in
-                let progress = assignment.progressSummary()
-                let outstandingCount = progress.pendingCount + progress.missingCount
-
-                guard outstandingCount > 0 else { return nil }
-                guard assignment.dueDate < nextWeekBoundary else { return nil }
-
-                return TodayAssignmentItem(
-                    assignment: assignment,
-                    pendingCount: progress.pendingCount,
-                    missingCount: progress.missingCount,
-                    className: assignment.unit?.subject?.schoolClass?.name ?? "",
-                    unitName: assignment.unit?.name ?? "",
-                    isOverdue: assignment.dueDate < startOfToday,
-                    dueLabel: assignmentDueLabel(for: assignment.dueDate)
-                )
-            }
-            .sorted { lhs, rhs in
-                if lhs.isOverdue != rhs.isOverdue {
-                    return lhs.isOverdue && !rhs.isOverdue
-                }
-                if lhs.missingCount != rhs.missingCount {
-                    return lhs.missingCount > rhs.missingCount
-                }
-                if lhs.assignment.dueDate != rhs.assignment.dueDate {
-                    return lhs.assignment.dueDate < rhs.assignment.dueDate
-                }
-                return lhs.assignment.title.localizedCaseInsensitiveCompare(rhs.assignment.title) == .orderedAscending
-            }
-    }
-
-    private var dueSoonAssignmentsCount: Int {
-        assignmentItems.filter { !$0.isOverdue }.count
-    }
-
-    private var missingAssignmentsCount: Int {
-        assignmentItems.reduce(0) { partialResult, item in
-            partialResult + item.missingCount
+        derivedData.assignmentItems.map {
+            TodayAssignmentItem(
+                assignment: $0.assignment,
+                pendingCount: $0.pendingCount,
+                missingCount: $0.missingCount,
+                className: $0.className,
+                unitName: $0.unitName,
+                isOverdue: $0.isOverdue,
+                dueLabel: $0.dueLabel
+            )
         }
     }
 
-    private var interventionItems: [TodayInterventionItem] {
-        interventions
-            .compactMap { intervention in
-                guard intervention.status != .resolved else { return nil }
-                guard let followUpDate = intervention.followUpDate else { return nil }
-                guard followUpDate < nextWeekBoundary else { return nil }
-                guard let student = intervention.student else { return nil }
+    private var dueSoonAssignmentsCount: Int {
+        derivedData.dueSoonAssignmentsCount
+    }
 
-                return TodayInterventionItem(
-                    intervention: intervention,
-                    student: student,
-                    followUpDate: followUpDate,
-                    className: student.schoolClass?.name ?? "",
-                    isOverdue: followUpDate < startOfToday,
-                    dueLabel: interventionFollowUpLabel(for: followUpDate)
-                )
-            }
-            .sorted { lhs, rhs in
-                if lhs.isOverdue != rhs.isOverdue {
-                    return lhs.isOverdue && !rhs.isOverdue
-                }
-                if lhs.followUpDate != rhs.followUpDate {
-                    return lhs.followUpDate < rhs.followUpDate
-                }
-                if lhs.intervention.status != rhs.intervention.status {
-                    return lhs.intervention.status == .open
-                }
-                return lhs.student.name.localizedCaseInsensitiveCompare(rhs.student.name) == .orderedAscending
-            }
+    private var missingAssignmentsCount: Int {
+        derivedData.missingAssignmentsCount
+    }
+
+    private var interventionItems: [TodayInterventionItem] {
+        derivedData.interventionItems.map {
+            TodayInterventionItem(
+                intervention: $0.intervention,
+                student: $0.student,
+                followUpDate: $0.followUpDate,
+                className: $0.className,
+                isOverdue: $0.isOverdue,
+                dueLabel: $0.dueLabel
+            )
+        }
     }
 
     private var followUpsCount: Int {
-        interventionItems.count
+        derivedData.followUpsCount
     }
 
     private var overdueFollowUpsCount: Int {
-        interventionItems.filter { $0.isOverdue }.count
+        derivedData.overdueFollowUpsCount
+    }
+
+    private var refreshToken: String {
+        [
+            String(classes.count),
+            String(assessments.count),
+            String(assignments.count),
+            String(interventions.count),
+            String(calendarEvents.count),
+            String(diaryEntries.count),
+            String(saveRefreshRevision),
+        ].joined(separator: "|")
     }
 
     private var focusActions: [TodayQuickActionItem] {
@@ -362,13 +249,16 @@ struct TodayDashboardCard: View {
             tint: .teal
         )
         .padding(.horizontal)
-        .animation(motion.animation(.standard), value: scheduleItems.count)
-        .animation(motion.animation(.standard), value: classesNeedingAttendance.count)
-        .animation(motion.animation(.standard), value: pendingGradesCount)
-        .animation(motion.animation(.standard), value: assignmentItems.count)
-        .animation(motion.animation(.standard), value: interventionItems.count)
-        .onAppear {
-            syncAssignmentEntries()
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
+            saveRefreshRevision &+= 1
+        }
+        .task(id: refreshToken) {
+            do {
+                try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+            } catch {
+                return
+            }
+            await refreshDerivedData()
         }
     }
 
@@ -963,95 +853,33 @@ struct TodayDashboardCard: View {
             )
     }
 
-    private func combinedDate(for date: Date, time: Date?) -> Date {
-        guard let time else { return date }
-        let hour = calendar.component(.hour, from: time)
-        let minute = calendar.component(.minute, from: time)
-        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+    private func color(for icon: String) -> Color {
+        switch icon {
+        case "text.book.closed":
+            return .orange
+        case "clock":
+            return .teal
+        default:
+            return .teal
+        }
     }
 
-    private func formattedTimeRange(
-        date: Date,
-        startTime: Date?,
-        endTime: Date?,
-        isAllDay: Bool,
-        fallback: String = "Any time".localized
-    ) -> String {
-        if isAllDay {
-            return "All day".localized
+    private func refreshDerivedData() async {
+        let token = await PerformanceMonitor.shared.beginInterval(.dashboardDerive)
+        let derived = await TodayDashboardStore.deriveAsync(
+            classes: classes,
+            assessments: assessments,
+            assignments: assignments,
+            interventions: interventions,
+            calendarEvents: calendarEvents,
+            diaryEntries: diaryEntries
+        )
+        guard !Task.isCancelled else {
+            await PerformanceMonitor.shared.endInterval(token, success: false)
+            return
         }
-        if let startTime, let endTime {
-            let start = combinedDate(for: date, time: startTime)
-            let end = combinedDate(for: date, time: endTime)
-            return "\(start.appTimeString(systemStyle: .short)) - \(end.appTimeString(systemStyle: .short))"
-        }
-        if let startTime {
-            return combinedDate(for: date, time: startTime).appTimeString(systemStyle: .short)
-        }
-        return fallback
-    }
-
-    private func contextLine(className: String?, secondary: String?) -> String {
-        [className, cleanedSnippet(secondary)]
-            .compactMap { value in
-                guard let value, !value.isEmpty else { return nil }
-                return value
-            }
-            .joined(separator: " • ")
-    }
-
-    private func cleanedSnippet(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        if trimmed.count <= 48 {
-            return trimmed
-        }
-        return String(trimmed.prefix(45)) + "..."
-    }
-
-    private func contextualDetail(primary: String?, secondary: String?) -> String? {
-        [cleanedSnippet(primary), cleanedSnippet(secondary)]
-            .compactMap { $0 }
-            .joined(separator: " • ")
-    }
-
-    private func firstNonEmpty(_ value: String, fallback: String) -> String {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? fallback : trimmed
-    }
-
-    private func assignmentDueLabel(for dueDate: Date) -> String {
-        if dueDate < startOfToday {
-            return "Overdue".localized
-        }
-        if calendar.isDate(dueDate, inSameDayAs: startOfToday) {
-            return "Due Today".localized
-        }
-        if calendar.isDate(dueDate, inSameDayAs: startOfTomorrow) {
-            return "Due Tomorrow".localized
-        }
-        return "Due Soon".localized
-    }
-
-    private func interventionFollowUpLabel(for followUpDate: Date) -> String {
-        if followUpDate < startOfToday {
-            return "Overdue".localized
-        }
-        if calendar.isDate(followUpDate, inSameDayAs: startOfToday) {
-            return "Today".localized
-        }
-        if calendar.isDate(followUpDate, inSameDayAs: startOfTomorrow) {
-            return "Tomorrow".localized
-        }
-        return "This Week".localized
-    }
-
-    private func syncAssignmentEntries() {
-        for assignment in assignments {
-            guard let classStudents = assignment.unit?.subject?.schoolClass?.students else { continue }
-            assignment.ensureEntries(for: classStudents, context: context)
-        }
+        derivedData = derived
+        await PerformanceMonitor.shared.endInterval(token, success: true)
     }
 }
 

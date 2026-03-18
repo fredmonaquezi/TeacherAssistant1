@@ -183,7 +183,6 @@ struct StudentDetailView: View {
             await refreshDerivedData()
         }
         .macNavigationDepth()
-        .animation(motion.animation(.standard), value: refreshToken)
     }
     
     // MARK: - Quick Status Bar

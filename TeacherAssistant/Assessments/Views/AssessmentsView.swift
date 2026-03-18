@@ -157,7 +157,7 @@ struct AssessmentsView: View {
         #if os(macOS)
         content
         #else
-        NavigationStack {
+        SectionNavigationContainer {
             content
         }
         #endif
@@ -184,9 +184,6 @@ struct AssessmentsView: View {
         #if !os(macOS)
         .navigationTitle("Assessments".localized)
         #endif
-        .animation(motion.animation(.standard), value: selectedClassID)
-        .animation(motion.animation(.standard), value: selectedStatus)
-        .animation(motion.animation(.standard), value: searchText)
     }
 
     private var heroCard: some View {

@@ -27,11 +27,9 @@ struct DashboardView: View {
 
     var body: some View {
         #if os(macOS)
-        // macOS: No NavigationStack needed, header navigation handles it
         dashboardContent
         #else
-        // iOS: Keep NavigationStack for proper navigation
-        NavigationStack {
+        SectionNavigationContainer {
             dashboardContent
         }
         #endif
@@ -56,7 +54,6 @@ struct DashboardView: View {
                 .padding(.bottom)
                 .transition(motion.transition(.overlay))
         }
-        .id(languageManager.currentLanguage) // 🔄 Force refresh when language changes
         #if !os(macOS)
         .navigationTitle("Dashboard".localized)
         #endif

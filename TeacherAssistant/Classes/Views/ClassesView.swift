@@ -20,11 +20,9 @@ struct ClassesView: View {
     
     var body: some View {
         #if os(macOS)
-        // macOS: No NavigationStack needed, header navigation handles it
         classesContent
         #else
-        // iOS: Keep NavigationStack for proper navigation
-        NavigationStack {
+        SectionNavigationContainer {
             classesContent
         }
         #endif
@@ -157,7 +155,6 @@ struct ClassesView: View {
             AddClassView(editingClass: schoolClass)
                 .appSheetMotion()
         }
-        .animation(motion.animation(.standard), value: classes.map(\.id))
         .alert("Delete Class?".localized, isPresented: $showingDeleteAlert) {
             Button("Cancel".localized, role: .cancel) {
                 classToDelete = nil

@@ -110,7 +110,7 @@ struct RunningRecordsView: View {
         #if os(macOS)
         runningRecordsContent
         #else
-        NavigationStack {
+        SectionNavigationContainer {
             runningRecordsContent
         }
         #endif
@@ -255,7 +255,6 @@ struct RunningRecordsView: View {
                 self.selectedStudent = nil
             }
         }
-        .animation(motion.animation(.standard), value: refreshToken)
     }
 
     var headerStatsView: some View {

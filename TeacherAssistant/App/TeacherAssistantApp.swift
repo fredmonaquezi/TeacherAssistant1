@@ -29,6 +29,13 @@ struct TeacherAssistantApp: App {
                 .task {
                     let token = await PerformanceMonitor.shared.beginInterval(.appLaunch)
                     await initializeDefaultRubrics(in: activeContainer)
+                    let syncedAssignments = AssignmentEntryMaintenanceService.syncAllAssignments(context: activeContainer.mainContext)
+                    if syncedAssignments > 0 {
+                        _ = await PersistenceWriteCoordinator.shared.perform(
+                            context: activeContainer.mainContext,
+                            reason: "Assignment entry maintenance"
+                        )
+                    }
                     await PerformanceMonitor.shared.endInterval(token, success: true)
                 }
                 .modelContainer(activeContainer)

@@ -604,6 +604,8 @@ struct BackupAppSettings: Codable {
     var messengerRotation: String
     var customCategoriesData: String
     var customRotationData: String
+    var randomPickerFairHistoryData: String
+    var randomPickerRoleCycleData: String
     var dateFormat: String
     var timeFormat: String
     var defaultLandingSection: String
@@ -624,6 +626,8 @@ struct BackupAppSettings: Codable {
         messengerRotation: String,
         customCategoriesData: String,
         customRotationData: String,
+        randomPickerFairHistoryData: String,
+        randomPickerRoleCycleData: String,
         dateFormat: String,
         timeFormat: String,
         defaultLandingSection: String,
@@ -643,6 +647,8 @@ struct BackupAppSettings: Codable {
         self.messengerRotation = messengerRotation
         self.customCategoriesData = customCategoriesData
         self.customRotationData = customRotationData
+        self.randomPickerFairHistoryData = randomPickerFairHistoryData
+        self.randomPickerRoleCycleData = randomPickerRoleCycleData
         self.dateFormat = dateFormat
         self.timeFormat = timeFormat
         self.defaultLandingSection = defaultLandingSection
@@ -664,6 +670,8 @@ struct BackupAppSettings: Codable {
         case messengerRotation
         case customCategoriesData
         case customRotationData
+        case randomPickerFairHistoryData
+        case randomPickerRoleCycleData
         case dateFormat
         case timeFormat
         case defaultLandingSection
@@ -686,6 +694,8 @@ struct BackupAppSettings: Codable {
         messengerRotation = try container.decodeIfPresent(String.self, forKey: .messengerRotation) ?? ""
         customCategoriesData = try container.decodeIfPresent(String.self, forKey: .customCategoriesData) ?? ""
         customRotationData = try container.decodeIfPresent(String.self, forKey: .customRotationData) ?? ""
+        randomPickerFairHistoryData = try container.decodeIfPresent(String.self, forKey: .randomPickerFairHistoryData) ?? ""
+        randomPickerRoleCycleData = try container.decodeIfPresent(String.self, forKey: .randomPickerRoleCycleData) ?? ""
         dateFormat = try container.decodeIfPresent(String.self, forKey: .dateFormat) ?? AppDateFormatPreference.system.rawValue
         timeFormat = try container.decodeIfPresent(String.self, forKey: .timeFormat) ?? AppTimeFormatPreference.system.rawValue
         defaultLandingSection = try container.decodeIfPresent(String.self, forKey: .defaultLandingSection) ?? AppSection.dashboard.rawValue

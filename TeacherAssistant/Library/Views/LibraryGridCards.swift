@@ -626,6 +626,7 @@ struct PDFCardView: View {
     @State private var editingName: String = ""
     @State private var thumbnail: PlatformImage?
     @State private var thumbnailRequestToken: String = ""
+    @State private var thumbnailRequestID: UUID?
     @FocusState private var isTextFieldFocused: Bool
     @Environment(\.modelContext) private var context
     @Environment(\.appMotionContext) private var motion
@@ -730,6 +731,9 @@ struct PDFCardView: View {
             .onChange(of: thumbnailReloadToken) { _, _ in
                 loadThumbnail(resetCurrentValue: true)
             }
+            .onDisappear {
+                cancelThumbnailRequest()
+            }
             
             // File Name (editable)
             if isRenaming {
@@ -828,6 +832,8 @@ struct PDFCardView: View {
             thumbnail = nil
         }
 
+        cancelThumbnailRequest()
+
         let token = thumbnailReloadToken
         thumbnailRequestToken = token
 
@@ -840,7 +846,7 @@ struct PDFCardView: View {
             return
         }
 
-        LibraryPDFThumbnailCache.requestThumbnail(
+        thumbnailRequestID = LibraryPDFThumbnailCache.requestThumbnail(
             fileID: file.id,
             pdfData: file.pdfData,
             size: thumbnailSize
@@ -848,6 +854,11 @@ struct PDFCardView: View {
             guard thumbnailRequestToken == token else { return }
             thumbnail = rendered
         }
+    }
+
+    private func cancelThumbnailRequest() {
+        LibraryPDFThumbnailCache.cancelRequest(thumbnailRequestID)
+        thumbnailRequestID = nil
     }
 }
 
@@ -941,6 +952,7 @@ struct SelectablePDFCard: View {
     
     @State private var thumbnail: PlatformImage?
     @State private var thumbnailRequestToken: String = ""
+    @State private var thumbnailRequestID: UUID?
     private let thumbnailSize = CGSize(width: 180, height: 200)
     @Environment(\.appMotionContext) private var motion
     private var thumbnailReloadToken: String {
@@ -1025,12 +1037,17 @@ struct SelectablePDFCard: View {
         .onChange(of: thumbnailReloadToken) { _, _ in
             loadThumbnail(resetCurrentValue: true)
         }
+        .onDisappear {
+            cancelThumbnailRequest()
+        }
     }
 
     private func loadThumbnail(resetCurrentValue: Bool) {
         if resetCurrentValue {
             thumbnail = nil
         }
+
+        cancelThumbnailRequest()
 
         let token = thumbnailReloadToken
         thumbnailRequestToken = token
@@ -1044,7 +1061,7 @@ struct SelectablePDFCard: View {
             return
         }
 
-        LibraryPDFThumbnailCache.requestThumbnail(
+        thumbnailRequestID = LibraryPDFThumbnailCache.requestThumbnail(
             fileID: file.id,
             pdfData: file.pdfData,
             size: thumbnailSize
@@ -1052,5 +1069,10 @@ struct SelectablePDFCard: View {
             guard thumbnailRequestToken == token else { return }
             thumbnail = rendered
         }
+    }
+
+    private func cancelThumbnailRequest() {
+        LibraryPDFThumbnailCache.cancelRequest(thumbnailRequestID)
+        thumbnailRequestID = nil
     }
 }

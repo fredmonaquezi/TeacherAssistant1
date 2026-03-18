@@ -27,6 +27,7 @@ struct LiveCheckInView: View {
     @Bindable var schoolClass: SchoolClass
     let source: LiveObservationSource
     let showsDismissButton: Bool
+    let embeddedInLiveWorkspace: Bool
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -49,11 +50,13 @@ struct LiveCheckInView: View {
     init(
         schoolClass: SchoolClass,
         source: LiveObservationSource,
-        showsDismissButton: Bool = false
+        showsDismissButton: Bool = false,
+        embeddedInLiveWorkspace: Bool = false
     ) {
         self.schoolClass = schoolClass
         self.source = source
         self.showsDismissButton = showsDismissButton
+        self.embeddedInLiveWorkspace = embeddedInLiveWorkspace
     }
 
     private var orderedStudents: [Student] {
@@ -195,6 +198,10 @@ struct LiveCheckInView: View {
     }
 
     var body: some View {
+        bodyPresentation
+    }
+
+    private var contentBody: some View {
         ScrollView {
             VStack(spacing: PlatformSpacing.sectionSpacing) {
                 headerCard
@@ -207,28 +214,6 @@ struct LiveCheckInView: View {
                     .appMotionReveal(index: 3)
             }
             .padding(.vertical, 20)
-        }
-        .navigationTitle("Live Check-In".localized)
-        .appSheetMotion()
-        .toolbar {
-            if showsDismissButton {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close".localized) {
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .sheet(item: $selectedStudent) { student in
-            NavigationStack {
-                LiveCheckInObservationEntrySheet(
-                    student: student,
-                    criteria: activeCriteria,
-                    previousObservation: latestObservationByStudentUUID[student.uuid]
-                ) { payload in
-                    saveObservation(for: student, payload: payload)
-                }
-            }
         }
         .sheet(isPresented: $showingTemplateManager) {
             NavigationStack {
@@ -250,11 +235,69 @@ struct LiveCheckInView: View {
             }
         }
         .animation(motion.animation(.standard), value: selectedFilter)
-        .animation(motion.animation(.emphasis), value: todaysObservations.count)
-        .animation(motion.animation(.standard), value: sessionExtraCriteria.count)
         .animation(motion.animation(.quick), value: selectedTemplateID)
         .animation(motion.animation(.quick), value: feedbackBanner?.id)
         .macNavigationDepth()
+    }
+
+    @ViewBuilder
+    private var bodyPresentation: some View {
+        if embeddedInLiveWorkspace {
+            contentBody
+                .navigationTitle("Live Check-In".localized)
+                .toolbar {
+                    if showsDismissButton {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close".localized) {
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+                .navigationDestination(item: $selectedStudent) { student in
+                    LiveCheckInObservationEntryView(
+                        student: student,
+                        criteria: activeCriteria,
+                        previousObservation: latestObservationByStudentUUID[student.uuid],
+                        nextStudent: nextStudent(after: student),
+                        showsExplicitCancelButton: false,
+                        prefersSheetPresentation: false
+                    ) { payload in
+                        saveObservation(for: student, payload: payload)
+                    } onSaveAndAdvance: { payload, nextStudent in
+                        saveObservation(for: student, payload: payload)
+                        selectedStudent = nextStudent
+                    }
+                }
+        } else {
+            contentBody
+                .navigationTitle("Live Check-In".localized)
+                .toolbar {
+                    if showsDismissButton {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close".localized) {
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+                .modifier(LiveCheckInSheetMotionModifier(isEnabled: true))
+                .sheet(item: $selectedStudent) { student in
+                    NavigationStack {
+                        LiveCheckInObservationEntryView(
+                            student: student,
+                            criteria: activeCriteria,
+                            previousObservation: latestObservationByStudentUUID[student.uuid],
+                            nextStudent: nextStudent(after: student)
+                        ) { payload in
+                            saveObservation(for: student, payload: payload)
+                        } onSaveAndAdvance: { payload, nextStudent in
+                            saveObservation(for: student, payload: payload)
+                            selectedStudent = nextStudent
+                        }
+                    }
+                }
+        }
     }
 
     private var headerCard: some View {
@@ -839,7 +882,6 @@ struct LiveCheckInView: View {
                 .transition(motion.transition(.inlineChange))
             }
         }
-        .animation(motion.animation(.standard), value: students.map(\.uuid))
     }
 
     private var recentObservationsCard: some View {
@@ -1039,6 +1081,18 @@ struct LiveCheckInView: View {
             return true
         }
         return observation.checklistResponses.contains { $0.level == .needsSupport }
+    }
+
+    private func nextStudent(after student: Student) -> Student? {
+        guard let currentIndex = filteredStudents.firstIndex(where: { $0.uuid == student.uuid }) else {
+            return nil
+        }
+
+        let nextIndex = filteredStudents.index(after: currentIndex)
+        guard filteredStudents.indices.contains(nextIndex) else {
+            return nil
+        }
+        return filteredStudents[nextIndex]
     }
 
     private func saveObservation(
@@ -1314,11 +1368,15 @@ private struct LiveCheckInSeatCard: View {
     }
 }
 
-private struct LiveCheckInObservationEntrySheet: View {
+private struct LiveCheckInObservationEntryView: View {
     let student: Student
     let criteria: [LiveCheckInCriterionDefinition]
     let previousObservation: LiveObservation?
+    let nextStudent: Student?
+    let showsExplicitCancelButton: Bool
+    let prefersSheetPresentation: Bool
     let onSave: (LiveCheckInObservationPayload) -> Void
+    let onSaveAndAdvance: ((LiveCheckInObservationPayload, Student) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -1333,12 +1391,20 @@ private struct LiveCheckInObservationEntrySheet: View {
         student: Student,
         criteria: [LiveCheckInCriterionDefinition],
         previousObservation: LiveObservation?,
-        onSave: @escaping (LiveCheckInObservationPayload) -> Void
+        nextStudent: Student? = nil,
+        showsExplicitCancelButton: Bool = true,
+        prefersSheetPresentation: Bool = true,
+        onSave: @escaping (LiveCheckInObservationPayload) -> Void,
+        onSaveAndAdvance: ((LiveCheckInObservationPayload, Student) -> Void)? = nil
     ) {
         self.student = student
         self.criteria = criteria
         self.previousObservation = previousObservation
+        self.nextStudent = nextStudent
+        self.showsExplicitCancelButton = showsExplicitCancelButton
+        self.prefersSheetPresentation = prefersSheetPresentation
         self.onSave = onSave
+        self.onSaveAndAdvance = onSaveAndAdvance
         _understandingLevel = State(initialValue: previousObservation?.understandingLevel ?? .developing)
         _engagementLevel = State(initialValue: previousObservation?.engagementLevel ?? .developing)
         _supportLevel = State(initialValue: previousObservation?.supportLevel ?? .developing)
@@ -1368,36 +1434,48 @@ private struct LiveCheckInObservationEntrySheet: View {
             }
             .padding(20)
         }
-        .frame(minWidth: 720, minHeight: 680)
         .navigationTitle("Check-In".localized)
-        .appSheetMotion()
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel".localized) {
-                    dismiss()
+            if showsExplicitCancelButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel".localized) {
+                        dismiss()
+                    }
                 }
             }
 
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save".localized) {
-                    onSave(
-                        LiveCheckInObservationPayload(
-                            understandingLevel: understandingLevel,
-                            engagementLevel: engagementLevel,
-                            supportLevel: supportLevel,
-                            note: note,
-                            checklistResponses: criteria.map { criterion in
-                                LiveCheckInChecklistResponsePayload(
-                                    criterionTitle: criterion.title,
-                                    level: checklistLevels[criterion.title] ?? .developing
-                                )
-                            }
-                        )
-                    )
+                    onSave(makePayload())
                     dismiss()
                 }
             }
+
+            if let nextStudent, let onSaveAndAdvance {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Save & Next".localized) {
+                        onSaveAndAdvance(makePayload(), nextStudent)
+                    }
+                }
+            }
         }
+        .modifier(LiveCheckInSheetMotionModifier(isEnabled: prefersSheetPresentation))
+        .modifier(LiveCheckInObservationFrameModifier(isEnabled: prefersSheetPresentation))
+    }
+
+    private func makePayload() -> LiveCheckInObservationPayload {
+        LiveCheckInObservationPayload(
+            understandingLevel: understandingLevel,
+            engagementLevel: engagementLevel,
+            supportLevel: supportLevel,
+            note: note,
+            checklistResponses: criteria.map { criterion in
+                LiveCheckInChecklistResponsePayload(
+                    criterionTitle: criterion.title,
+                    level: checklistLevels[criterion.title] ?? .developing
+                )
+            }
+        )
     }
 
     private var studentSummaryCard: some View {
@@ -2547,4 +2625,32 @@ private struct LiveCheckInSeatCoordinate: Identifiable, Hashable {
     let column: Int
 
     var id: String { "\(row)-\(column)" }
+}
+
+private struct LiveCheckInSheetMotionModifier: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.appSheetMotion()
+        } else {
+            content
+        }
+    }
+}
+
+private struct LiveCheckInObservationFrameModifier: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        if isEnabled {
+            content.frame(minWidth: 720, minHeight: 680)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
 }

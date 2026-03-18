@@ -13,11 +13,7 @@ struct ClassDetailView: View {
     @State private var showingCategories = false
     @State private var pickedStudent: Student?
     @State private var showingGroupGenerator = false
-    @State private var showingAttendance = false
-    @State private var showingAssignments = false
-    @State private var showingSeatingChart = false
-    @State private var showingClassroomSession = false
-    @State private var showingLiveCheckIn = false
+    @State private var liveWorkspaceSection: LiveWorkspaceSection?
     
     @State private var studentToDelete: Student?
     @State private var subjectToDelete: Subject?
@@ -63,27 +59,27 @@ struct ClassDetailView: View {
                     .disabled(schoolClass.students.isEmpty)
                     
                     Button("📋 " + "Take Attendance".localized) {
-                        showingAttendance = true
+                        openLiveWorkspace(.attendance)
                     }
                     .disabled(schoolClass.students.isEmpty)
 
                     Button("🎯 " + "Classroom Session".localized) {
-                        showingClassroomSession = true
+                        openLiveWorkspace(.session)
                     }
                     .disabled(schoolClass.students.isEmpty)
 
                     Button("📍 " + "Live Check-In".localized) {
-                        showingLiveCheckIn = true
+                        openLiveWorkspace(.checkIn)
                     }
                     .disabled(schoolClass.students.isEmpty)
 
                     Button("🪑 " + "Seating Chart".localized) {
-                        showingSeatingChart = true
+                        openLiveWorkspace(.seating)
                     }
                     .disabled(schoolClass.students.isEmpty)
 
                     Button("📝 " + "Assignments".localized) {
-                        showingAssignments = true
+                        openLiveWorkspace(.assignments)
                     }
                     .disabled(schoolClass.subjects.flatMap(\.units).isEmpty)
                     
@@ -138,76 +134,12 @@ struct ClassDetailView: View {
                 .appSheetMotion()
             #endif
         }
-        .sheet(isPresented: $showingAttendance) {
-            #if os(macOS)
-            NavigationStack {
-                AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
-                    .appSheetMotion()
-            }
-            #else
-            AttendanceListView(schoolClass: schoolClass, showsDismissButton: true)
-                .appSheetMotion()
-            #endif
-        }
-        .sheet(isPresented: $showingClassroomSession) {
-            #if os(macOS)
-            NavigationStack {
-                ClassroomSessionView(
-                    schoolClass: schoolClass,
-                    timerManager: timerManager,
-                    showsDismissButton: true
-                )
-                .appSheetMotion()
-            }
-            #else
-            ClassroomSessionView(
+        .navigationDestination(item: $liveWorkspaceSection) { section in
+            LiveWorkspaceView(
                 schoolClass: schoolClass,
                 timerManager: timerManager,
-                showsDismissButton: true
+                initialSection: section
             )
-            .appSheetMotion()
-            #endif
-        }
-        .sheet(isPresented: $showingAssignments) {
-            #if os(macOS)
-            NavigationStack {
-                ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
-                    .appSheetMotion()
-            }
-            #else
-            ClassAssignmentsView(schoolClass: schoolClass, showsDismissButton: true)
-                .appSheetMotion()
-            #endif
-        }
-        .sheet(isPresented: $showingSeatingChart) {
-            #if os(macOS)
-            NavigationStack {
-                SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
-                    .appSheetMotion()
-            }
-            #else
-            SeatingChartView(schoolClass: schoolClass, showsDismissButton: true)
-                .appSheetMotion()
-            #endif
-        }
-        .sheet(isPresented: $showingLiveCheckIn) {
-            #if os(macOS)
-            NavigationStack {
-                LiveCheckInView(
-                    schoolClass: schoolClass,
-                    source: .standaloneTool,
-                    showsDismissButton: true
-                )
-                .appSheetMotion()
-            }
-            #else
-            LiveCheckInView(
-                schoolClass: schoolClass,
-                source: .standaloneTool,
-                showsDismissButton: true
-            )
-            .appSheetMotion()
-            #endif
         }
         .alert("Delete Student?".localized, isPresented: $showingDeleteStudentAlert) {
             Button("Cancel".localized, role: .cancel) {
@@ -246,8 +178,6 @@ struct ClassDetailView: View {
             }
         }
         .macNavigationDepth()
-        .animation(motion.animation(.standard), value: schoolClass.students.map(\.id))
-        .animation(motion.animation(.standard), value: schoolClass.subjects.map(\.id))
     }
 
     var orderedStudents: [Student] {
@@ -373,7 +303,7 @@ struct ClassDetailView: View {
                     color: .blue,
                     disabled: schoolClass.students.isEmpty
                 ) {
-                    showingAttendance = true
+                    openLiveWorkspace(.attendance)
                 }
 
                 quickActionButton(
@@ -382,7 +312,7 @@ struct ClassDetailView: View {
                     color: .red,
                     disabled: schoolClass.students.isEmpty
                 ) {
-                    showingClassroomSession = true
+                    openLiveWorkspace(.session)
                 }
 
                 quickActionButton(
@@ -391,7 +321,7 @@ struct ClassDetailView: View {
                     color: .indigo,
                     disabled: schoolClass.students.isEmpty
                 ) {
-                    showingLiveCheckIn = true
+                    openLiveWorkspace(.checkIn)
                 }
 
                 quickActionButton(
@@ -400,7 +330,7 @@ struct ClassDetailView: View {
                     color: .indigo,
                     disabled: schoolClass.students.isEmpty
                 ) {
-                    showingSeatingChart = true
+                    openLiveWorkspace(.seating)
                 }
 
                 quickActionButton(
@@ -409,7 +339,7 @@ struct ClassDetailView: View {
                     color: .teal,
                     disabled: schoolClass.subjects.flatMap(\.units).isEmpty
                 ) {
-                    showingAssignments = true
+                    openLiveWorkspace(.assignments)
                 }
             }
         }
@@ -447,6 +377,10 @@ struct ClassDetailView: View {
         }
         .buttonStyle(AppPressableButtonStyle())
         .disabled(disabled)
+    }
+
+    private func openLiveWorkspace(_ section: LiveWorkspaceSection) {
+        liveWorkspaceSection = section
     }
 
     // MARK: - Subjects Section
@@ -810,7 +744,10 @@ struct ClassDetailView: View {
     func pickRandomStudent() {
         guard !schoolClass.students.isEmpty else { return }
         let sorted = schoolClass.students.sorted { $0.sortOrder < $1.sortOrder }
-        pickedStudent = sorted.randomElement()
+        pickedStudent = StudentRandomizer.pickFairStudent(
+            from: sorted,
+            scope: StudentRandomizer.generalScope(for: schoolClass)
+        )
     }
 
     func classHeaderBadge(icon: String, text: String) -> some View {

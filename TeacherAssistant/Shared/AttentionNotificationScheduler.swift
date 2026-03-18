@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftData
 
 struct AttentionNotificationScheduler: View {
-    @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
 
     @ObservedObject var notificationManager: AttentionNotificationManager
@@ -14,6 +13,10 @@ struct AttentionNotificationScheduler: View {
     @Query private var assessments: [Assessment]
     @Query private var assignments: [Assignment]
     @Query private var interventions: [Intervention]
+    @State private var derivedData: AttentionSummaryDerivedData = .empty
+    @State private var reviewRefreshRevision = 0
+    @State private var saveRefreshRevision = 0
+    @State private var didRefreshAuthorization = false
 
     private let calendar = Calendar.current
 
@@ -22,95 +25,50 @@ struct AttentionNotificationScheduler: View {
     }
 
     private var reviewedAssignmentIDsToday: Set<UUID> {
-        AttentionAssignmentReviewStore.reviewedAssignmentIDsForToday()
+        _ = reviewRefreshRevision
+        return AttentionAssignmentReviewStore.reviewedAssignmentIDsForToday()
+    }
+
+    private var refreshToken: String {
+        [
+            String(assessments.count),
+            String(assignments.count),
+            String(interventions.count),
+            String(reviewRefreshRevision),
+            String(saveRefreshRevision),
+        ].joined(separator: "|")
     }
 
     private var overdueInterventions: [Intervention] {
-        interventions
-            .filter { intervention in
-                guard intervention.status != .resolved, let followUpDate = intervention.followUpDate else { return false }
-                return followUpDate < startOfToday && intervention.student != nil
-            }
-            .sorted { lhs, rhs in
-                let lhsDate = lhs.followUpDate ?? .distantFuture
-                let rhsDate = rhs.followUpDate ?? .distantFuture
-                if lhsDate != rhsDate {
-                    return lhsDate < rhsDate
-                }
-                return (lhs.student?.name ?? "").localizedCaseInsensitiveCompare(rhs.student?.name ?? "") == .orderedAscending
-            }
+        derivedData.overdueInterventions.compactMap(\.intervention)
     }
 
     private var todayInterventions: [Intervention] {
-        interventions
-            .filter { intervention in
-                guard intervention.status != .resolved, let followUpDate = intervention.followUpDate else { return false }
-                return calendar.isDate(followUpDate, inSameDayAs: startOfToday) && intervention.student != nil
-            }
-            .sorted { lhs, rhs in
-                let lhsDate = lhs.followUpDate ?? .distantFuture
-                let rhsDate = rhs.followUpDate ?? .distantFuture
-                if lhsDate != rhsDate {
-                    return lhsDate < rhsDate
-                }
-                return (lhs.student?.name ?? "").localizedCaseInsensitiveCompare(rhs.student?.name ?? "") == .orderedAscending
-            }
+        derivedData.todayInterventions.compactMap(\.intervention)
     }
 
     private var overdueAssignmentItems: [AttentionAssignmentItem] {
-        assignments
-            .compactMap { assignment in
-                let progress = assignment.progressSummary()
-                guard !reviewedAssignmentIDsToday.contains(assignment.id),
-                      assignment.dueDate < startOfToday,
-                      progress.missingCount > 0 else { return nil }
-                return AttentionAssignmentItem(assignment: assignment, outstandingCount: progress.pendingCount + progress.missingCount, missingCount: progress.missingCount)
-            }
-            .sorted { lhs, rhs in
-                if lhs.missingCount != rhs.missingCount {
-                    return lhs.missingCount > rhs.missingCount
-                }
-                if lhs.assignment.dueDate != rhs.assignment.dueDate {
-                    return lhs.assignment.dueDate < rhs.assignment.dueDate
-                }
-                return lhs.assignment.title.localizedCaseInsensitiveCompare(rhs.assignment.title) == .orderedAscending
-            }
+        derivedData.overdueAssignments.map {
+            AttentionAssignmentItem(
+                assignment: $0.assignment,
+                outstandingCount: $0.outstandingCount,
+                missingCount: $0.missingCount
+            )
+        }
     }
 
     private var todayAssignmentItems: [AttentionAssignmentItem] {
-        assignments
-            .compactMap { assignment in
-                guard !reviewedAssignmentIDsToday.contains(assignment.id),
-                      calendar.isDate(assignment.dueDate, inSameDayAs: startOfToday) else { return nil }
-                let progress = assignment.progressSummary()
-                let outstandingCount = progress.pendingCount + progress.missingCount
-                guard outstandingCount > 0 else { return nil }
-                return AttentionAssignmentItem(assignment: assignment, outstandingCount: outstandingCount, missingCount: progress.missingCount)
-            }
-            .sorted { lhs, rhs in
-                if lhs.outstandingCount != rhs.outstandingCount {
-                    return lhs.outstandingCount > rhs.outstandingCount
-                }
-                return lhs.assignment.title.localizedCaseInsensitiveCompare(rhs.assignment.title) == .orderedAscending
-            }
+        derivedData.todayAssignments.map {
+            AttentionAssignmentItem(
+                assignment: $0.assignment,
+                outstandingCount: $0.outstandingCount,
+                missingCount: $0.missingCount
+            )
+        }
     }
 
     private var backlogAssessments: [Assessment] {
-        assessments
-            .filter { assessment in
-                assessment.results.count - assessment.results.filter(\.isResolved).count > 0
-            }
-            .sorted { lhs, rhs in
-                let lhsRemaining = lhs.results.count - lhs.results.filter(\.isResolved).count
-                let rhsRemaining = rhs.results.count - rhs.results.filter(\.isResolved).count
-                if lhsRemaining != rhsRemaining {
-                    return lhsRemaining > rhsRemaining
-                }
-                if lhs.date != rhs.date {
-                    return lhs.date < rhs.date
-                }
-                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-            }
+        derivedData.backlogAssessments
     }
 
     private var summary: AttentionNotificationSummary? {
@@ -181,29 +139,23 @@ struct AttentionNotificationScheduler: View {
     }
 
     private var overdueInterventionCount: Int {
-        overdueInterventions.count
+        derivedData.overdueInterventionCount
     }
 
     private var todayInterventionCount: Int {
-        todayInterventions.count
+        derivedData.todayInterventionCount
     }
 
     private var overdueAssignmentsCount: Int {
-        overdueAssignmentItems.reduce(0) { partialResult, item in
-            partialResult + item.missingCount
-        }
+        derivedData.overdueAssignmentsCount
     }
 
     private var todayAssignmentsCount: Int {
-        todayAssignmentItems.reduce(0) { partialResult, item in
-            partialResult + item.outstandingCount
-        }
+        derivedData.todayAssignmentsCount
     }
 
     private var pendingGradesCount: Int {
-        assessments.reduce(0) { partialResult, assessment in
-            partialResult + max(assessment.results.count - assessment.results.filter(\.isResolved).count, 0)
-        }
+        derivedData.pendingGradesCount
     }
 
     private var todayFollowThroughRoute: AttentionNotificationRoute {
@@ -228,13 +180,25 @@ struct AttentionNotificationScheduler: View {
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
-            .task { await performInitialSchedule() }
+            .task {
+                guard !didRefreshAuthorization else { return }
+                didRefreshAuthorization = true
+                await notificationManager.refreshAuthorizationStatus()
+            }
+            .task(id: refreshToken) {
+                do {
+                    try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+                } catch {
+                    return
+                }
+                await refreshDerivedDataAndReschedule()
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active || newPhase == .background else { return }
                 scheduleAfterScenePhaseChange()
             }
             .onChange(of: notificationsEnabled) { _, _ in
-                syncAssignmentsAndReschedule()
+                triggerReschedule()
             }
             .onChange(of: notificationHour) { _, _ in
                 triggerReschedule()
@@ -242,37 +206,19 @@ struct AttentionNotificationScheduler: View {
             .onChange(of: notificationMinute) { _, _ in
                 triggerReschedule()
             }
-            .onChange(of: assessments.count) { _, _ in
-                triggerReschedule()
-            }
-            .onChange(of: assignments.count) { _, _ in
-                syncAssignmentsAndReschedule()
-            }
-            .onChange(of: interventions.count) { _, _ in
-                triggerReschedule()
+            .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
+                saveRefreshRevision &+= 1
             }
             .onReceive(NotificationCenter.default.publisher(for: .attentionAssignmentReviewStateChanged)) { _ in
-                triggerReschedule()
+                reviewRefreshRevision &+= 1
             }
-    }
-
-    private func performInitialSchedule() async {
-        syncAssignmentEntries()
-        await notificationManager.refreshAuthorizationStatus()
-        await rescheduleNotifications()
     }
 
     private func scheduleAfterScenePhaseChange() {
-        syncAssignmentEntries()
         Task {
             await notificationManager.refreshAuthorizationStatus()
             await rescheduleNotifications()
         }
-    }
-
-    private func syncAssignmentsAndReschedule() {
-        syncAssignmentEntries()
-        triggerReschedule()
     }
 
     private func triggerReschedule() {
@@ -288,11 +234,21 @@ struct AttentionNotificationScheduler: View {
         )
     }
 
-    private func syncAssignmentEntries() {
-        for assignment in assignments {
-            guard let classStudents = assignment.unit?.subject?.schoolClass?.students else { continue }
-            assignment.ensureEntries(for: classStudents, context: context)
+    private func refreshDerivedDataAndReschedule() async {
+        let token = await PerformanceMonitor.shared.beginInterval(.attentionDerive, metadata: "scheduler")
+        let derived = await AttentionSummaryStore.deriveAsync(
+            assessments: assessments,
+            assignments: assignments,
+            interventions: interventions,
+            reviewedAssignmentIDsToday: reviewedAssignmentIDsToday
+        )
+        guard !Task.isCancelled else {
+            await PerformanceMonitor.shared.endInterval(token, success: false)
+            return
         }
+        derivedData = derived
+        await PerformanceMonitor.shared.endInterval(token, success: true)
+        await rescheduleNotifications()
     }
 
     private func studentFollowUpRoute(for intervention: Intervention) -> AttentionNotificationRoute {

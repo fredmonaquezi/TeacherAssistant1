@@ -2,13 +2,14 @@ import SwiftUI
 import SwiftData
 
 struct AttentionReminderBanner: View {
-    @Environment(\.modelContext) private var context
     @Environment(\.appMotionContext) private var motion
     @Binding var selectedSection: AppSection?
 
     @AppStorage(AppPreferencesKeys.attentionRemindersEnabled) private var remindersEnabled = true
     @AppStorage(AppPreferencesKeys.attentionRemindersLastDismissedDay) private var lastDismissedDay = ""
     @State private var reviewRefreshRevision = 0
+    @State private var derivedData: AttentionSummaryDerivedData = .empty
+    @State private var saveRefreshRevision = 0
 
     @Query private var assessments: [Assessment]
     @Query private var assignments: [Assignment]
@@ -25,6 +26,16 @@ struct AttentionReminderBanner: View {
         return AttentionAssignmentReviewStore.reviewedAssignmentIDsForToday()
     }
 
+    private var refreshToken: String {
+        [
+            String(assessments.count),
+            String(assignments.count),
+            String(interventions.count),
+            String(reviewRefreshRevision),
+            String(saveRefreshRevision),
+        ].joined(separator: "|")
+    }
+
     private var dayKey: String {
         let components = calendar.dateComponents([.year, .month, .day], from: startOfToday)
         let year = components.year ?? 0
@@ -38,40 +49,23 @@ struct AttentionReminderBanner: View {
     }
 
     private var overdueInterventionCount: Int {
-        interventions.filter { intervention in
-            guard intervention.status != .resolved, let followUpDate = intervention.followUpDate else { return false }
-            return followUpDate < startOfToday
-        }.count
+        derivedData.overdueInterventionCount
     }
 
     private var todayInterventionCount: Int {
-        interventions.filter { intervention in
-            guard intervention.status != .resolved, let followUpDate = intervention.followUpDate else { return false }
-            return calendar.isDate(followUpDate, inSameDayAs: startOfToday)
-        }.count
+        derivedData.todayInterventionCount
     }
 
     private var overdueAssignmentsCount: Int {
-        assignments.reduce(0) { partialResult, assignment in
-            guard !reviewedAssignmentIDsToday.contains(assignment.id),
-                  assignment.dueDate < startOfToday else { return partialResult }
-            return partialResult + assignment.progressSummary().missingCount
-        }
+        derivedData.overdueAssignmentsCount
     }
 
     private var todayAssignmentsCount: Int {
-        assignments.reduce(0) { partialResult, assignment in
-            guard !reviewedAssignmentIDsToday.contains(assignment.id),
-                  calendar.isDate(assignment.dueDate, inSameDayAs: startOfToday) else { return partialResult }
-            let progress = assignment.progressSummary()
-            return partialResult + progress.pendingCount + progress.missingCount
-        }
+        derivedData.todayAssignmentsCount
     }
 
     private var pendingGradesCount: Int {
-        assessments.reduce(0) { partialResult, assessment in
-            partialResult + max(assessment.results.count - assessment.results.filter(\.isResolved).count, 0)
-        }
+        derivedData.pendingGradesCount
     }
 
     private var summary: AttentionReminderSummary? {
@@ -201,22 +195,39 @@ struct AttentionReminderBanner: View {
                 .padding(.horizontal)
                 .padding(.top, 12)
                 .transition(motion.transition(.overlay))
-                .task(id: assignments.count) {
-                    syncAssignmentEntries()
-                }
             }
         }
         .animation(motion.animation(.quick), value: dismissedToday)
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceDidSave)) { _ in
+            saveRefreshRevision &+= 1
+        }
         .onReceive(NotificationCenter.default.publisher(for: .attentionAssignmentReviewStateChanged)) { _ in
             reviewRefreshRevision &+= 1
         }
+        .task(id: refreshToken) {
+            do {
+                try await Task.sleep(nanoseconds: ViewBudget.filterDerivationDebounceMilliseconds * 1_000_000)
+            } catch {
+                return
+            }
+            await refreshDerivedData()
+        }
     }
 
-    private func syncAssignmentEntries() {
-        for assignment in assignments {
-            guard let classStudents = assignment.unit?.subject?.schoolClass?.students else { continue }
-            assignment.ensureEntries(for: classStudents, context: context)
+    private func refreshDerivedData() async {
+        let token = await PerformanceMonitor.shared.beginInterval(.attentionDerive, metadata: "banner")
+        let derived = await AttentionSummaryStore.deriveAsync(
+            assessments: assessments,
+            assignments: assignments,
+            interventions: interventions,
+            reviewedAssignmentIDsToday: reviewedAssignmentIDsToday
+        )
+        guard !Task.isCancelled else {
+            await PerformanceMonitor.shared.endInterval(token, success: false)
+            return
         }
+        derivedData = derived
+        await PerformanceMonitor.shared.endInterval(token, success: true)
     }
 }
 

@@ -5,6 +5,8 @@ import XCTest
 
 final class TeacherAssistantPerformanceTests: XCTestCase {
     private enum PerformanceRegressionBudget {
+        static let dashboardDeriveMilliseconds: Double = 180
+        static let attentionDeriveMilliseconds: Double = 140
         static let runningRecordsDeriveMilliseconds: Double = 180
         static let calendarDeriveMilliseconds: Double = 140
         static let calendarDayLookupMilliseconds: Double = 140
@@ -228,6 +230,65 @@ final class TeacherAssistantPerformanceTests: XCTestCase {
         XCTAssertEqual(derived.subjectSummaries.count, 6)
         XCTAssertEqual(derived.runningRecordsDescending.count, 10)
         XCTAssertFalse(derived.groupedLatestDevelopmentScores.isEmpty)
+    }
+
+    @MainActor
+    func testTodayDashboardDeriveCompletesWithinBudget() {
+        let fixture = makeDashboardFixture(
+            classCount: 10,
+            studentsPerClass: 22,
+            assignmentsPerClass: 6,
+            assessmentsPerClass: 5,
+            interventionsPerClass: 6,
+            calendarItemsPerClass: 4
+        )
+
+        let measurement = measureMedianMilliseconds {
+            TodayDashboardStore.derive(
+                classes: fixture.classes,
+                assessments: fixture.assessments,
+                assignments: fixture.assignments,
+                interventions: fixture.interventions,
+                calendarEvents: fixture.events,
+                diaryEntries: fixture.diaryEntries
+            )
+        }
+
+        assertWithinRegressionThreshold(
+            measurement.elapsedMilliseconds,
+            threshold: PerformanceRegressionBudget.dashboardDeriveMilliseconds,
+            operationName: "TodayDashboardStore.derive"
+        )
+        XCTAssertFalse(measurement.result.scheduleItems.isEmpty)
+    }
+
+    @MainActor
+    func testAttentionSummaryDeriveCompletesWithinBudget() {
+        let fixture = makeDashboardFixture(
+            classCount: 10,
+            studentsPerClass: 22,
+            assignmentsPerClass: 6,
+            assessmentsPerClass: 5,
+            interventionsPerClass: 6,
+            calendarItemsPerClass: 4
+        )
+        let reviewedIDs = Set(fixture.assignments.prefix(4).map(\.id))
+
+        let measurement = measureMedianMilliseconds {
+            AttentionSummaryStore.derive(
+                assessments: fixture.assessments,
+                assignments: fixture.assignments,
+                interventions: fixture.interventions,
+                reviewedAssignmentIDsToday: reviewedIDs
+            )
+        }
+
+        assertWithinRegressionThreshold(
+            measurement.elapsedMilliseconds,
+            threshold: PerformanceRegressionBudget.attentionDeriveMilliseconds,
+            operationName: "AttentionSummaryStore.derive"
+        )
+        XCTAssertGreaterThan(measurement.result.pendingGradesCount, 0)
     }
 
     private func measureMedianMilliseconds<T>(
@@ -466,6 +527,158 @@ final class TeacherAssistantPerformanceTests: XCTestCase {
             allAttendanceSessions: allAttendanceSessions,
             allDevelopmentScores: allDevelopmentScores
         )
+    }
+
+    private func makeDashboardFixture(
+        classCount: Int,
+        studentsPerClass: Int,
+        assignmentsPerClass: Int,
+        assessmentsPerClass: Int,
+        interventionsPerClass: Int,
+        calendarItemsPerClass: Int
+    ) -> (
+        classes: [SchoolClass],
+        assessments: [Assessment],
+        assignments: [Assignment],
+        interventions: [Intervention],
+        events: [CalendarEvent],
+        diaryEntries: [ClassDiaryEntry]
+    ) {
+        var classes: [SchoolClass] = []
+        var assessments: [Assessment] = []
+        var assignments: [Assignment] = []
+        var interventions: [Intervention] = []
+        var events: [CalendarEvent] = []
+        var diaryEntries: [ClassDiaryEntry] = []
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+
+        for classIndex in 0..<classCount {
+            let schoolClass = SchoolClass(name: "Dashboard Class \(classIndex + 1)", grade: "\(classIndex + 1)")
+            schoolClass.sortOrder = classIndex
+
+            let subject = Subject(name: "Subject \(classIndex + 1)")
+            subject.sortOrder = 0
+            subject.schoolClass = schoolClass
+
+            let unit = TeacherAssistant.Unit(name: "Unit \(classIndex + 1)")
+            unit.sortOrder = 0
+            unit.subject = subject
+            subject.units = [unit]
+            schoolClass.subjects = [subject]
+
+            var students: [Student] = []
+            for studentIndex in 0..<studentsPerClass {
+                let student = Student(name: "Student \(classIndex)-\(studentIndex)")
+                student.sortOrder = studentIndex
+                student.schoolClass = schoolClass
+                students.append(student)
+            }
+            schoolClass.students = students
+
+            let attendanceDate = calendar.date(byAdding: .day, value: classIndex.isMultiple(of: 2) ? 0 : -1, to: startOfToday) ?? startOfToday
+            schoolClass.attendanceSessions = [
+                AttendanceSession(
+                    date: attendanceDate,
+                    records: students.map { AttendanceRecord(student: $0, status: .present, notes: "") }
+                )
+            ]
+
+            for assignmentIndex in 0..<assignmentsPerClass {
+                let dueDate = calendar.date(byAdding: .day, value: (assignmentIndex % 5) - 2, to: startOfToday) ?? startOfToday
+                let assignment = Assignment(
+                    title: "Assignment \(classIndex)-\(assignmentIndex)",
+                    details: "Details",
+                    dueDate: dueDate,
+                    createdAt: startOfToday,
+                    sortOrder: assignmentIndex
+                )
+                assignment.unit = unit
+                unit.assignments.append(assignment)
+                assignment.entries = students.enumerated().map { studentIndex, student in
+                    let entry = StudentAssignment(student: student, assignment: assignment)
+                    switch (studentIndex + assignmentIndex) % 4 {
+                    case 0:
+                        entry.status = .pending
+                    case 1:
+                        entry.status = .completed
+                        entry.submittedAt = dueDate.addingTimeInterval(-1_800)
+                    case 2:
+                        entry.status = .completed
+                        entry.submittedAt = dueDate.addingTimeInterval(3_600)
+                    default:
+                        entry.status = .excused
+                    }
+                    return entry
+                }
+                assignments.append(assignment)
+            }
+
+            for assessmentIndex in 0..<assessmentsPerClass {
+                let assessment = Assessment(title: "Assessment \(classIndex)-\(assessmentIndex)", maxScore: 10)
+                assessment.date = calendar.date(byAdding: .day, value: assessmentIndex - 1, to: startOfToday) ?? startOfToday
+                assessment.sortOrder = assessmentIndex
+                assessment.unit = unit
+                assessment.results = students.enumerated().map { studentIndex, student in
+                    StudentResult(
+                        student: student,
+                        assessment: assessment,
+                        score: Double((studentIndex + assessmentIndex) % 10),
+                        notes: "",
+                        hasScore: (studentIndex + assessmentIndex) % 3 != 0
+                    )
+                }
+                unit.assessments.append(assessment)
+                assessments.append(assessment)
+            }
+
+            for interventionIndex in 0..<interventionsPerClass {
+                let student = students[interventionIndex % students.count]
+                let intervention = Intervention(
+                    title: "Intervention \(classIndex)-\(interventionIndex)",
+                    notes: "Support note",
+                    category: interventionIndex.isMultiple(of: 2) ? .academics : .behavior,
+                    status: interventionIndex.isMultiple(of: 3) ? .inProgress : .open,
+                    followUpDate: calendar.date(byAdding: .day, value: (interventionIndex % 6) - 2, to: startOfToday) ?? startOfToday
+                )
+                intervention.student = student
+                interventions.append(intervention)
+            }
+
+            for itemIndex in 0..<calendarItemsPerClass {
+                let startTime = calendar.date(byAdding: .hour, value: itemIndex, to: startOfToday) ?? startOfToday
+                let event = CalendarEvent(
+                    title: "Event \(classIndex)-\(itemIndex)",
+                    date: startOfToday,
+                    startTime: startTime,
+                    endTime: startTime.addingTimeInterval(2_700),
+                    details: "Details",
+                    isAllDay: false,
+                    schoolClass: schoolClass
+                )
+                event.assignment = assignments.last
+                events.append(event)
+
+                diaryEntries.append(
+                    ClassDiaryEntry(
+                        date: startOfToday,
+                        startTime: startTime.addingTimeInterval(3_600),
+                        endTime: startTime.addingTimeInterval(6_000),
+                        plan: "Plan \(classIndex)-\(itemIndex)",
+                        objectives: "Objectives",
+                        materials: "Materials",
+                        notes: "Notes",
+                        schoolClass: schoolClass,
+                        subject: subject,
+                        unit: unit
+                    )
+                )
+            }
+
+            classes.append(schoolClass)
+        }
+
+        return (classes, assessments, assignments, interventions, events, diaryEntries)
     }
 }
 #endif
