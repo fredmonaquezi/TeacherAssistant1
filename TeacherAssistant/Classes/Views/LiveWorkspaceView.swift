@@ -300,7 +300,10 @@ struct LiveWorkspaceView: View {
             LiveCheckInView(
                 schoolClass: schoolClass,
                 source: .classroomSession,
-                embeddedInLiveWorkspace: true
+                embeddedInLiveWorkspace: true,
+                onOpenSeatingChart: {
+                    select(.seating)
+                }
             )
             .transition(motion.transition(.sectionSwitch))
         case .attendance:

@@ -28,6 +28,7 @@ struct LiveCheckInView: View {
     let source: LiveObservationSource
     let showsDismissButton: Bool
     let embeddedInLiveWorkspace: Bool
+    let onOpenSeatingChart: (() -> Void)?
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -40,7 +41,9 @@ struct LiveCheckInView: View {
     @State private var sessionExtraCriteria: [LiveCheckInSessionCriterion] = []
     @State private var newCriterionTitle = ""
     @State private var selectedStudent: Student?
+    @State private var selectedProgressStudent: Student?
     @State private var showingTemplateManager = false
+    @State private var showingHistory = false
     @State private var feedbackBanner: LiveCheckInFeedbackBannerState?
     @State private var feedbackDismissTask: DispatchWorkItem?
     @Namespace private var filterSelectionNamespace
@@ -51,12 +54,14 @@ struct LiveCheckInView: View {
         schoolClass: SchoolClass,
         source: LiveObservationSource,
         showsDismissButton: Bool = false,
-        embeddedInLiveWorkspace: Bool = false
+        embeddedInLiveWorkspace: Bool = false,
+        onOpenSeatingChart: (() -> Void)? = nil
     ) {
         self.schoolClass = schoolClass
         self.source = source
         self.showsDismissButton = showsDismissButton
         self.embeddedInLiveWorkspace = embeddedInLiveWorkspace
+        self.onOpenSeatingChart = onOpenSeatingChart
     }
 
     private var orderedStudents: [Student] {
@@ -68,46 +73,8 @@ struct LiveCheckInView: View {
         }
     }
 
-    private var chart: SeatingChart? {
-        schoolClass.seatingChart
-    }
-
-    private var layoutStyle: SeatingLayoutStyle {
-        chart?.layoutStyle ?? .rows
-    }
-
-    private var seatCoordinates: [LiveCheckInSeatCoordinate] {
-        guard let chart else { return [] }
-        return (0..<chart.rows).flatMap { row in
-            (0..<chart.columns).map { column in
-                LiveCheckInSeatCoordinate(row: row, column: column)
-            }
-        }
-    }
-
-    private var activeSeatCoordinates: [LiveCheckInSeatCoordinate] {
-        guard let chart else { return [] }
-        return seatCoordinates.filter { chart.isActiveSeat(row: $0.row, column: $0.column) }
-    }
-
-    private var centerGroupSize: Int {
-        chart?.validatedCenterGroupSize ?? 4
-    }
-
-    private var centerGroups: [[LiveCheckInSeatCoordinate]] {
-        chunkCoordinates(activeSeatCoordinates, size: centerGroupSize)
-    }
-
-    private var hasSeatPlacements: Bool {
-        !(chart?.placements.isEmpty ?? true)
-    }
-
     private var startOfToday: Date {
         calendar.startOfDay(for: Date())
-    }
-
-    private var startOfTomorrow: Date {
-        calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
     }
 
     private var allObservationsDescending: [LiveObservation] {
@@ -116,7 +83,7 @@ struct LiveCheckInView: View {
 
     private var todaysObservations: [LiveObservation] {
         allObservationsDescending.filter { observation in
-            observation.createdAt >= startOfToday && observation.createdAt < startOfTomorrow
+            calendar.isDate(observation.sessionDate, inSameDayAs: startOfToday)
         }
     }
 
@@ -175,17 +142,20 @@ struct LiveCheckInView: View {
             }
     }
 
-    private var filteredStudents: [Student] {
-        orderedStudents.filter(matchesCurrentFilter)
+    private var latestRelevantObservationByStudentUUID: [UUID: LiveObservation] {
+        var observations: [UUID: LiveObservation] = [:]
+        for student in orderedStudents {
+            if let todaysObservation = latestObservationByStudentTodayUUID[student.uuid] {
+                observations[student.uuid] = todaysObservation
+            } else if let latestObservation = latestObservationByStudentUUID[student.uuid] {
+                observations[student.uuid] = latestObservation
+            }
+        }
+        return observations
     }
 
     private var studentsNeedingSupportNow: Int {
-        latestObservationByStudentTodayUUID.values.filter(isNeedsSupport).count
-    }
-
-    private var unseatedFilteredStudents: [Student] {
-        let seatedUUIDs = Set(chart?.placements.map(\.studentUUID) ?? [])
-        return filteredStudents.filter { !seatedUUIDs.contains($0.uuid) }
+        latestRelevantObservationByStudentUUID.values.filter(isNeedsSupport).count
     }
 
     private var templateLabel: String {
@@ -195,6 +165,50 @@ struct LiveCheckInView: View {
     private var checkedInProgress: Double {
         guard !orderedStudents.isEmpty else { return 0 }
         return Double(observedTodayUUIDs.count) / Double(orderedStudents.count)
+    }
+
+    private var pendingStudents: [Student] {
+        orderedStudents.filter { latestObservationByStudentTodayUUID[$0.uuid] == nil }
+            .filter(matchesCurrentFilter)
+    }
+
+    private var checkedInTodayEntries: [LiveCheckInTodayEntry] {
+        orderedStudents.compactMap { student in
+            guard let observation = latestObservationByStudentTodayUUID[student.uuid] else { return nil }
+            return LiveCheckInTodayEntry(student: student, observation: observation)
+        }
+        .filter { entry in
+            switch selectedFilter {
+            case .all, .observedToday:
+                return true
+            case .notCheckedToday:
+                return false
+            case .needsSupport:
+                return isNeedsSupport(entry.observation)
+            }
+        }
+        .sorted { lhs, rhs in
+            lhs.observation.createdAt > rhs.observation.createdAt
+        }
+    }
+
+    private var historyDaySections: [LiveCheckInHistoryDaySection] {
+        let grouped = Dictionary(grouping: allObservationsDescending) { observation in
+            calendar.startOfDay(for: observation.sessionDate)
+        }
+
+        return grouped.keys
+            .sorted(by: >)
+            .map { date in
+                LiveCheckInHistoryDaySection(
+                    sessionDate: date,
+                    observations: grouped[date, default: []].sorted { $0.createdAt > $1.createdAt }
+                )
+            }
+    }
+
+    private var previousHistoryDay: LiveCheckInHistoryDaySection? {
+        historyDaySections.first { $0.sessionDate < startOfToday }
     }
 
     var body: some View {
@@ -210,7 +224,7 @@ struct LiveCheckInView: View {
                     .appMotionReveal(index: 1)
                 studentSurfaceCard
                     .appMotionReveal(index: 2)
-                recentObservationsCard
+                historySummaryCard
                     .appMotionReveal(index: 3)
             }
             .padding(.vertical, 20)
@@ -223,6 +237,19 @@ struct LiveCheckInView: View {
                 ) { feedback in
                     presentFeedback(feedback)
                 }
+            }
+        }
+        .sheet(isPresented: $showingHistory) {
+            NavigationStack {
+                LiveCheckInHistoryView(
+                    schoolClass: schoolClass,
+                    daySections: historyDaySections
+                )
+            }
+        }
+        .sheet(item: $selectedProgressStudent) { student in
+            NavigationStack {
+                StudentProgressView(student: student)
             }
         }
         .overlay(alignment: .top) {
@@ -334,6 +361,12 @@ struct LiveCheckInView: View {
                         .multilineTextAlignment(.trailing)
 
                     LiveCheckInTopBadge(
+                        icon: "calendar.badge.clock",
+                        title: "Active Day: Today".localized,
+                        tint: .blue
+                    )
+
+                    LiveCheckInTopBadge(
                         icon: activeTemplate == nil ? "bolt.badge.checkmark" : "checklist.checked",
                         title: activeTemplate == nil ? "Core Snapshot Only".localized : templateLabel,
                         tint: activeTemplate == nil ? .secondary : .indigo
@@ -386,9 +419,9 @@ struct LiveCheckInView: View {
                     tint: .blue
                 )
                 LiveCheckInTopBadge(
-                    icon: hasSeatPlacements ? "rectangle.grid.3x2.fill" : "list.bullet.rectangle",
-                    title: hasSeatPlacements ? "Seating Layout Active".localized : "Roster View".localized,
-                    tint: hasSeatPlacements ? .teal : .secondary
+                    icon: "list.bullet.rectangle.portrait",
+                    title: "Roster View".localized,
+                    tint: .secondary
                 )
                 if !sessionExtraCriteria.isEmpty {
                     LiveCheckInTopBadge(
@@ -396,6 +429,15 @@ struct LiveCheckInView: View {
                         title: "\(sessionExtraCriteria.count) " + "session extras".localized,
                         tint: .orange
                     )
+                }
+                if onOpenSeatingChart != nil {
+                    Button {
+                        onOpenSeatingChart?()
+                    } label: {
+                        Label("Open Seating Chart".localized, systemImage: "chair.fill")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
 
@@ -685,10 +727,22 @@ struct LiveCheckInView: View {
 
     private var studentSurfaceCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Assess Students".localized)
-                .font(AppTypography.sectionTitle)
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Assess Students".localized)
+                        .font(AppTypography.sectionTitle)
+                    Text("Work from today’s roster first. Students move into the review section as soon as you save a live check-in.".localized)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Text(Date().appDateString(systemStyle: .full))
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
 
-            if filteredStudents.isEmpty {
+            if pendingStudents.isEmpty && checkedInTodayEntries.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "person.crop.circle.badge.exclamationmark")
                         .font(.system(size: 42))
@@ -700,23 +754,37 @@ struct LiveCheckInView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 28)
                 .transition(motion.transition(.inlineChange))
-            } else if hasSeatPlacements {
+            } else {
                 VStack(alignment: .leading, spacing: 16) {
-                    seatingSurface
-
-                    if !unseatedFilteredStudents.isEmpty {
+                    if !pendingStudents.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Unseated Students".localized)
-                                .font(.headline)
+                            sectionHeaderLabel(
+                                title: "Pending Students".localized,
+                                subtitle: String(
+                                    format: "%d still waiting for today’s check-in.".localized,
+                                    pendingStudents.count
+                                ),
+                                tint: .orange
+                            )
+                            pendingStudentGrid(pendingStudents)
+                        }
+                    }
 
-                            studentGrid(unseatedFilteredStudents)
+                    if !checkedInTodayEntries.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionHeaderLabel(
+                                title: "Checked In Today".localized,
+                                subtitle: String(
+                                    format: "%d students already reviewed today.".localized,
+                                    checkedInTodayEntries.count
+                                ),
+                                tint: .green
+                            )
+                            checkedInTodayList
                         }
                     }
                 }
                 .transition(motion.transition(.cardReveal))
-            } else {
-                studentGrid(filteredStudents)
-                    .transition(motion.transition(.cardReveal))
             }
         }
         .padding()
@@ -728,191 +796,115 @@ struct LiveCheckInView: View {
         .padding(.horizontal)
     }
 
-    private var seatingSurface: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(layoutSurfaceTitle)
-                .font(.headline)
-
-            seatingLayoutSurface
-        }
-    }
-
-    @ViewBuilder
-    private var seatingLayoutSurface: some View {
-        switch layoutStyle {
-        case .rows:
-            liveRowsSurface(groupAsDuos: false)
-        case .duos:
-            liveRowsSurface(groupAsDuos: true)
-        case .uShape:
-            liveUShapeSurface
-        case .centers:
-            liveCentersSurface
-        }
-    }
-
-    private func liveRowsSurface(groupAsDuos: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(0..<max(chart?.rows ?? 0, 0), id: \.self) { row in
-                if groupAsDuos {
-                    HStack(alignment: .top, spacing: 18) {
-                        ForEach(duoGroups(for: row).indices, id: \.self) { groupIndex in
-                            HStack(spacing: 10) {
-                                ForEach(duoGroups(for: row)[groupIndex]) { coordinate in
-                                    liveSeatCard(for: coordinate)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    HStack(alignment: .top, spacing: 10) {
-                        ForEach(rowSeatCoordinates(for: row)) { coordinate in
-                            liveSeatCard(for: coordinate)
-                        }
-                    }
-                }
+    private func sectionHeaderLabel(title: String, subtitle: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                Circle()
+                    .fill(tint)
+                    .frame(width: 8, height: 8)
             }
-        }
-    }
-
-    private var liveUShapeSurface: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(0..<max(chart?.rows ?? 0, 0), id: \.self) { row in
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(rowSeatCoordinates(for: row)) { coordinate in
-                        if chart?.isActiveSeat(row: coordinate.row, column: coordinate.column) == true {
-                            liveSeatCard(for: coordinate)
-                        } else {
-                            inactiveLiveSeatPlaceholder
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var liveCentersSurface: some View {
-        ScrollView(.horizontal, showsIndicators: true) {
-            HStack(alignment: .top, spacing: 14) {
-                ForEach(Array(centerGroups.enumerated()), id: \.offset) { index, group in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label(
-                            String(format: "Center %d".localized, index + 1),
-                            systemImage: "circle.grid.2x2.fill"
-                        )
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.indigo)
-
-                        if centerGroupSize == 4 {
-                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                                ForEach(group) { coordinate in
-                                    liveSeatCard(for: coordinate)
-                                }
-                            }
-                            .frame(width: 360)
-                        } else {
-                            HStack(alignment: .top, spacing: 10) {
-                                ForEach(group) { coordinate in
-                                    liveSeatCard(for: coordinate)
-                                }
-                            }
-                        }
-                    }
-                    .padding(12)
-                    .appCardStyle(
-                        cornerRadius: 14,
-                        borderColor: Color.indigo.opacity(0.10),
-                        shadowOpacity: 0.03,
-                        shadowRadius: 5,
-                        shadowY: 2,
-                        tint: .indigo
-                    )
-                }
-            }
-        }
-    }
-
-    private func liveSeatCard(for coordinate: LiveCheckInSeatCoordinate) -> some View {
-        let student = student(at: coordinate)
-        return LiveCheckInSeatCard(
-            student: student,
-            observation: student.map { latestObservationByStudentUUID[$0.uuid] } ?? nil,
-            isDimmed: student.map { !matchesCurrentFilter($0) } ?? false,
-            onTap: {
-                guard let student else { return }
-                selectedStudent = student
-            }
-        )
-    }
-
-    private var inactiveLiveSeatPlaceholder: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Open Space".localized)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.secondary)
-            Text("Center stays open".localized)
+            Text(subtitle)
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .frame(maxWidth: .infinity, minHeight: 124, alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.secondary.opacity(0.05))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.secondary.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [6, 6]))
-        )
     }
 
-    private func studentGrid(_ students: [Student]) -> some View {
+    private func pendingStudentGrid(_ students: [Student]) -> some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 12)], spacing: 12) {
             ForEach(students, id: \.id) { student in
-                Button {
-                    selectedStudent = student
-                } label: {
-                    LiveCheckInStudentCard(
-                        student: student,
-                        latestObservation: latestObservationByStudentUUID[student.uuid],
-                        observedToday: observedTodayUUIDs.contains(student.uuid)
-                    )
-                }
-                .buttonStyle(AppPressableButtonStyle())
+                LiveCheckInStudentCard(
+                    student: student,
+                    latestObservation: latestObservationByStudentUUID[student.uuid],
+                    observedToday: false,
+                    onCheckIn: {
+                        selectedStudent = student
+                    },
+                    onOpenHistory: {
+                        selectedProgressStudent = student
+                    }
+                )
                 .transition(motion.transition(.inlineChange))
             }
         }
     }
 
-    private var recentObservationsCard: some View {
+    private var checkedInTodayList: some View {
+        VStack(spacing: 12) {
+            ForEach(checkedInTodayEntries) { entry in
+                LiveCheckInCheckedInRow(
+                    student: entry.student,
+                    observation: entry.observation,
+                    onOpenCheckIn: {
+                        selectedStudent = entry.student
+                    },
+                    onOpenHistory: {
+                        selectedProgressStudent = entry.student
+                    }
+                )
+            }
+        }
+    }
+
+    private var historySummaryCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Recent Snapshots".localized)
-                    .font(AppTypography.sectionTitle)
-                Spacer()
-                Text("\(todaysObservations.count) " + "today".localized)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
-            }
-
-            if todaysObservations.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "clock.badge.questionmark")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary)
-                    Text("No check-ins recorded today yet.".localized)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Live Check-In History".localized)
+                        .font(AppTypography.sectionTitle)
+                    Text("Review today, compare previous check-in days, and open the full class history when you need more context.".localized)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
+                Spacer()
+                Button("View History".localized) {
+                    showingHistory = true
+                }
+                .buttonStyle(.bordered)
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                liveStatCard(
+                    title: "Today".localized,
+                    value: "\(todaysObservations.count)",
+                    color: .blue,
+                    icon: "calendar"
+                )
+                liveStatCard(
+                    title: "Previous Day".localized,
+                    value: previousHistoryDay.map { $0.sessionDate.appDateString(systemStyle: .short) } ?? "None".localized,
+                    color: .indigo,
+                    icon: "clock.arrow.circlepath"
+                )
+                liveStatCard(
+                    title: "Total Snapshots".localized,
+                    value: "\(allObservationsDescending.count)",
+                    color: .teal,
+                    icon: "waveform.path.ecg"
+                )
+            }
+
+            if let previousHistoryDay {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Previous Day With Check-Ins".localized)
+                        .font(.subheadline.weight(.semibold))
+                    Text(
+                        String(
+                            format: "%@ • %d snapshot(s)".localized,
+                            previousHistoryDay.sessionDate.appDateString(systemStyle: .full),
+                            previousHistoryDay.observations.count
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
             } else {
-                VStack(spacing: 12) {
-                    ForEach(todaysObservations.prefix(8), id: \.id) { observation in
-                        recentObservationRow(observation)
-                            .transition(motion.transition(.cardReveal))
-                    }
-                }
+                Text("Previous live check-in days will appear here after you have history to compare.".localized)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
         }
         .padding()
@@ -922,56 +914,6 @@ struct LiveCheckInView: View {
             tint: .teal
         )
         .padding(.horizontal)
-    }
-
-    private func recentObservationRow(_ observation: LiveObservation) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(observation.student?.name ?? observation.studentNameSnapshot)
-                        .font(.headline)
-                    Text(observation.createdAt.appTimeString(systemStyle: .short))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                LiveCheckInLevelBadge(level: observation.supportLevel)
-            }
-
-            HStack(spacing: 8) {
-                LiveCheckInMiniLevelTag(label: "Understanding".localized, level: observation.understandingLevel)
-                LiveCheckInMiniLevelTag(label: "Engagement".localized, level: observation.engagementLevel)
-                LiveCheckInMiniLevelTag(label: "Support".localized, level: observation.supportLevel)
-            }
-
-            if !observation.checklistResponses.isEmpty {
-                Text(
-                    observation.checklistResponses
-                        .sorted { $0.sortOrder < $1.sortOrder }
-                        .map { "\($0.criterionTitle): \($0.level.title)" }
-                        .joined(separator: " • ")
-                )
-                .font(.caption)
-                .foregroundColor(.secondary)
-            }
-
-            if !observation.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(observation.note)
-                    .font(.subheadline)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .appCardStyle(
-            cornerRadius: 12,
-            borderColor: observation.supportLevel.color.opacity(0.16),
-            shadowOpacity: 0.03,
-            shadowRadius: 5,
-            shadowY: 2,
-            tint: observation.supportLevel.color
-        )
     }
 
     private func liveStatCard(title: String, value: String, color: Color, icon: String) -> some View {
@@ -986,7 +928,6 @@ struct LiveCheckInView: View {
             Text(value)
                 .font(.title2.weight(.bold))
                 .foregroundColor(color)
-                .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -1014,58 +955,12 @@ struct LiveCheckInView: View {
         newCriterionTitle = ""
     }
 
-    private func student(at coordinate: LiveCheckInSeatCoordinate) -> Student? {
-        guard let placement = chart?.placements.first(where: {
-            $0.row == coordinate.row && $0.column == coordinate.column
-        }) else {
-            return nil
-        }
-        return orderedStudents.first { $0.uuid == placement.studentUUID }
-    }
-
-    private var layoutSurfaceTitle: String {
-        switch layoutStyle {
-        case .rows:
-            return "Seating Layout".localized
-        case .duos:
-            return "Duo Seating Layout".localized
-        case .uShape:
-            return "U-Shape Seating Layout".localized
-        case .centers:
-            return centerGroupSize == 3
-                ? "Learning Centers (3)".localized
-                : "Learning Centers (4)".localized
-        }
-    }
-
-    private func rowSeatCoordinates(for row: Int) -> [LiveCheckInSeatCoordinate] {
-        guard let chart else { return [] }
-        return (0..<chart.columns).map { LiveCheckInSeatCoordinate(row: row, column: $0) }
-    }
-
-    private func duoGroups(for row: Int) -> [[LiveCheckInSeatCoordinate]] {
-        chunkCoordinates(rowSeatCoordinates(for: row), size: 2)
-    }
-
-    private func chunkCoordinates(_ coordinates: [LiveCheckInSeatCoordinate], size: Int) -> [[LiveCheckInSeatCoordinate]] {
-        guard size > 0 else { return [coordinates] }
-
-        var groups: [[LiveCheckInSeatCoordinate]] = []
-        var index = 0
-        while index < coordinates.count {
-            let end = min(index + size, coordinates.count)
-            groups.append(Array(coordinates[index..<end]))
-            index = end
-        }
-        return groups
-    }
-
     private func matchesCurrentFilter(_ student: Student) -> Bool {
         switch selectedFilter {
         case .all:
             return true
         case .needsSupport:
-            guard let observation = latestObservationByStudentTodayUUID[student.uuid] ?? latestObservationByStudentUUID[student.uuid] else {
+            guard let observation = latestRelevantObservationByStudentUUID[student.uuid] else {
                 return false
             }
             return isNeedsSupport(observation)
@@ -1084,15 +979,27 @@ struct LiveCheckInView: View {
     }
 
     private func nextStudent(after student: Student) -> Student? {
-        guard let currentIndex = filteredStudents.firstIndex(where: { $0.uuid == student.uuid }) else {
+        let sequence = navigationSequenceStudents
+        guard let currentIndex = sequence.firstIndex(where: { $0.uuid == student.uuid }) else {
             return nil
         }
 
-        let nextIndex = filteredStudents.index(after: currentIndex)
-        guard filteredStudents.indices.contains(nextIndex) else {
+        let nextIndex = sequence.index(after: currentIndex)
+        guard sequence.indices.contains(nextIndex) else {
             return nil
         }
-        return filteredStudents[nextIndex]
+        return sequence[nextIndex]
+    }
+
+    private var navigationSequenceStudents: [Student] {
+        switch selectedFilter {
+        case .all, .notCheckedToday:
+            return pendingStudents
+        case .observedToday:
+            return checkedInTodayEntries.map(\.student)
+        case .needsSupport:
+            return pendingStudents + checkedInTodayEntries.map(\.student)
+        }
     }
 
     private func saveObservation(
@@ -1199,6 +1106,8 @@ private struct LiveCheckInStudentCard: View {
     let student: Student
     let latestObservation: LiveObservation?
     let observedToday: Bool
+    let onCheckIn: () -> Void
+    let onOpenHistory: () -> Void
 
     private var accentColor: Color {
         latestObservation?.supportLevel.color ?? .indigo
@@ -1221,9 +1130,10 @@ private struct LiveCheckInStudentCard: View {
                     Text(student.name)
                         .font(.headline)
                         .foregroundColor(.primary)
-                    Text(observedToday ? "Observed Today".localized : "Ready for Check-In".localized)
+                    Text(statusSubtitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .lineLimit(2)
                 }
 
                 Spacer()
@@ -1278,6 +1188,18 @@ private struct LiveCheckInStudentCard: View {
                         .foregroundColor(accentColor)
                 }
             }
+
+            HStack(spacing: 10) {
+                Button(observedToday ? "Open Check-In".localized : "Start Check-In".localized) {
+                    onCheckIn()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("History".localized) {
+                    onOpenHistory()
+                }
+                .buttonStyle(.bordered)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -1290,81 +1212,382 @@ private struct LiveCheckInStudentCard: View {
             tint: accentColor
         )
     }
+
+    private var statusSubtitle: String {
+        guard let latestObservation else {
+            return "Ready for today’s check-in.".localized
+        }
+        if observedToday {
+            return "Latest check-in saved today.".localized
+        }
+        return String(
+            format: "Last snapshot: %@".localized,
+            latestObservation.sessionDate.appDateString(systemStyle: .short)
+        )
+    }
 }
 
-private struct LiveCheckInSeatCard: View {
-    let student: Student?
+private struct LiveCheckInCheckedInRow: View {
+    let student: Student
     let observation: LiveObservation?
-    let isDimmed: Bool
-    let onTap: () -> Void
+    let onOpenCheckIn: () -> Void
+    let onOpenHistory: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 10) {
-                if let student {
-                    HStack(alignment: .top, spacing: 8) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(student.name)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundColor(.primary)
-                                .lineLimit(2)
-
-                            Text(observation == nil ? "No snapshot yet".localized : "Latest snapshot".localized)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        if let observation {
-                            LiveCheckInLevelBadge(level: observation.supportLevel)
-                        }
-                    }
-
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(student.name)
+                        .font(.headline)
                     if let observation {
-                        HStack(spacing: 6) {
-                            LiveCheckInCompactSignal(level: observation.understandingLevel, letter: "U")
-                            LiveCheckInCompactSignal(level: observation.engagementLevel, letter: "E")
-                            LiveCheckInCompactSignal(level: observation.supportLevel, letter: "S")
-                        }
+                        Text(
+                            String(
+                                format: "Checked in at %@".localized,
+                                observation.createdAt.appTimeString(systemStyle: .short)
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+                }
 
-                        HStack(spacing: 6) {
-                            Image(systemName: "clock")
-                                .foregroundColor(.secondary)
+                Spacer()
+
+                if let observation {
+                    LiveCheckInLevelBadge(level: observation.supportLevel)
+                }
+            }
+
+            if let observation {
+                HStack(spacing: 8) {
+                    LiveCheckInMiniLevelTag(label: "Understanding".localized, level: observation.understandingLevel)
+                    LiveCheckInMiniLevelTag(label: "Engagement".localized, level: observation.engagementLevel)
+                    LiveCheckInMiniLevelTag(label: "Support".localized, level: observation.supportLevel)
+                }
+
+                if !observation.checklistResponses.isEmpty {
+                    Label(
+                        String(format: "%d checklist item(s)".localized, observation.checklistResponses.count),
+                        systemImage: "checklist"
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
+
+                if !observation.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(observation.note)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button("Update".localized) {
+                    onOpenCheckIn()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("History".localized) {
+                    onOpenHistory()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .appCardStyle(
+            cornerRadius: 16,
+            borderColor: (observation?.supportLevel.color ?? .green).opacity(0.18),
+            shadowOpacity: 0.03,
+            shadowRadius: 5,
+            shadowY: 2,
+            tint: observation?.supportLevel.color ?? .green
+        )
+    }
+}
+
+private struct LiveCheckInHistoryView: View {
+    let schoolClass: SchoolClass
+    let daySections: [LiveCheckInHistoryDaySection]
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedProgressStudent: Student?
+    @State private var selectedObservation: LiveObservation?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                historyOverviewCard
+
+                if daySections.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 34))
+                            .foregroundColor(.secondary)
+                        Text("No Live Check-In History Yet".localized)
+                            .font(.headline)
+                        Text("Snapshots will appear here after you save live check-ins on one or more days.".localized)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+                    .appCardStyle(
+                        cornerRadius: 18,
+                        borderColor: Color.secondary.opacity(0.10),
+                        tint: .secondary
+                    )
+                } else {
+                    ForEach(daySections) { section in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(section.sessionDate.appDateString(systemStyle: .full))
+                                .font(.headline)
+                            Text(
+                                String(
+                                    format: "%d snapshot(s)".localized,
+                                    section.observations.count
+                                )
+                            )
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                            ForEach(section.observations, id: \.id) { observation in
+                                LiveCheckInHistoryRow(
+                                    observation: observation,
+                                    onOpenDetail: {
+                                        selectedObservation = observation
+                                    },
+                                    onOpenProgress: observation.student == nil ? nil : {
+                                        selectedProgressStudent = observation.student
+                                    }
+                                )
+                            }
+                        }
+                        .padding(16)
+                        .appCardStyle(
+                            cornerRadius: 18,
+                            borderColor: Color.indigo.opacity(0.10),
+                            tint: .indigo
+                        )
+                    }
+                }
+            }
+            .padding(20)
+        }
+        .navigationTitle("Live Check-In History".localized)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Done".localized) {
+                    dismiss()
+                }
+            }
+        }
+        .sheet(item: $selectedProgressStudent) { student in
+            NavigationStack {
+                StudentProgressView(student: student)
+            }
+        }
+        .sheet(item: $selectedObservation) { observation in
+            NavigationStack {
+                LiveCheckInObservationHistoryDetailView(observation: observation)
+            }
+        }
+        .appSheetMotion()
+    }
+
+    private var historyOverviewCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Class History".localized)
+                .font(AppTypography.sectionTitle)
+            Text(schoolClass.name)
+                .font(.headline)
+            Text("Compare performance day by day and open individual student progress when you need a deeper trend.".localized)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                historyMetric(title: "Days".localized, value: "\(daySections.count)", tint: .indigo)
+                historyMetric(
+                    title: "Snapshots".localized,
+                    value: "\(daySections.reduce(0) { $0 + $1.observations.count })",
+                    tint: .blue
+                )
+            }
+        }
+        .padding(18)
+        .appCardStyle(
+            cornerRadius: 18,
+            borderColor: Color.indigo.opacity(0.12),
+            tint: .indigo
+        )
+    }
+
+    private func historyMetric(title: String, value: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(value)
+                .font(.title2.weight(.bold))
+                .foregroundColor(tint)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(tint.opacity(0.08))
+        )
+    }
+}
+
+private struct LiveCheckInHistoryRow: View {
+    let observation: LiveObservation
+    let onOpenDetail: () -> Void
+    let onOpenProgress: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button(action: onOpenDetail) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(observation.student?.name ?? observation.studentNameSnapshot)
+                                .font(.headline)
+                                .foregroundColor(.primary)
                             Text(observation.createdAt.appTimeString(systemStyle: .short))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                    } else {
-                        Label("Tap to assess".localized, systemImage: "plus.circle.fill")
+                        Spacer()
+                        LiveCheckInLevelBadge(level: observation.supportLevel)
+                    }
+
+                    HStack(spacing: 8) {
+                        LiveCheckInMiniLevelTag(label: "Understanding".localized, level: observation.understandingLevel)
+                        LiveCheckInMiniLevelTag(label: "Engagement".localized, level: observation.engagementLevel)
+                        LiveCheckInMiniLevelTag(label: "Support".localized, level: observation.supportLevel)
+                    }
+
+                    if !observation.checklistResponses.isEmpty {
+                        Text(
+                            observation.checklistResponses
+                                .sorted { $0.sortOrder < $1.sortOrder }
+                                .map { "\($0.criterionTitle): \($0.level.title)" }
+                                .joined(separator: " • ")
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                    }
+
+                    if !observation.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(observation.note)
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .lineLimit(2)
                     }
-                } else {
-                    Spacer()
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Empty".localized)
-                            .font(.caption.weight(.medium))
-                            .foregroundColor(.secondary)
-                        Text("No student assigned".localized)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(AppPressableButtonStyle())
+
+            if let onOpenProgress {
+                Button("Open Student Progress".localized) {
+                    onOpenProgress()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(14)
+        .appCardStyle(
+            cornerRadius: 14,
+            borderColor: observation.supportLevel.color.opacity(0.16),
+            shadowOpacity: 0.02,
+            shadowRadius: 4,
+            shadowY: 1,
+            tint: observation.supportLevel.color
+        )
+    }
+}
+
+private struct LiveCheckInObservationHistoryDetailView: View {
+    let observation: LiveObservation
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(observation.student?.name ?? observation.studentNameSnapshot)
+                        .font(.title2.weight(.bold))
+                    Text(observation.sessionDate.appDateString(systemStyle: .full))
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    Text(observation.createdAt.appTimeString(systemStyle: .short))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 8) {
+                        LiveCheckInMiniLevelTag(label: "Understanding".localized, level: observation.understandingLevel)
+                        LiveCheckInMiniLevelTag(label: "Engagement".localized, level: observation.engagementLevel)
+                        LiveCheckInMiniLevelTag(label: "Support".localized, level: observation.supportLevel)
                     }
-                    Spacer()
+                }
+                .padding(18)
+                .appCardStyle(
+                    cornerRadius: 18,
+                    borderColor: observation.supportLevel.color.opacity(0.16),
+                    tint: observation.supportLevel.color
+                )
+
+                if !observation.checklistResponses.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Checklist".localized)
+                            .font(AppTypography.sectionTitle)
+
+                        ForEach(observation.checklistResponses.sorted { $0.sortOrder < $1.sortOrder }, id: \.id) { response in
+                            HStack {
+                                Text(response.criterionTitle)
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                LiveCheckInLevelBadge(level: response.level)
+                            }
+                            .padding(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(response.level.color.opacity(0.08))
+                            )
+                        }
+                    }
+                    .padding(18)
+                    .appCardStyle(
+                        cornerRadius: 18,
+                        borderColor: Color.indigo.opacity(0.10),
+                        tint: .indigo
+                    )
+                }
+
+                if !observation.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Notes".localized)
+                            .font(AppTypography.sectionTitle)
+                        Text(observation.note)
+                            .font(.subheadline)
+                    }
+                    .padding(18)
+                    .appCardStyle(
+                        cornerRadius: 18,
+                        borderColor: Color.teal.opacity(0.10),
+                        tint: .teal
+                    )
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill((observation?.supportLevel.color ?? Color.gray).opacity(student == nil ? 0.06 : 0.10))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke((observation?.supportLevel.color ?? Color.gray).opacity(0.14), lineWidth: 1)
-            )
-            .opacity(isDimmed ? 0.35 : 1)
+            .padding(20)
         }
-        .buttonStyle(AppPressableButtonStyle())
-        .disabled(student == nil)
+        .navigationTitle("Snapshot Detail".localized)
+        .appSheetMotion()
     }
 }
 
@@ -1859,7 +2082,10 @@ private struct LiveCheckInTemplateManagerView: View {
             }
             .padding(20)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        #if os(macOS)
         .frame(minWidth: 700, minHeight: 420)
+        #endif
         .navigationTitle("Checklist Templates".localized)
         .appSheetMotion()
         .overlay(alignment: .top) {
@@ -2559,30 +2785,6 @@ private struct LiveCheckInMiniLevelTag: View {
     }
 }
 
-private struct LiveCheckInCompactSignal: View {
-    let level: LiveObservationLevel
-    let letter: String
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Text(letter)
-                .font(.caption2.weight(.bold))
-            Circle()
-                .fill(level.color)
-                .frame(width: 7, height: 7)
-            Text(level.title)
-                .font(.caption2.weight(.medium))
-        }
-        .foregroundColor(level.color)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
-        .background(
-            Capsule()
-                .fill(level.color.opacity(0.10))
-        )
-    }
-}
-
 private struct LiveCheckInCriterionDefinition: Identifiable, Equatable {
     enum Origin {
         case template
@@ -2620,11 +2822,18 @@ private struct LiveCheckInChecklistResponsePayload {
     let level: LiveObservationLevel
 }
 
-private struct LiveCheckInSeatCoordinate: Identifiable, Hashable {
-    let row: Int
-    let column: Int
+private struct LiveCheckInTodayEntry: Identifiable {
+    let student: Student
+    let observation: LiveObservation
 
-    var id: String { "\(row)-\(column)" }
+    var id: UUID { student.uuid }
+}
+
+private struct LiveCheckInHistoryDaySection: Identifiable {
+    let sessionDate: Date
+    let observations: [LiveObservation]
+
+    var id: Date { sessionDate }
 }
 
 private struct LiveCheckInSheetMotionModifier: ViewModifier {
